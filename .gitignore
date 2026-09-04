@@ -1,0 +1,28 @@
+*.iml
+.gradle/
+**/build/
+build/
+bin/
+captures/
+.externalNativeBuild/
+.cxx/
+local.properties
+/local.properties
+.idea/
+**/.idea/
+*.class
+
+# Android Studio / IntelliJ
+*.keystore
+*.jks
+*.log
+
+# Build logs & temporary files
+build_error.log
+*.zip
+jdk17/
+jdk17-corretto.zip
+.kotlin/
+**/.kotlin/
+.DS_Store
+Thumbs.db
