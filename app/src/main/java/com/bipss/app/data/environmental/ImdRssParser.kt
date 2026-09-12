@@ -1,7 +1,8 @@
 package com.bipss.app.data.environmental
 
 import android.util.Log
-import com.bipss.app.domain.environmental.*
+import com.bipss.app.domain.environmental.AlertSeverity
+import com.bipss.app.domain.environmental.ImdAlert
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -10,35 +11,44 @@ import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserFactory
 import java.io.StringReader
 
-private const val TAG       = "ImdRssParser"
+private const val TAG = "ImdRssParser"
 private const val IMD_CAP_RSS_URL = "https://cap-sources.s3.amazonaws.com/in-imd-en/rss.xml"
 
+/**
+ * Fallback alert source: the IMD CAP RSS feed.
+ *
+ * This feed is deliberately the fallback, not the primary. Verified on
+ * 8 Sep 2026 it carries ten items whose titles are **all identical**
+ * ("Heavy to very heavy with extremely heavy rainfall"), with the region named
+ * only inside the free-text description and no severity, expiry or centroid
+ * anywhere. Rendering it naively is what produced a wall of indistinguishable
+ * cards. [SachetJsonFetcher] provides all of those fields properly and is used
+ * whenever it returns anything.
+ *
+ * To make this source survivable we derive an identifier from the guid, and
+ * pull the region out of the description so that at least the geo-filter and
+ * de-duplication have something to work with.
+ */
 class ImdRssParser(private val okHttpClient: OkHttpClient) {
 
-    /**
-     * Fetches and parses the IMD CAP Alerts RSS feed.
-     *
-     * TODO: If the full IMD REST API becomes available (requires government API key),
-     *       swap fetchImdAlerts() to call that endpoint instead. The CAP RSS feed
-     *       is the no-auth fallback confirmed live at [IMD_CAP_RSS_URL].
-     */
     suspend fun fetchImdAlerts(): List<ImdAlert> = withContext(Dispatchers.IO) {
         try {
-            val request  = Request.Builder().url(IMD_CAP_RSS_URL).build()
-            val response = okHttpClient.newCall(request).execute()
-            if (!response.isSuccessful) {
-                Log.w(TAG, "RSS fetch failed: HTTP ${response.code}")
-                return@withContext emptyList()
+            val request = Request.Builder().url(IMD_CAP_RSS_URL).build()
+            okHttpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    Log.w(TAG, "RSS fetch failed: HTTP ${response.code}")
+                    return@withContext emptyList()
+                }
+                val xml = response.body?.string() ?: return@withContext emptyList()
+                parseRss(xml)
             }
-            val xml = response.body?.string() ?: return@withContext emptyList()
-            parseRss(xml)
         } catch (e: Exception) {
             Log.e(TAG, "IMD fetch error: ${e.message}")
             emptyList()
         }
     }
 
-    private fun parseRss(xml: String): List<ImdAlert> {
+    internal fun parseRss(xml: String): List<ImdAlert> {
         val alerts = mutableListOf<ImdAlert>()
         try {
             val factory = XmlPullParserFactory.newInstance()
@@ -47,31 +57,48 @@ class ImdRssParser(private val okHttpClient: OkHttpClient) {
             parser.setInput(StringReader(xml))
 
             var eventType = parser.eventType
-            var currentTitle = ""
-            var currentDesc  = ""
-            var currentLink  = ""
-            var currentDate  = ""
+            var title = ""; var desc = ""; var link = ""
+            var date = ""; var guid = ""; var category = ""
             var inItem = false
 
             while (eventType != XmlPullParser.END_DOCUMENT) {
                 when (eventType) {
                     XmlPullParser.START_TAG -> when (parser.name.lowercase()) {
-                        "item" -> inItem = true
-                        "title" -> if (inItem) currentTitle = parser.nextText()
-                        "description" -> if (inItem) currentDesc  = parser.nextText()
-                        "link" -> if (inItem) currentLink  = parser.nextText()
-                        "pubdate" -> if (inItem) currentDate  = parser.nextText()
+                        "item"        -> inItem = true
+                        "title"       -> if (inItem) title    = parser.nextText()
+                        "description" -> if (inItem) desc     = parser.nextText()
+                        "link"        -> if (inItem) link     = parser.nextText()
+                        "pubdate"     -> if (inItem) date     = parser.nextText()
+                        "guid"        -> if (inItem) guid     = parser.nextText()
+                        "category"    -> if (inItem) category = parser.nextText()
                     }
                     XmlPullParser.END_TAG -> if (parser.name.lowercase() == "item" && inItem) {
-                        val severity = detectSeverity(currentTitle)
-                        alerts.add(ImdAlert(
-                            title       = currentTitle,
-                            description = currentDesc,
-                            category    = "Weather",
-                            pubDateMs   = parseDateMs(currentDate),
-                            capXmlUrl   = currentLink
-                        ))
-                        currentTitle = ""; currentDesc = ""; currentLink = ""; currentDate = ""
+                        val areas = extractAreas(desc)
+                        alerts += ImdAlert(
+                            // Titles repeat across every item, so the guid is the
+                            // only usable dedup key; where it is absent we fall
+                            // back to title plus region, which at least separates
+                            // the districts from one another.
+                            identifier      = guid.ifBlank { (title + "|" + areas.joinToString()).hashCode().toString() },
+                            title           = title.trim(),
+                            description     = desc.trim(),
+                            category        = category.ifBlank { "Weather" },
+                            severity        = detectSeverity("$title $desc"),
+                            areas           = areas,
+                            pubDateMs       = parseDateMs(date) ?: System.currentTimeMillis(),
+                            // This feed publishes no expiry. Null means "unknown",
+                            // and the repository keeps such alerts rather than
+                            // treating unknown as expired.
+                            expiresMs       = null,
+                            capXmlUrl       = link.ifBlank { null },
+                            instruction     = null,
+                            centroidLat     = null,
+                            centroidLon     = null,
+                            areaCoveredSqKm = null,
+                            language        = "en",
+                            source          = "IMD"
+                        )
+                        title = ""; desc = ""; link = ""; date = ""; guid = ""; category = ""
                         inItem = false
                     }
                 }
@@ -83,21 +110,49 @@ class ImdRssParser(private val okHttpClient: OkHttpClient) {
         return alerts.sortedByDescending { it.pubDateMs }
     }
 
-    private fun detectSeverity(title: String): AlertSeverity {
-        val t = title.lowercase()
+    /**
+     * Pulls Indian state and territory names out of the free-text description.
+     *
+     * The feed puts the region only in prose ("...very likely over East Madhya
+     * Pradesh"), so without this every item looks nationally applicable and the
+     * geo-filter has nothing to match on.
+     */
+    internal fun extractAreas(description: String): List<String> {
+        if (description.isBlank()) return emptyList()
+        return INDIAN_REGIONS.filter { region ->
+            description.contains(region, ignoreCase = true)
+        }.distinct()
+    }
+
+    private fun detectSeverity(text: String): AlertSeverity {
+        val t = text.lowercase()
         return when {
-            "extreme" in t || "red alert" in t  -> AlertSeverity.EXTREME
-            "warning" in t || "orange alert" in t -> AlertSeverity.WARNING
-            "watch" in t || "yellow alert" in t  -> AlertSeverity.WATCH
-            "advisory" in t || "green alert" in t -> AlertSeverity.ADVISORY
-            else                                  -> AlertSeverity.ADVISORY
+            "red alert" in t || "extremely heavy" in t || "extreme" in t -> AlertSeverity.EXTREME
+            "orange alert" in t || "very heavy" in t || "warning" in t   -> AlertSeverity.WARNING
+            "yellow alert" in t || "heavy" in t || "watch" in t          -> AlertSeverity.WATCH
+            else                                                         -> AlertSeverity.ADVISORY
         }
     }
 
-    private fun parseDateMs(dateStr: String): Long = try {
+    /** Returns null on failure - a wrong timestamp silently reorders the feed. */
+    internal fun parseDateMs(dateStr: String): Long? = try {
         java.text.SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z", java.util.Locale.ENGLISH)
-            .parse(dateStr)?.time ?: System.currentTimeMillis()
+            .parse(dateStr.trim())?.time
     } catch (e: Exception) {
-        System.currentTimeMillis()
+        null
+    }
+
+    private companion object {
+        val INDIAN_REGIONS = listOf(
+            "Andaman", "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar",
+            "Chandigarh", "Chhattisgarh", "Dadra", "Daman", "Delhi", "Goa", "Gujarat",
+            "Haryana", "Himachal Pradesh", "Jammu", "Kashmir", "Jharkhand", "Karnataka",
+            "Kerala", "Ladakh", "Lakshadweep", "Madhya Pradesh", "Maharashtra", "Manipur",
+            "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Puducherry", "Punjab",
+            "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh",
+            "Uttarakhand", "West Bengal", "Gangetic West Bengal", "Sub-Himalayan West Bengal",
+            "Konkan", "Vidarbha", "Marathwada", "Saurashtra", "Kutch", "Rayalaseema",
+            "Coastal Andhra Pradesh", "Kolkata", "Mumbai", "Chennai", "Bengaluru", "Hyderabad"
+        )
     }
 }

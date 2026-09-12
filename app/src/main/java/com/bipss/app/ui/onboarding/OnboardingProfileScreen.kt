@@ -4,6 +4,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Cake
+import androidx.compose.material.icons.rounded.CalendarToday
 import androidx.compose.material.icons.rounded.Height
 import androidx.compose.material.icons.rounded.MonitorWeight
 import androidx.compose.material.icons.rounded.Person
@@ -74,7 +75,7 @@ fun OnboardingProfileScreen(
             value = state.name,
             onValueChange = vm::onNameChange,
             label = "Full name",
-            placeholder = "e.g. Sayan Deb",
+            placeholder = "e.g. John Doe",
             leadingIcon = Icons.Rounded.Person,
             error = state.nameError,
             keyboardType = KeyboardType.Text,
@@ -85,9 +86,9 @@ fun OnboardingProfileScreen(
             value = state.age,
             onValueChange = vm::onAgeChange,
             label = "Age",
-            placeholder = "19",
+            placeholder = "25",
             suffix = "years",
-            leadingIcon = Icons.Rounded.Cake,
+            leadingIcon = Icons.Rounded.CalendarToday,
             error = state.ageError,
             keyboardType = KeyboardType.Number,
         )
@@ -98,7 +99,7 @@ fun OnboardingProfileScreen(
                 value = state.height,
                 onValueChange = vm::onHeightChange,
                 label = "Height",
-                placeholder = "175",
+                placeholder = "170",
                 suffix = "cm",
                 leadingIcon = Icons.Rounded.Height,
                 error = state.heightError,
@@ -109,7 +110,7 @@ fun OnboardingProfileScreen(
                 value = state.weight,
                 onValueChange = vm::onWeightChange,
                 label = "Weight",
-                placeholder = "70",
+                placeholder = "61",
                 suffix = "kg",
                 leadingIcon = Icons.Rounded.MonitorWeight,
                 error = state.weightError,

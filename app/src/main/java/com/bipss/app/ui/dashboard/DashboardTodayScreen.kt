@@ -8,36 +8,35 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.DirectionsWalk
 import androidx.compose.material.icons.rounded.Air
+import androidx.compose.material.icons.rounded.Bloodtype
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.DeviceThermostat
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.LocalHospital
+import androidx.compose.material.icons.rounded.MonitorHeart
 import androidx.compose.material.icons.rounded.WaterDrop
-import androidx.compose.material.icons.rounded.Bloodtype
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import com.bipss.app.data.MetricTypes
 import com.bipss.app.domain.RiskLevel
 import com.bipss.app.domain.RiskScore
-import com.bipss.app.domain.RiskScoreType
 import com.bipss.app.navigation.LocalScaffoldPadding
+import com.bipss.app.navigation.Routes
 import com.bipss.app.sos.*
 import com.bipss.app.ui.components.*
 import com.bipss.app.ui.theme.BipssTheme
-import com.bipss.app.ui.theme.ModeLocalOnly
-import com.bipss.app.ui.theme.ModeMinimal
-import com.bipss.app.ui.theme.ModeOptimal
-import com.bipss.app.ui.theme.ModePhoneOnly
 import com.bipss.app.ui.theme.SOSRed
 import com.bipss.app.ui.theme.Space
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
@@ -60,6 +59,16 @@ fun DashboardTodayScreen(
     val smsPermState = rememberMultiplePermissionsState(listOf(android.Manifest.permission.SEND_SMS))
     val locPermState = rememberPermissionState(android.Manifest.permission.ACCESS_FINE_LOCATION)
 
+    // The first sync fires at launch, which on a fresh install is before the
+    // location grant has landed - leaving weather and air quality unresolved
+    // and the alert list unfiltered. Re-sync as soon as location becomes
+    // available rather than waiting three hours for the periodic worker.
+    androidx.compose.runtime.LaunchedEffect(locPermState.status.isGranted) {
+        if (locPermState.status.isGranted && state.env.latitude == null) {
+            vm.refreshEnvironment()
+        }
+    }
+
     when (val s = sosState) {
         is SosUiState.Countdown -> SosCountdownOverlay(state = s, onCancel = { sosVm.cancelSos() })
         is SosUiState.FetchingLocation, is SosUiState.SendingSms -> SosSendingSpinner()
@@ -68,12 +77,51 @@ fun DashboardTodayScreen(
         else -> Unit
     }
 
-    val hasLiveBand = state.heartRate > 0
-    val mode = when {
-        hasLiveBand && state.isOnline  -> "Live" to ModeOptimal
-        hasLiveBand && !state.isOnline -> "Offline · band only" to ModeLocalOnly
-        !hasLiveBand && state.isOnline -> "No band" to ModePhoneOnly
-        else                           -> "Offline · cached" to ModeMinimal
+    if (!locPermState.status.isGranted && !state.locationPermissionSkipped) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .padding(LocalScaffoldPadding.current)
+                .padding(Space.xl),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(
+                    imageVector = Icons.Rounded.LocalHospital,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(64.dp)
+                )
+                Spacer(Modifier.height(Space.xl))
+                Text(
+                    "Location Permission",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = colors.textPrimary
+                )
+                Spacer(Modifier.height(Space.m))
+                Text(
+                    "We need your location to find nearby hospitals for SOS and get accurate weather/AQI for the risk engine.",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = colors.textSecondary,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+                Spacer(Modifier.height(Space.xxl))
+                androidx.compose.material3.Button(
+                    onClick = { locPermState.launchPermissionRequest() },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Grant Permission")
+                }
+                Spacer(Modifier.height(Space.m))
+                androidx.compose.material3.TextButton(
+                    onClick = { vm.skipLocationPermission() }
+                ) {
+                    Text("Continue without location", color = colors.textTertiary)
+                }
+            }
+        }
+        return
     }
 
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
@@ -86,7 +134,7 @@ fun DashboardTodayScreen(
         ) {
             Spacer(Modifier.height(Space.l))
 
-            // ── Header ─────────────────────────────────────────────────────
+            // -- Header ------------------------------------------------------
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(
@@ -95,129 +143,173 @@ fun DashboardTodayScreen(
                         color = colors.textPrimary
                     )
                     Text(
-                        state.env.dataAgeLabel.let { "Environment synced $it".lowercase().replaceFirstChar { c -> c.uppercase() } },
+                        if (state.env.fetchedAtMs == 0L) "Environment not synced yet"
+                        else "Environment synced ${state.env.dataAgeLabel.lowercase()}",
                         style = MaterialTheme.typography.bodySmall,
                         color = colors.textTertiary
                     )
                 }
-                ModeChip(mode.first, mode.second)
+                DataModeChip(state.dataMode)
             }
 
             Spacer(Modifier.height(Space.xl))
 
-            // ── Leading risk ──────────────────────────────────────────────
-            val leading = state.riskScores.maxByOrNull { it.score }
-            if (leading != null) {
-                RiskHeroCard(
-                    domain = leading.type.displayName,
-                    score = leading.score,
-                    bandLabel = leading.level.label(),
-                    color = leading.level.color(),
-                    factors = leading.factors.map { it.label to it.isElevated },
-                )
+            // -- Hero score --------------------------------------------------
+            val hero = state.heroScore
+            if (hero != null) {
+                HeroScoreCard(hero)
             } else {
                 BipssCard {
                     Text(
-                        "Collecting your first readings…",
+                        "Collecting your first readings",
                         style = MaterialTheme.typography.titleMedium,
                         color = colors.textPrimary
                     )
                     Spacer(Modifier.height(Space.xs))
                     Text(
-                        "Risk scores appear once the band streams data or Health Connect has history to read.",
+                        "Scores appear once the band streams data or the environment sync completes.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = colors.textSecondary
                     )
                 }
             }
 
-            Spacer(Modifier.height(Space.xxl))
+            // Only shown while the baseline is still widening.
+            Spacer(Modifier.height(Space.m))
+            BaselineProgressChip(state.baselineDays)
 
-            // ── Vitals 2×2 ────────────────────────────────────────────────
+            // -- Hydration ---------------------------------------------------
+            Spacer(Modifier.height(Space.l))
+            WaterLogCard(
+                lastLogMs = state.lastWaterLogMs,
+                totalMlToday = state.waterLogTotalMlToday,
+                onLogWater = { amount -> vm.logWaterIntake(amount) }
+            )
+
+            // -- Vitals ------------------------------------------------------
+            Spacer(Modifier.height(Space.xxl))
             SectionHeader("Vitals")
             Spacer(Modifier.height(Space.m))
             Row(horizontalArrangement = Arrangement.spacedBy(Space.m)) {
                 MetricTile(
                     label = "Heart rate",
-                    value = state.heartRate.orDash(),
+                    value = state.heartRate?.toString() ?: "—",
                     unit = "bpm",
                     icon = Icons.Rounded.Favorite,
                     tint = colors.heart,
                     history = state.heartRateHistory,
-                    modifier = Modifier.weight(1f)
+                    caption = if (state.heartRate != null) "Tap for history" else "Waiting for readings",
+                    modifier = Modifier.weight(1f),
+                    onClick = { navController.navigate(Routes.metricDetail(MetricTypes.HR)) }
                 )
                 MetricTile(
                     label = "Blood oxygen",
-                    value = state.spO2.orDash(),
+                    value = state.spO2?.toString() ?: "—",
                     unit = "%",
                     icon = Icons.Rounded.Bloodtype,
                     tint = colors.spo2,
                     history = state.spO2History,
-                    modifier = Modifier.weight(1f)
+                    caption = if (state.spO2 != null) "Tap for history" else "Waiting for readings",
+                    modifier = Modifier.weight(1f),
+                    onClick = { navController.navigate(Routes.metricDetail(MetricTypes.SPO2)) }
                 )
             }
             Spacer(Modifier.height(Space.m))
             Row(horizontalArrangement = Arrangement.spacedBy(Space.m)) {
                 MetricTile(
                     label = "Skin temp",
-                    value = if (state.skinTempC > 0f) "%.1f".format(state.skinTempC) else "—",
+                    value = state.skinTempC?.let { "%.1f".format(it) } ?: "—",
                     unit = "°C",
                     icon = Icons.Rounded.DeviceThermostat,
                     tint = colors.temp,
                     history = state.skinTempHistory,
-                    modifier = Modifier.weight(1f)
+                    caption = if (state.skinTempC != null) "Tap for history" else "Waiting for readings",
+                    modifier = Modifier.weight(1f),
+                    onClick = { navController.navigate(Routes.metricDetail(MetricTypes.SKIN_TEMP)) }
                 )
                 MetricTile(
-                    label = "Steps",
-                    value = if (state.stepCount > 0) "${state.stepCount}" else "—",
-                    unit = "",
-                    icon = Icons.AutoMirrored.Rounded.DirectionsWalk,
+                    label = "Heart rate variability",
+                    value = state.hrvRmssd?.toString() ?: "—",
+                    unit = "ms",
+                    icon = Icons.Rounded.MonitorHeart,
                     tint = colors.activity,
                     history = emptyList(),
-                    modifier = Modifier.weight(1f)
+                    caption = if (state.hrvRmssd != null) "Tap for history" else "Waiting for readings",
+                    modifier = Modifier.weight(1f),
+                    onClick = { navController.navigate(Routes.metricDetail(MetricTypes.HRV)) }
                 )
             }
 
-            // ── Remaining risk domains ────────────────────────────────────
-            val others = state.riskScores.filter { it != leading }
-            if (others.isNotEmpty()) {
+            // -- Wellness pillars --------------------------------------------
+            val pillars = state.wellnessPillars
+            if (pillars.isNotEmpty()) {
                 Spacer(Modifier.height(Space.xxl))
-                SectionHeader("Other risk domains")
+                SectionHeader("Your day")
                 Spacer(Modifier.height(Space.m))
-                others.forEach { risk ->
-                    RiskRow(
-                        domain = risk.type.displayName,
-                        score = risk.score,
-                        bandLabel = risk.level.label(),
-                        color = risk.level.color(),
+                pillars.forEach { pillar ->
+                    ScoreRow(
+                        score = pillar,
+                        onClick = when (pillar.type) {
+                            com.bipss.app.domain.RiskScoreType.SLEEP -> { { navController.navigate(Routes.SLEEP_DETAIL) } }
+                            com.bipss.app.domain.RiskScoreType.RECOVERY -> { { navController.navigate(Routes.RECOVERY_DETAIL) } }
+                            com.bipss.app.domain.RiskScoreType.STRAIN -> { { navController.navigate(Routes.STRAIN_DETAIL) } }
+                            else -> null
+                        }
                     )
                     Spacer(Modifier.height(Space.m))
                 }
             }
 
-            // ── Environment ───────────────────────────────────────────────
+            // -- Hazard domains ----------------------------------------------
+            val hazards = state.hazardDomains.filter { it != hero }
+            if (hazards.isNotEmpty()) {
+                Spacer(Modifier.height(Space.l))
+                SectionHeader("Risk domains")
+                Spacer(Modifier.height(Space.m))
+                hazards.forEach { risk ->
+                    ScoreRow(risk)
+                    Spacer(Modifier.height(Space.m))
+                }
+            }
+
+            // -- Environment ---------------------------------------------------
             Spacer(Modifier.height(Space.l))
             SectionHeader("Environment")
             Spacer(Modifier.height(Space.m))
             BipssCard {
                 Row {
                     EnvStat(
-                        "Temperature", "${state.env.ambientTempC.toInt()}°C",
+                        "Temperature",
+                        state.env.ambientTempC?.let { "${it.toInt()}°C" } ?: "—",
                         Icons.Rounded.DeviceThermostat, colors.temp, Modifier.weight(1f)
                     )
                     EnvStat(
-                        "Humidity", "${state.env.humidityPercent.toInt()}%",
+                        "Humidity",
+                        state.env.humidityPercent?.let { "${it.toInt()}%" } ?: "—",
                         Icons.Rounded.WaterDrop, colors.spo2, Modifier.weight(1f)
                     )
                     EnvStat(
-                        "AQI", "${state.env.aqiValue}",
+                        "AQI",
+                        state.env.aqiValue?.toString() ?: "—",
                         Icons.Rounded.Air, colors.air, Modifier.weight(1f)
                     )
                 }
-                if (state.env.isCachedData || state.env.isStale) {
+                if (state.env.fetchedAtMs == 0L) {
                     Spacer(Modifier.height(Space.m))
                     InfoBanner(
-                        text = "Showing cached conditions from ${state.env.dataAgeLabel.lowercase()} — reconnect for a live reading.",
+                        text = "No environment data yet. Values appear after the first sync.",
+                        icon = Icons.Rounded.CloudOff,
+                        tint = colors.textTertiary
+                    )
+                } else if (state.env.isStale) {
+                    // Only warn when the reading is actually old. A snapshot
+                    // read back from cache seconds after it was fetched is
+                    // still current, and telling the user to reconnect for a
+                    // live reading they already have reads as a fault.
+                    Spacer(Modifier.height(Space.m))
+                    InfoBanner(
+                        text = "Conditions from ${state.env.dataAgeLabel.lowercase()}. " +
+                            "Reconnect for a live reading.",
                         icon = Icons.Rounded.CloudOff,
                         tint = colors.bandMonitor
                     )
@@ -227,7 +319,6 @@ fun DashboardTodayScreen(
             Spacer(Modifier.height(120.dp))
         }
 
-        // ── SOS ───────────────────────────────────────────────────────────
         FloatingActionButton(
             onClick = {
                 if (!smsPermState.allPermissionsGranted) smsPermState.launchMultiplePermissionRequest()
@@ -249,6 +340,153 @@ fun DashboardTodayScreen(
     }
 }
 
+/**
+ * The headline card.
+ *
+ * Uses [ScoreRing], which renders an em dash rather than a number whenever the
+ * score could not actually be computed - so this card can never present an
+ * invented figure as a measurement.
+ */
+@Composable
+private fun HeroScoreCard(score: RiskScore) {
+    val colors = BipssTheme.colors
+    val color = score.level.bandColor()
+
+    BipssCard(accent = color, contentPadding = PaddingValues(Space.xl)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            ScoreRing(score = score, color = color)
+            Spacer(Modifier.width(Space.xl))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    score.type.displayName,
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = colors.textPrimary
+                )
+                if (score.type.question.isNotBlank()) {
+                    Text(
+                        score.type.question,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.textTertiary
+                    )
+                }
+                Spacer(Modifier.height(Space.s))
+                if (score.hasNumber) StatusPill(score.level.bandLabel(), color)
+                ScoreReasonLine(score)
+            }
+        }
+
+        AvailabilityChip(score.availability, Modifier.padding(top = Space.m))
+        ConfidenceBar(score.confidence, Modifier.padding(top = Space.s))
+
+        if (score.factors.isNotEmpty()) {
+            Spacer(Modifier.height(Space.l))
+            HairlineDivider()
+            Spacer(Modifier.height(Space.m))
+            Text(
+                "WHAT'S DRIVING IT",
+                style = com.bipss.app.ui.theme.SectionLabelStyle,
+                color = colors.textTertiary
+            )
+            Spacer(Modifier.height(Space.s))
+            FlowPills(score.factors.map { it.label to it.isElevated })
+        }
+    }
+}
+
+/** Compact row for a non-hero domain. Renders an em dash when uncomputable. */
+@Composable
+private fun ScoreRow(score: RiskScore, onClick: (() -> Unit)? = null) {
+    val colors = BipssTheme.colors
+    val color = if (score.hasNumber) score.level.bandColor() else colors.textTertiary
+
+    BipssCard(onClick = onClick, contentPadding = PaddingValues(Space.l)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            ScoreRing(score = score, size = 46.dp, strokeWidth = 5.dp, color = color)
+            Spacer(Modifier.width(Space.l))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    score.type.displayName,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = colors.textPrimary
+                )
+                if (score.hasNumber) {
+                    Text(
+                        score.level.bandLabel(),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = color
+                    )
+                    // A partial score in a compact row previously showed a bare
+                    // band label, so "Normal" computed from environment alone
+                    // was indistinguishable from one that had seen the wearer.
+                    ScoreReasonLine(score)
+                } else {
+                    ScoreReasonLine(score)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Hydration logging.
+ *
+ * Until this existed nothing in the UI called logWaterIntake, so the hydration
+ * input could never change - it sat at its default forever and showed up as a
+ * permanent "Hydration Low" driver on every Heat Stress score.
+ */
+@Composable
+private fun WaterLogCard(
+    lastLogMs: Long?,
+    totalMlToday: Int,
+    onLogWater: (Int) -> Unit
+) {
+    val colors = BipssTheme.colors
+    val label = remember(lastLogMs) {
+        if (lastLogMs == null) "Not logged yet"
+        else {
+            val mins = (System.currentTimeMillis() - lastLogMs) / 60_000
+            when {
+                mins < 1L  -> "Just now"
+                mins < 60L -> "$mins min ago"
+                else       -> "${mins / 60}h ${mins % 60}m ago"
+            }
+        }
+    }
+
+    BipssCard {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            IconBadge(Icons.Rounded.WaterDrop, colors.spo2)
+            Spacer(Modifier.width(Space.m))
+            Column(Modifier.weight(1f)) {
+                Text("Hydration", style = MaterialTheme.typography.titleSmall, color = colors.textPrimary)
+                Text(
+                    if (totalMlToday > 0) "Last water: $label  ·  ${totalMlToday}mL today" else "Last water: $label",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.textSecondary
+                )
+            }
+        }
+        Spacer(Modifier.height(Space.m))
+        Row(horizontalArrangement = Arrangement.spacedBy(Space.s), modifier = Modifier.fillMaxWidth()) {
+            FilledTonalButton(onClick = { onLogWater(250) }, modifier = Modifier.weight(1f)) {
+                Text("+ 250mL")
+            }
+            FilledTonalButton(onClick = { onLogWater(500) }, modifier = Modifier.weight(1f)) {
+                Text("+ 500mL")
+            }
+        }
+        if (lastLogMs == null) {
+            Spacer(Modifier.height(Space.s))
+            Text(
+                "Hydration is left out of your Heat Stress score until you log a drink - " +
+                    "not having logged one isn't evidence of dehydration.",
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.textTertiary
+            )
+        }
+    }
+}
+
 @Composable
 private fun EnvStat(
     label: String,
@@ -266,10 +504,8 @@ private fun EnvStat(
     }
 }
 
-private fun Int.orDash(): String = if (this > 0) "$this" else "—"
-
 @Composable
-private fun RiskLevel.color(): Color {
+internal fun RiskLevel.bandColor(): Color {
     val colors = BipssTheme.colors
     return when (this) {
         RiskLevel.LOW    -> colors.bandNormal
@@ -278,7 +514,7 @@ private fun RiskLevel.color(): Color {
     }
 }
 
-private fun RiskLevel.label(): String = when (this) {
+internal fun RiskLevel.bandLabel(): String = when (this) {
     RiskLevel.LOW    -> "Normal"
     RiskLevel.MEDIUM -> "Monitor"
     RiskLevel.HIGH   -> "At risk"

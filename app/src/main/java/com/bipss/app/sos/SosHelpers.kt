@@ -2,10 +2,14 @@ package com.bipss.app.sos
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.location.Geocoder
 import android.location.Location
 import android.Manifest
 import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
+import java.util.Locale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.google.android.gms.location.CurrentLocationRequest
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
@@ -48,6 +52,43 @@ class LocationHelper(private val context: Context) {
             null
         } catch (e: Exception) {
             null
+        }
+    }
+
+    /**
+     * Reverse-geocodes the current position into an Indian district and state.
+     *
+     * Both are needed to filter the national alert feed down to what actually
+     * concerns the user - without this a Kolkata wearer sees Madhya Pradesh
+     * warnings. Returns nulls rather than a guess when the geocoder is
+     * unavailable (it needs network on most devices); the caller then falls
+     * back to coordinate distance against the alert centroid, which works
+     * offline.
+     */
+    suspend fun getDistrictAndState(): Pair<String?, String?> = withContext(Dispatchers.IO) {
+        val loc = getCurrentLocation() ?: return@withContext null to null
+        resolveDistrictAndState(loc.first, loc.second)
+    }
+
+    suspend fun resolveDistrictAndState(
+        lat: Double,
+        lon: Double
+    ): Pair<String?, String?> = withContext(Dispatchers.IO) {
+        try {
+            val geocoder = Geocoder(context, Locale("en", "IN"))
+            @Suppress("DEPRECATION")
+            val address = geocoder.getFromLocation(lat, lon, 1)?.firstOrNull()
+                ?: return@withContext null to null
+            // subAdminArea is the district in Indian addresses; locality is the
+            // city, which is the usable fallback for metros where the district
+            // and city names coincide.
+            val district = address.subAdminArea?.takeIf { it.isNotBlank() }
+                ?: address.locality?.takeIf { it.isNotBlank() }
+            val state = address.adminArea?.takeIf { it.isNotBlank() }
+            district to state
+        } catch (e: Exception) {
+            android.util.Log.w("LocationHelper", "Reverse geocode failed: ${e.message}")
+            null to null
         }
     }
 }

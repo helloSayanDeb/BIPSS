@@ -6,6 +6,7 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.bipss.app.ble.BleConnectionState
+import com.bipss.app.ble.BleForegroundService
 import com.bipss.app.ble.BleGattManager
 import com.bipss.app.data.UserPreferencesRepository
 import kotlinx.coroutines.flow.SharingStarted
@@ -36,6 +37,10 @@ class BleScanViewModel(
     }
 
     fun connectToDevice(address: String) {
+        // The service has to be running before the link is established, so the
+        // connection survives the app going to the background - which is what
+        // happens every night during sleep tracking.
+        BleForegroundService.start(context)
         bleGattManager.connectToDevice(address)
     }
 

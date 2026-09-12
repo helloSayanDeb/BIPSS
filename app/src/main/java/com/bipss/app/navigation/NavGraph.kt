@@ -78,6 +78,31 @@ fun NavGraph(
                 DashboardProfileScreen(navController = navController)
             }
 
+            composable(Routes.SLEEP_DETAIL) {
+                com.bipss.app.ui.sleep.SleepDetailScreen(navController = navController)
+            }
+
+            composable(Routes.RECOVERY_DETAIL) {
+                com.bipss.app.ui.recovery.RecoveryDetailScreen(navController = navController)
+            }
+
+            composable(Routes.STRAIN_DETAIL) {
+                com.bipss.app.ui.strain.StrainDetailScreen(navController = navController)
+            }
+
+            // ── Metric history ────────────────────────────────────────────────────
+
+            composable(
+                route     = Routes.METRIC_DETAIL_PATTERN,
+                arguments = listOf(navArgument("metricType") { type = NavType.StringType })
+            ) { backStackEntry ->
+                com.bipss.app.ui.metric.MetricDetailScreen(
+                    metricType    = backStackEntry.arguments?.getString("metricType")
+                        ?: com.bipss.app.data.MetricTypes.HR,
+                    navController = navController
+                )
+            }
+
             // ── Settings ──────────────────────────────────────────────────────────
 
             composable(Routes.SETTINGS) {

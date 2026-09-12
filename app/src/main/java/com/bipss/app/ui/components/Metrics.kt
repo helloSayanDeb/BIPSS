@@ -128,9 +128,10 @@ fun MetricTile(
     history: List<Float>,
     modifier: Modifier = Modifier,
     caption: String? = null,
+    onClick: (() -> Unit)? = null,
 ) {
     val colors = BipssTheme.colors
-    BipssCard(modifier = modifier, contentPadding = PaddingValues(Space.l)) {
+    BipssCard(modifier = modifier, onClick = onClick, contentPadding = PaddingValues(Space.l)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconBadge(icon, tint, size = 30.dp)
             Spacer(Modifier.width(Space.s))

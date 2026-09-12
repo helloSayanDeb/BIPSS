@@ -27,6 +27,12 @@ import com.bipss.app.navigation.bottomNavItems
 import com.bipss.app.navigation.dashboardRoutes
 import com.bipss.app.ui.theme.BipssTheme
 
+import androidx.compose.runtime.collectAsState
+import com.bipss.app.data.UserPreferencesRepository
+import com.bipss.app.demo.DemoBanner
+import org.koin.androidx.compose.koinViewModel
+import org.koin.compose.koinInject
+
 @Composable
 fun AppShell(
     navController: NavHostController = rememberNavController(),
@@ -34,6 +40,9 @@ fun AppShell(
 ) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute      = navBackStackEntry?.destination?.route
+    
+    val prefsRepo: UserPreferencesRepository = koinInject()
+    val demoModeEnabled by prefsRepo.demoModeEnabled.collectAsState(initial = false)
 
     val isDashboard = dashboardRoutes.any {
         currentRoute?.startsWith(it) == true || currentRoute == it
@@ -66,6 +75,10 @@ fun AppShell(
                 startDestination = startDestination,
                 innerPadding     = innerPadding
             )
+        }
+        
+        if (demoModeEnabled) {
+            DemoBanner(Modifier.align(Alignment.TopCenter))
         }
     }
 }

@@ -13,7 +13,11 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.Bedtime
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Rule
+import androidx.compose.material.icons.rounded.WarningAmber
+import androidx.compose.material.icons.rounded.WbSunny
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,8 +28,12 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import com.bipss.app.ai.CoachCard
+import com.bipss.app.ai.CoachCardKind
 import com.bipss.app.domain.ChatMessage
 import com.bipss.app.domain.Sender
+import com.bipss.app.ui.components.BipssCard
+import com.bipss.app.ui.components.IconBadge
 import com.bipss.app.navigation.LocalScaffoldPadding
 import com.bipss.app.ui.components.HairlineDivider
 import com.bipss.app.ui.components.StatusPill
@@ -42,6 +50,10 @@ fun DashboardChatScreen(
     val listState = rememberLazyListState()
     val padding = LocalScaffoldPadding.current
     val colors = BipssTheme.colors
+
+    // The briefing reflects stored state, which changes while the user is on
+    // other tabs, so rebuild it whenever this one comes forward.
+    LaunchedEffect(Unit) { vm.refresh() }
 
     LaunchedEffect(state.messages.size) {
         if (state.messages.isNotEmpty()) listState.animateScrollToItem(state.messages.size - 1)
@@ -82,6 +94,20 @@ fun DashboardChatScreen(
             contentPadding = PaddingValues(horizontal = Space.gutter, vertical = Space.l),
             verticalArrangement = Arrangement.spacedBy(Space.m)
         ) {
+            // The briefing sits above the conversation: it is what the user
+            // wants on opening the tab, and it reads without asking anything.
+            if (state.morningDose.isNotEmpty()) {
+                item {
+                    Text(
+                        "YOUR BRIEFING",
+                        style = com.bipss.app.ui.theme.SectionLabelStyle,
+                        color = colors.textTertiary
+                    )
+                }
+                items(state.morningDose, key = { it.title }) { card -> CoachCardView(card) }
+                item { HairlineDivider() }
+            }
+
             items(state.messages, key = { it.id }) { msg -> ChatBubble(msg) }
             if (state.isAiTyping) {
                 item {
@@ -194,5 +220,42 @@ private fun ChatBubble(message: ChatMessage) {
                 color = if (isUser) MaterialTheme.colorScheme.onPrimary else colors.textPrimary
             )
         }
+    }
+}
+
+/**
+ * One morning-briefing card.
+ *
+ * Assembled by the rule engine rather than generated, so a card only exists
+ * when there was something real to say - a night with no sleep data produces
+ * no sleep card rather than a card explaining its own absence.
+ */
+@Composable
+private fun CoachCardView(card: CoachCard) {
+    val colors = BipssTheme.colors
+    val (icon, tint) = when (card.kind) {
+        CoachCardKind.SLEEP      -> Icons.Rounded.Bedtime to colors.sleep
+        CoachCardKind.CONDITIONS -> Icons.Rounded.WbSunny to colors.temp
+        CoachCardKind.WATCH_OUT  -> Icons.Rounded.WarningAmber to colors.bandMonitor
+        CoachCardKind.ADVISORY   -> Icons.Rounded.WarningAmber to colors.bandRisk
+        CoachCardKind.ACTION     -> Icons.Rounded.CheckCircle to colors.bandNormal
+    }
+
+    BipssCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconBadge(icon, tint, size = 32.dp)
+            Spacer(Modifier.width(Space.m))
+            Text(
+                card.title,
+                style = MaterialTheme.typography.titleSmall,
+                color = colors.textPrimary
+            )
+        }
+        Spacer(Modifier.height(Space.s))
+        Text(
+            card.body,
+            style = MaterialTheme.typography.bodyMedium,
+            color = colors.textSecondary
+        )
     }
 }

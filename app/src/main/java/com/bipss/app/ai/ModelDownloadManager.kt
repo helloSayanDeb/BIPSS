@@ -96,31 +96,52 @@ class ModelDownloadManager(
         // Download with progress
         withContext(Dispatchers.IO) {
             try {
-                val request  = Request.Builder().url(manifest.downloadUrl).build()
+                // Phase 11: AI backend config - Resumable downloads
+                val existingLength = if (targetFile.exists()) targetFile.length() else 0L
+                val requestBuilder = Request.Builder().url(manifest.downloadUrl)
+
+                if (existingLength > 0 && existingLength < manifest.sizeBytes) {
+                    requestBuilder.addHeader("Range", "bytes=$existingLength-")
+                } else if (existingLength == manifest.sizeBytes) {
+                    // Already downloaded the exact size, skip to verification
+                    return@withContext
+                } else if (existingLength > manifest.sizeBytes) {
+                    // Corrupted/oversized, start fresh
+                    targetFile.delete()
+                }
+
+                val request = requestBuilder.build()
                 val response = okHttpClient.newCall(request).execute()
-                if (!response.isSuccessful) {
+
+                // 206 Partial Content is expected for range requests, 200 for full.
+                if (!response.isSuccessful || (response.code != 200 && response.code != 206)) {
                     emit(DownloadProgress.Failure("Download failed: HTTP ${response.code}"))
                     return@withContext
                 }
 
-                val body       = response.body ?: run {
+                val body = response.body ?: run {
                     emit(DownloadProgress.Failure("Empty response"))
                     return@withContext
                 }
+
                 val totalBytes = manifest.sizeBytes
+                val appendMode = response.code == 206
+                var downloaded = if (appendMode) existingLength else 0L
 
                 body.byteStream().use { input ->
-                    FileOutputStream(targetFile).use { output ->
-                        val buffer     = ByteArray(8192)
-                        var downloaded = 0L
+                    // FileOutputStream(targetFile, true) enables append mode
+                    FileOutputStream(targetFile, appendMode).use { output ->
+                        val buffer = ByteArray(8192)
                         var bytesRead: Int
 
                         while (input.read(buffer).also { bytesRead = it } != -1) {
                             output.write(buffer, 0, bytesRead)
                             downloaded += bytesRead
                             val fraction = if (totalBytes > 0) downloaded.toFloat() / totalBytes else 0f
-                            val elapsed  = (System.currentTimeMillis() - startTime) / 1000f
-                            val speed    = if (elapsed > 0) downloaded / elapsed else 1f
+                            val elapsed = (System.currentTimeMillis() - startTime) / 1000f
+                            // Only calculate speed based on bytes downloaded *this session*
+                            val sessionDownloaded = downloaded - (if (appendMode) existingLength else 0L)
+                            val speed = if (elapsed > 0) sessionDownloaded / elapsed else 1f
                             val remaining = ((totalBytes - downloaded) / speed).toInt()
                             emit(DownloadProgress.Downloading(fraction, downloaded, totalBytes, remaining))
                         }
@@ -141,8 +162,13 @@ class ModelDownloadManager(
             return@flow
         }
 
-        // Persist install metadata
-        prefsRepo.saveInstalledModel(version = manifest.version, filePath = targetFile.absolutePath)
+        // Persist install metadata — sizeBytes comes from the manifest that
+        // was actually fetched, never a hardcoded constant.
+        prefsRepo.saveInstalledModel(
+            version = manifest.version,
+            filePath = targetFile.absolutePath,
+            sizeBytes = manifest.sizeBytes
+        )
         emit(DownloadProgress.Success)
     }
 

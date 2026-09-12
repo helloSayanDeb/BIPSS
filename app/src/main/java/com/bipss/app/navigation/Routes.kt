@@ -15,4 +15,18 @@ object Routes {
     // Parameterized routes — reuse onboarding composables in edit/re-pair mode
     const val ONBOARDING_PROFILE_EDIT      = "onboarding_profile?editMode=true"
     const val ONBOARDING_CONNECT_BAND_REPAIR = "onboarding_connect_band?rePairMode=true"
+
+    /** Sleep and the overnight breathing screening. */
+    const val SLEEP_DETAIL = "sleep_detail"
+    
+    /** Recovery detail. */
+    const val RECOVERY_DETAIL = "recovery_detail"
+    
+    /** Strain detail. */
+    const val STRAIN_DETAIL = "strain_detail"
+
+    /** Metric history. The argument is a MetricTypes key, e.g. "HR". */
+    const val METRIC_DETAIL_PATTERN = "metric_detail/{metricType}"
+
+    fun metricDetail(metricType: String) = "metric_detail/$metricType"
 }

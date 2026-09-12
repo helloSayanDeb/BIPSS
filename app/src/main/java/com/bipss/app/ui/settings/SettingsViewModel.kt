@@ -14,6 +14,7 @@ import com.bipss.app.data.backup.DriveBackupManager
 import com.bipss.app.data.db.AppDatabase
 import com.bipss.app.data.db.dao.EmergencyContactDao
 import com.bipss.app.data.db.entity.EmergencyContactEntity
+import com.bipss.app.demo.DemoReplayEngine
 import com.bipss.app.ui.theme.ThemePreference
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -30,7 +31,8 @@ data class SettingsUiState(
 
     val modelVersion:    String? = null,
     val modelFilePath:   String? = null,
-    val modelSizeMb:     Int     = 250,
+    /** From the manifest actually fetched at install time — null until known. */
+    val modelSizeMb:     Int?    = null,
     val isCheckingUpdate: Boolean = false,
     val updateAvailable: Boolean = false,
     val downloadPhase:   DownloadProgress = DownloadProgress.Idle,
@@ -45,8 +47,13 @@ data class SettingsUiState(
 
     val themePreference: ThemePreference = ThemePreference.SYSTEM,
 
+    val dataSharingEnabled: Boolean = false,
+    val sharingUsername:    String? = null,
+
     val showDeleteLocalDataDialog: Boolean = false,
-    val showForgetDeviceDialog:    Boolean = false
+    val showForgetDeviceDialog:    Boolean = false,
+
+    val demoModeEnabled: Boolean = false
 )
 
 class SettingsViewModel(
@@ -56,7 +63,8 @@ class SettingsViewModel(
     private val emergencyContactDao:  EmergencyContactDao,
     private val chatbotEngine:        ChatbotEngine,
     private val db:                   AppDatabase,
-    val driveBackupManager:           DriveBackupManager
+    val driveBackupManager:           DriveBackupManager,
+    private val demoEngine:           DemoReplayEngine
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -130,6 +138,45 @@ class SettingsViewModel(
                 _uiState.update { it.copy(emergencyContacts = contacts) }
             }
         }
+
+        viewModelScope.launch {
+            prefsRepo.installedModelSizeBytes.collect { bytes ->
+                _uiState.update { it.copy(modelSizeMb = bytes?.let { b -> (b / 1_048_576L).toInt() }) }
+            }
+        }
+
+        viewModelScope.launch {
+            combine(
+                prefsRepo.dataSharingEnabled,
+                prefsRepo.sharingUsername
+            ) { enabled, username ->
+                Pair(enabled, username)
+            }.collect { (enabled, username) ->
+                _uiState.update {
+                    it.copy(dataSharingEnabled = enabled, sharingUsername = username)
+                }
+            }
+        }
+
+        viewModelScope.launch {
+            prefsRepo.demoModeEnabled.collect { enabled ->
+                _uiState.update { it.copy(demoModeEnabled = enabled) }
+            }
+        }
+    }
+
+    // ── Demo mode ────────────────────────────────────────────────────────────
+    fun onDemoModeToggle(enabled: Boolean) {
+        viewModelScope.launch {
+            prefsRepo.setDemoModeEnabled(enabled)
+            if (enabled) {
+                // Disconnect real BLE so both don't feed data simultaneously.
+                bleGattManager.disconnect()
+                demoEngine.start()
+            } else {
+                demoEngine.stop()
+            }
+        }
     }
 
     // ── Device ────────────────────────────────────────────────────────────────
@@ -185,6 +232,13 @@ class SettingsViewModel(
         viewModelScope.launch { prefsRepo.setCloudBackupEnabled(enabled) }
     }
 
+    fun onDataSharingToggle(enabled: Boolean) {
+        viewModelScope.launch {
+            prefsRepo.setDataSharingEnabled(enabled)
+            if (enabled) prefsRepo.getOrCreateSharingUsername()
+        }
+    }
+
     /** Returns a sign-in Intent to launch if the caller needs to (re)authorize Drive access. */
     fun onBackupNowTap(onNeedsSignIn: (android.content.Intent) -> Unit) {
         viewModelScope.launch {
@@ -234,7 +288,11 @@ class SettingsViewModel(
                 prefsRepo.initiateCloudDeletion()
                 _uiState.update { it.copy(showDeleteLocalDataDialog = false, deletionDaysRemaining = 7) }
             } else {
-                db.clearAllTables()
+                // Room's clearAllTables() is a blocking call that must run off the
+                // main thread. Without Dispatchers.IO this ANRs or crashes outright.
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    db.clearAllTables()
+                }
                 prefsRepo.clearLocalDataPrefs()
                 _uiState.update { it.copy(showDeleteLocalDataDialog = false) }
             }

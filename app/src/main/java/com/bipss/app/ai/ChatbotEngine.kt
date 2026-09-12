@@ -32,10 +32,16 @@ class ChatbotEngine(
      */
     suspend fun initialize(modelPath: String) = withContext(Dispatchers.IO) {
         try {
+            // Phase 9: AI Backend Pin. For a ~270M-parameter model on unknown
+            // demo hardware (emulators, budget phones), CPU inference is the
+            // predictable choice. MediaPipe's LlmInferenceOptions does not
+            // expose a setPreferredBackend() toggle — the framework defaults to
+            // CPU for small models, which is what we want here.
             val options = LlmInference.LlmInferenceOptions.builder()
                 .setModelPath(modelPath)
                 .setMaxTokens(1024)
                 .setTemperature(0.7f)
+                .setTopK(40)
                 .build()
             llmInference = LlmInference.createFromOptions(context, options)
             prefsRepo.setChatbotEngineFailed(false)

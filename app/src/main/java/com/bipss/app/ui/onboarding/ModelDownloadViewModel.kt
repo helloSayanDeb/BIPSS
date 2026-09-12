@@ -10,7 +10,10 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 data class ModelDownloadUiState(
-    val progress: DownloadProgress = DownloadProgress.Idle
+    val progress: DownloadProgress = DownloadProgress.Idle,
+    /** Fetched from the real manifest, not a guess. Null while unknown/unreachable. */
+    val manifestSizeMb: Int? = null,
+    val manifestCheckFailed: Boolean = false,
 )
 
 class ModelDownloadViewModel(
@@ -23,11 +26,21 @@ class ModelDownloadViewModel(
     val uiState: StateFlow<ModelDownloadUiState> = _uiState.asStateFlow()
 
     init {
-        // Check if model is already installed
         viewModelScope.launch {
             val installed = prefsRepo.installedModelVersion.first()
             if (installed != null) {
                 _uiState.update { it.copy(progress = DownloadProgress.AlreadyUpToDate) }
+            } else {
+                // Ask the manifest what it actually weighs before showing any
+                // number — no placeholder size is shown if this fails (e.g.
+                // MODEL_MANIFEST_URL not yet pointed at a real file).
+                val manifest = modelDownloadManager.fetchManifestPublic()
+                _uiState.update {
+                    it.copy(
+                        manifestSizeMb = manifest?.let { m -> (m.sizeBytes / 1_048_576L).toInt() },
+                        manifestCheckFailed = manifest == null
+                    )
+                }
             }
         }
     }
@@ -37,7 +50,6 @@ class ModelDownloadViewModel(
             modelDownloadManager.downloadModelIfNeeded().collect { progress ->
                 _uiState.update { it.copy(progress = progress) }
                 if (progress is DownloadProgress.Success) {
-                    // Initialize chatbot engine with downloaded model
                     val path = prefsRepo.installedModelFilePath.first()
                     if (path != null) chatbotEngine.initialize(path)
                 }

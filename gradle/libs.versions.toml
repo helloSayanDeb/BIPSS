@@ -19,6 +19,8 @@ work-runtime             = "2.9.1"
 play-services-location   = "21.2.0"
 play-services-auth       = "21.2.0"
 accompanist-permissions  = "0.37.0"
+firebase-bom             = "34.19.0"
+junit                    = "4.13.2"
 
 [libraries]
 # AndroidX Core
@@ -80,9 +82,16 @@ play-services-auth       = { group = "com.google.android.gms", name = "play-serv
 # Accompanist
 accompanist-permissions  = { group = "com.google.accompanist", name = "accompanist-permissions", version.ref = "accompanist-permissions" }
 
+# Firebase (BOM only — individual libs declared as raw strings in build.gradle.kts)
+firebase-bom             = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebase-bom" }
+
+# Unit test
+junit                    = { group = "junit", name = "junit", version.ref = "junit" }
+
 [plugins]
 android-application      = { id = "com.android.application",            version.ref = "agp" }
 kotlin-android           = { id = "org.jetbrains.kotlin.android",       version.ref = "kotlin" }
 kotlin-compose           = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 ksp                      = { id = "com.google.devtools.ksp",            version.ref = "ksp" }
 kotlin-serialization     = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+google-services          = { id = "com.google.gms.google-services", version = "4.5.0" }

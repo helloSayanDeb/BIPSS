@@ -102,7 +102,7 @@ fun DashboardProfileScreen(
                 }
             )
             HairlineDivider()
-            InfoRow("Band", if (state.heartRate > 0) "Streaming" else "Not streaming")
+            InfoRow("Band", if (state.hasBand) "Streaming" else "Not streaming")
         }
 
         if (state.riskScores.isNotEmpty()) {

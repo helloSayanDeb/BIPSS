@@ -23,7 +23,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.bipss.app.ai.DownloadProgress
-import com.bipss.app.ai.MODEL_EXPECTED_SIZE_MB
 import com.bipss.app.navigation.Routes
 import com.bipss.app.ui.components.*
 import com.bipss.app.ui.theme.BipssTheme
@@ -53,20 +52,24 @@ fun OnboardingDownloadModelScreen(
         }
     }
 
+    val sizeSuffix = state.manifestSizeMb?.let { " (${it} MB)" } ?: ""
+
     OnboardingScaffold(
         step = 2,
         totalSteps = 3,
         title = "Add on-device intelligence",
-        subtitle = "An optional ${MODEL_EXPECTED_SIZE_MB} MB language model that runs entirely on your phone — nothing is sent to a server.",
+        subtitle = "An optional language model$sizeSuffix that runs entirely on your phone — nothing is sent to a server.",
         onBack = { navController.popBackStack() },
         footer = {
             PrimaryButton(
                 text = when {
                     isDone -> "Finish setup"
                     isBusy -> "Downloading…"
-                    else   -> "Download  ·  $MODEL_EXPECTED_SIZE_MB MB"
+                    state.manifestSizeMb != null -> "Download  ·  ${state.manifestSizeMb} MB"
+                    else -> "Download"
                 },
                 loading = isBusy,
+                enabled = !state.manifestCheckFailed || isDone,
                 onClick = { if (isDone) finish() else vm.startDownload() }
             )
             AnimatedVisibility(visible = !isDone) {
@@ -112,6 +115,17 @@ fun OnboardingDownloadModelScreen(
             icon = Icons.Rounded.Info,
             tint = colors.bandNormal,
         )
+
+        AnimatedVisibility(visible = state.manifestCheckFailed && !isDone) {
+            Column {
+                Spacer(Modifier.height(Space.m))
+                InfoBanner(
+                    text = "No model is published yet — the download link hasn't been configured for this build. Skip for now.",
+                    icon = Icons.Rounded.Info,
+                    tint = colors.bandMonitor,
+                )
+            }
+        }
 
         AnimatedVisibility(visible = isBusy || isDone || progress is DownloadProgress.Failure) {
             Column {

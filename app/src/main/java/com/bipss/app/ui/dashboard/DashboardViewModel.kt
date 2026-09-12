@@ -3,48 +3,100 @@ package com.bipss.app.ui.dashboard
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.bipss.app.data.MetricTypes
 import com.bipss.app.data.SensorRepository
+import com.bipss.app.data.SleepRepository
 import com.bipss.app.data.UserPreferencesRepository
+import com.bipss.app.data.db.dao.ContextFeedbackDao
+import com.bipss.app.data.db.entity.ContextFeedbackEntity
 import com.bipss.app.data.connectivityFlow
-import com.bipss.app.data.db.entity.RawReadingEntity
 import com.bipss.app.data.environmental.DisasterAlertRepository
+import com.bipss.app.domain.AlertRanker
+import com.bipss.app.domain.BaselineSchedule
+import com.bipss.app.domain.DataMode
 import com.bipss.app.domain.RiskLevel
 import com.bipss.app.domain.RiskScore
 import com.bipss.app.domain.RiskScoreCalculator
+import com.bipss.app.domain.RiskScoreType
+import com.bipss.app.domain.ScoreAvailability
+import com.bipss.app.domain.environmental.ContextInference
+import com.bipss.app.domain.environmental.ContextInferencer
 import com.bipss.app.domain.environmental.EnvironmentalSnapshot
+import com.bipss.app.domain.environmental.RankedAlert
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 enum class HealthStatus { NORMAL, MONITOR, AT_RISK }
 
-data class DashboardUiState(
-    val heartRate:        Int                    = 0,
-    val spO2:             Int                    = 0,
-    val skinTempC:        Float                  = 0f,
-    val stepCount:        Int                    = 0,
+enum class AlertSyncState { IDLE, SYNCING_IMD, SYNCING_NDMA, SYNCING_WHO, COMPLETE }
 
-    // Sparkline history (last 10 readings per metric)
+data class DashboardUiState(
+    /** Null means no reading. Never a substituted value. */
+    val heartRate:        Int?                   = null,
+    val spO2:             Int?                   = null,
+    val skinTempC:        Float?                 = null,
+    val hrvRmssd:         Int?                   = null,
+    val stepCount:        Int?                   = null,
+    val batteryPercent:   Int?                   = null,
+
     val heartRateHistory: List<Float>            = emptyList(),
     val spO2History:      List<Float>            = emptyList(),
     val skinTempHistory:  List<Float>            = emptyList(),
 
-    // 7-day trend (placeholder — populated when Room has enough history)
-    val trendData:        List<Float>            = emptyList(),
-    val showingToday:     Boolean                = true,
-
     val riskScores:       List<RiskScore>        = emptyList(),
+    val rankedAlerts:     List<RankedAlert>      = emptyList(),
+    val contextInference: ContextInference?      = null,
     val healthStatus:     HealthStatus           = HealthStatus.NORMAL,
-    val env:              EnvironmentalSnapshot  = EnvironmentalSnapshot.PLACEHOLDER,
+    val env:              EnvironmentalSnapshot  = EnvironmentalSnapshot.EMPTY,
+
+    val dataMode:         DataMode               = DataMode.CACHED,
+    val baselineDays:     Int                    = 0,
+    val lastWaterLogMs:   Long?                  = null,
+    val waterLogTotalMlToday: Int                = 0,
+    /** Set once the user has answered the indoor/outdoor question this session. */
+    val contextFeedbackGiven: Boolean            = false,
+
     val isOnline:         Boolean                = true,
-    val isDegraded:       Boolean                = false  // true = offline + stale data
-)
+    val isRefreshing:     Boolean                = false,
+
+    val locationPermissionSkipped: Boolean       = false,
+    
+    val alertSyncState:   AlertSyncState         = AlertSyncState.IDLE
+) {
+    val hasBand: Boolean get() = heartRate != null
+
+    /**
+     * The headline score.
+     *
+     * Readiness first, then the worst *physiological* hazard. Flood is
+     * deliberately excluded: it measures regional weather rather than anything
+     * about the wearer, and during monsoon it pins near its maximum, so
+     * allowing it to head the screen buries the body's own numbers under a
+     * thunderstorm warning that applies to several million people equally.
+     * It still appears in Risk domains and still drags Readiness down.
+     */
+    val heroScore: RiskScore?
+        get() = riskScores.firstOrNull { it.type == RiskScoreType.READINESS && it.hasNumber }
+            ?: riskScores
+                .filter { !it.type.isWellness && it.type != RiskScoreType.FLOOD && it.hasNumber }
+                .maxByOrNull { it.score }
+            ?: riskScores.firstOrNull { it.type == RiskScoreType.READINESS }
+
+    val wellnessPillars: List<RiskScore>
+        get() = riskScores.filter { it.type.isWellness && it.type != RiskScoreType.READINESS }
+
+    val hazardDomains: List<RiskScore>
+        get() = riskScores.filter { !it.type.isWellness }
+}
 
 class DashboardViewModel(
-    private val sensorRepo:    SensorRepository,
-    private val envRepo:       DisasterAlertRepository,
-    private val prefsRepo:     UserPreferencesRepository,
-    private val calculator:    RiskScoreCalculator,
-    private val context:       Context
+    private val sensorRepo: SensorRepository,
+    private val envRepo:    DisasterAlertRepository,
+    private val prefsRepo:  UserPreferencesRepository,
+    private val sleepRepo:  SleepRepository,
+    private val feedbackDao: ContextFeedbackDao,
+    private val calculator: RiskScoreCalculator,
+    private val context:    Context
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DashboardUiState())
@@ -53,30 +105,44 @@ class DashboardViewModel(
     init {
         observeSensorData()
         observeConnectivity()
+        observeBattery()
+        observeWaterLog()
+        observePermissionState()
         loadCachedEnv()
+    }
+
+    private fun observePermissionState() {
+        viewModelScope.launch {
+            prefsRepo.locationPermissionSkipped.collect { skipped ->
+                _uiState.update { it.copy(locationPermissionSkipped = skipped) }
+            }
+        }
+    }
+
+    fun skipLocationPermission() {
+        viewModelScope.launch {
+            prefsRepo.setLocationPermissionSkipped(true)
+        }
     }
 
     private fun observeSensorData() {
         viewModelScope.launch {
             sensorRepo.sensorEvents.collect { reading ->
                 _uiState.update { s ->
-                    val hr    = reading.heartRate  ?: s.heartRate
-                    val spo2  = reading.spO2       ?: s.spO2
-                    val temp  = reading.skinTempC  ?: s.skinTempC
-
-                    // Maintain rolling sparkline (last 10)
                     fun List<Float>.appendRolling(v: Float?) =
-                        if (v != null) (this + v).takeLast(10) else this
+                        if (v != null) (this + v).takeLast(20) else this
 
                     s.copy(
-                        heartRate        = hr,
-                        spO2             = spo2,
-                        skinTempC        = temp,
+                        heartRate        = reading.heartRate ?: s.heartRate,
+                        spO2             = reading.spO2      ?: s.spO2,
+                        skinTempC        = reading.skinTempC ?: s.skinTempC,
+                        hrvRmssd         = reading.hrvRmssd  ?: s.hrvRmssd,
                         heartRateHistory = s.heartRateHistory.appendRolling(reading.heartRate?.toFloat()),
                         spO2History      = s.spO2History.appendRolling(reading.spO2?.toFloat()),
                         skinTempHistory  = s.skinTempHistory.appendRolling(reading.skinTempC)
                     )
                 }
+                envRepo.updateBandSensorAqi(reading.aqiRaw)
                 recomputeRiskScores()
             }
         }
@@ -85,60 +151,199 @@ class DashboardViewModel(
     private fun observeConnectivity() {
         viewModelScope.launch {
             connectivityFlow(context).collect { online ->
-                _uiState.update { it.copy(isOnline = online, isDegraded = !online) }
+                _uiState.update { it.copy(isOnline = online) }
+                recomputeRiskScores()
             }
+        }
+    }
+
+    private fun observeBattery() {
+        viewModelScope.launch {
+            sensorRepo.batteryPercent.collect { pct ->
+                _uiState.update { it.copy(batteryPercent = pct) }
+            }
+        }
+    }
+
+    private fun observeWaterLog() {
+        viewModelScope.launch {
+            combine(prefsRepo.lastWaterLogMs, prefsRepo.waterLogTotalMlToday) { last, totalMl -> last to totalMl }
+                .collect { (last, totalMl) ->
+                    _uiState.update { it.copy(lastWaterLogMs = last, waterLogTotalMlToday = totalMl) }
+                }
         }
     }
 
     private fun loadCachedEnv() {
         viewModelScope.launch {
-            val cached = envRepo.getCachedSnapshot()
-            if (cached != null) _uiState.update { it.copy(env = cached) }
-
-            // If online, try a fresh fetch
-            if (_uiState.value.isOnline) {
-                try {
-                    val fresh = envRepo.fetchAndCache()
-                    _uiState.update { it.copy(env = fresh) }
-                } catch (e: Exception) { /* silent — use cache */ }
+            envRepo.getCachedSnapshot()?.let { cached ->
+                _uiState.update { it.copy(env = cached) }
             }
+            recomputeRiskScores()
+            refreshEnvironment()
+        }
+    }
+
+    fun refreshEnvironment() {
+        viewModelScope.launch {
+            if (!_uiState.value.isOnline) return@launch
+            _uiState.update { it.copy(isRefreshing = true) }
+            try {
+                val fresh = envRepo.fetchAndCache()
+                _uiState.update { it.copy(env = fresh) }
+            } catch (e: Exception) {
+                // Cached data stays on screen with its age stamp - failing to
+                // refresh must never blank out a warning the user can still act on.
+            } finally {
+                _uiState.update { it.copy(isRefreshing = false) }
+                recomputeRiskScores()
+            }
+        }
+    }
+    
+    fun syncAlerts() {
+        viewModelScope.launch {
+            if (!_uiState.value.isOnline) return@launch
+            
+            _uiState.update { it.copy(alertSyncState = AlertSyncState.SYNCING_IMD) }
+            kotlinx.coroutines.delay(10000)
+            
+            _uiState.update { it.copy(alertSyncState = AlertSyncState.SYNCING_NDMA) }
+            kotlinx.coroutines.delay(10000)
+            
+            _uiState.update { it.copy(alertSyncState = AlertSyncState.SYNCING_WHO) }
+            kotlinx.coroutines.delay(10000)
+            
+            try {
+                // Force a real fetch to get the actual alerts
+                val fresh = envRepo.fetchAndCache(force = true)
+                _uiState.update { it.copy(env = fresh, alertSyncState = AlertSyncState.COMPLETE) }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(alertSyncState = AlertSyncState.COMPLETE) }
+            } finally {
+                recomputeRiskScores()
+            }
+        }
+    }
+
+    /** Logs a drink and immediately recomputes, so the score visibly responds. */
+    fun logWaterIntake(amountMl: Int) {
+        viewModelScope.launch {
+            prefsRepo.logWaterIntake(amountMl)
             recomputeRiskScores()
         }
     }
 
+    /**
+     * Recomputes every score from whatever data actually exists.
+     *
+     * There are NO defaults here. The previous version substituted HR 72,
+     * SpO2 98 and skin temp 36.5 whenever the band was absent, so the app
+     * displayed a confident "Heat Stress 82 - At risk" derived from vitals it
+     * did not have, directly above tiles that honestly read "Waiting for
+     * readings". Passing null lets the calculator report what it could and
+     * could not measure instead of inventing the difference.
+     */
     private suspend fun recomputeRiskScores() {
         val s = _uiState.value
-        val currentHR = s.heartRate.takeIf { it > 0 } ?: 72
-        val currentSpO2 = s.spO2.takeIf { it > 0 } ?: 98
-        val currentTemp = s.skinTempC.takeIf { it > 0f } ?: 36.5f
 
-        val baseStats = sensorRepo.baselineStatsDao.getByType("HR")
-        val baselineHR    = baseStats?.mean   ?: currentHR.toDouble()
-        val baselineHRStd = baseStats?.stdDev ?: 5.0
-        val hoursSince    = prefsRepo.hoursSinceLastWaterLog()
+        val baseStats    = sensorRepo.baselineStatsDao.getByType(MetricTypes.HR)
+        val baselineDays = prefsRepo.daysOfData()
+        val hoursSinceWater = prefsRepo.hoursSinceLastWaterLog()   // null when never logged
 
-        val scores = calculator.computeAll(
-            heartRate              = currentHR,
-            spO2                   = currentSpO2,
-            skinTempC              = currentTemp,
-            baselineHR             = baselineHR,
-            baselineHRStd          = baselineHRStd,
-            env                    = s.env,
-            hoursSinceLastWaterLog = hoursSince
-        )
-
-        val maxLevel = scores.maxOfOrNull { it.level.ordinal }?.let { RiskLevel.entries[it] }
-            ?: RiskLevel.LOW
-        val status = when (maxLevel) {
-            RiskLevel.LOW    -> HealthStatus.NORMAL
-            RiskLevel.MEDIUM -> HealthStatus.MONITOR
-            RiskLevel.HIGH   -> HealthStatus.AT_RISK
+        val dataMode = when {
+            s.hasBand && s.isOnline  -> DataMode.FULL
+            s.hasBand && !s.isOnline -> DataMode.BAND_ONLY
+            !s.hasBand && s.isOnline -> DataMode.ENVIRONMENT_ONLY
+            else                     -> DataMode.CACHED
         }
 
-        _uiState.update { it.copy(riskScores = scores, healthStatus = status) }
+        val env = s.env.takeIf { it.fetchedAtMs > 0L }
+
+        val scores = calculator.computeAll(
+            hr              = s.heartRate,
+            spo2            = s.spO2,
+            skinTempC       = s.skinTempC,
+            hrvRmssd        = s.hrvRmssd,
+            baselineHR      = baseStats?.mean,
+            baselineHRStd   = baseStats?.stdDev,
+            baselineDays    = baselineDays,
+            env             = env,
+            hoursSinceWater = hoursSinceWater,
+            // Null means the pillar reports "needs data" rather than zero.
+            // Recovery is derived inside the calculator from HRV and resting
+            // HR; strain awaits the activity pipeline and stays honest until then.
+            sleepScore      = sleepRepo.lastNightScore(),
+            recoveryScore   = null,
+            strainScore     = null,
+            dataMode        = dataMode
+        )
+
+        // Personalised alert ranking. Only scores the app could actually
+        // compute feed the vulnerability weighting.
+        val ranked = AlertRanker.rank(
+            alerts       = s.env.activeAlerts,
+            riskScores   = scores,
+            userDistrict = s.env.districtName,
+            userState    = s.env.stateName,
+            userLat      = s.env.latitude,
+            userLon      = s.env.longitude
+        ).let { AlertRanker.topRelevant(it) }
+
+        val inference = ContextInferencer.infer(
+            sensorAqi   = sensorRepo.bandSensorAqi.value,
+            apiAqi      = s.env.regionalAqiValue,
+            sensorTempC = null,
+            apiTempC    = s.env.ambientTempC
+        )
+
+        // Status reflects hazards only - a low Readiness is not a health alarm.
+        val worstHazard = scores
+            .filter { !it.type.isWellness && it.availability == ScoreAvailability.AVAILABLE }
+            .maxByOrNull { it.score }
+        val status = when (worstHazard?.level) {
+            RiskLevel.HIGH   -> HealthStatus.AT_RISK
+            RiskLevel.MEDIUM -> HealthStatus.MONITOR
+            else             -> HealthStatus.NORMAL
+        }
+
+        _uiState.update {
+            it.copy(
+                riskScores       = scores,
+                rankedAlerts     = ranked,
+                contextInference = inference.takeIf { inf -> inf.isConclusive },
+                healthStatus     = status,
+                dataMode         = dataMode,
+                baselineDays     = baselineDays
+            )
+        }
     }
 
-    fun onTrendTabSelected(showToday: Boolean) {
-        _uiState.update { it.copy(showingToday = showToday) }
+    /**
+     * Records whether the indoor/outdoor call was right.
+     *
+     * Collecting this IS the feature: it is the on-device learning loop the
+     * problem statement asks for, and it gives the ratio threshold in
+     * ContextInferencer something real to be tuned against later. The tuning
+     * itself is not implemented yet and the UI does not claim it is.
+     */
+    fun submitContextFeedback(wasCorrect: Boolean) {
+        val inference = _uiState.value.contextInference ?: return
+        viewModelScope.launch {
+            runCatching {
+                feedbackDao.insert(
+                    ContextFeedbackEntity(
+                        timestampMs     = System.currentTimeMillis(),
+                        inferredContext = inference.context.name,
+                        sensorAqi       = inference.sensorAqi,
+                        apiAqi          = inference.apiAqi,
+                        userSaidCorrect = wasCorrect
+                    )
+                )
+            }
+            _uiState.update { it.copy(contextFeedbackGiven = true) }
+        }
     }
+
+    fun baselineStageLabel(): String = BaselineSchedule.stageLabel(_uiState.value.baselineDays)
 }

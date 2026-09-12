@@ -14,14 +14,19 @@ import kotlinx.serialization.Serializable
  *       ModelDownloadManager already does the fetch + streamed download +
  *       SHA-256 verification against whatever this constant points to.
  */
-const val MODEL_MANIFEST_URL = "https://raw.githubusercontent.com/REPLACE_ME/REPLACE_ME/main/manifest.json" // TODO: real GitHub URL
+/**
+ * URL to a JSON file declaring the current model version, its SHA-256 hash, and its download URL.
+ * The app fetches this to decide whether an on-device update is needed.
+ */
+const val MODEL_MANIFEST_URL = "https://raw.githubusercontent.com/BIPSS/models/main/manifest.json"
 
 @Serializable
 data class ModelManifest(
     val version:    String,
     @SerialName("url")    val downloadUrl: String,
     @SerialName("sha256") val sha256:      String,
-    @SerialName("size_bytes") val sizeBytes: Long = 262_144_000L
+    // No default here on purpose: a manifest that omits size_bytes fails to
+    // parse (fetchManifest() catches it and reports "unavailable") rather
+    // than silently substituting a guessed number.
+    @SerialName("size_bytes") val sizeBytes: Long
 )
-
-const val MODEL_EXPECTED_SIZE_MB = 250
