@@ -3,6 +3,11 @@ package com.bipss.app.ui.components
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.border
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.res.painterResource
+import com.bipss.app.R
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -20,11 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.Dp
@@ -137,39 +138,36 @@ fun StepProgress(current: Int, total: Int, modifier: Modifier = Modifier) {
     }
 }
 
-/** The BIPSS pulse mark, drawn to match the launcher icon. */
+/**
+ * The BIPSS logo as it appears on the launcher icon: white B on a black
+ * rounded square. The hairline keeps the square visible on the black page.
+ * The logo is nudged right by the same optical correction as the launcher
+ * icon - its weight sits on the straight left stroke, so a box-centred B
+ * reads as left-heavy.
+ */
 @Composable
 fun BrandMark(
     modifier: Modifier = Modifier,
     size: Dp = 76.dp,
 ) {
     val colors = BipssTheme.colors
+    val logoHeight = size * 0.5f
     Box(
         modifier = modifier
             .size(size)
-            .clip(RoundedCornerShape(size / 3.2f))
-            .background(Brush.linearGradient(colors.brandGradient)),
+            .clip(RoundedCornerShape(size * 0.28f))
+            .background(Color.Black)
+            .border(1.dp, colors.hairline, RoundedCornerShape(size * 0.28f)),
         contentAlignment = Alignment.Center
     ) {
-        Canvas(Modifier.size(size * 0.62f)) {
-            val w = this.size.width
-            val h = this.size.height
-            val stroke = w * 0.10f
-            val path = Path().apply {
-                moveTo(0f, h * 0.55f)
-                lineTo(w * 0.22f, h * 0.55f)
-                lineTo(w * 0.36f, h * 0.20f)
-                lineTo(w * 0.54f, h * 0.88f)
-                lineTo(w * 0.68f, h * 0.42f)
-                lineTo(w * 0.78f, h * 0.55f)
-                lineTo(w, h * 0.55f)
-            }
-            drawPath(
-                path = path,
-                color = Color.White,
-                style = Stroke(width = stroke, cap = StrokeCap.Round, join = StrokeJoin.Round)
-            )
-        }
+        Image(
+            painter = painterResource(R.drawable.ic_bipss_logo),
+            contentDescription = "BIPSS",
+            colorFilter = ColorFilter.tint(Color.White),
+            modifier = Modifier
+                .height(logoHeight)
+                .offset(x = logoHeight * 0.0456f)
+        )
     }
 }
 

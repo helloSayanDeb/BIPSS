@@ -184,7 +184,7 @@ class DriveBackupManager(
             )
         }
         prefsRepo.setThemePreference(
-            ThemePreference.entries.getOrElse(payload.themePreferenceOrdinal) { ThemePreference.SYSTEM }
+            ThemePreference.entries.getOrElse(payload.themePreferenceOrdinal) { ThemePreference.DARK }
         )
         payload.emergencyContacts.forEach {
             emergencyContactDao.insert(EmergencyContactEntity(name = it.name, phoneNumber = it.phoneNumber, addedAtMs = it.addedAtMs))

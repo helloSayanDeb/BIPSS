@@ -3,45 +3,46 @@ package com.bipss.app.ui.theme
 import androidx.compose.ui.graphics.Color
 
 /**
- * BIPSS 4 design system — "calm clinical".
+ * BIPSS 4 design system — monochrome, matching the black-and-white logo.
  *
  * Rules this palette follows:
+ *  - Neutrals are true greys and the brand colour is white on black (black on
+ *    white in light mode). Hue is reserved for meaning: risk bands, vital
+ *    identity, SOS.
  *  - Every text token clears WCAG AA against the surface it sits on.
  *  - Surfaces form a visible ladder (background < card < field < raised), so
- *    an input never disappears into the page — that was the single worst
- *    failure of the previous theme.
- *  - Colour carries meaning (risk band, vital identity), never decoration.
+ *    an input never disappears into the page.
  */
 
-// ── Dark surfaces ───────────────────────────────────────────────────────────
-val BgDark            = Color(0xFF0A0D12)   // page
-val SurfaceDark1      = Color(0xFF141A23)   // cards
-val SurfaceDark2      = Color(0xFF1D2531)   // input fields / nested cards
-val SurfaceDark3      = Color(0xFF27303E)   // pressed / selected
-val OutlineDarkHair   = Color(0xFF2B3442)   // 1dp card hairline
-val OutlineDarkStrong = Color(0xFF44516A)   // field borders, dividers that must read
+// ── Dark surfaces (the default theme) ───────────────────────────────────────
+val BgDark            = Color(0xFF000000)   // page — the logo's black
+val SurfaceDark1      = Color(0xFF111111)   // cards
+val SurfaceDark2      = Color(0xFF1A1A1A)   // input fields / nested cards
+val SurfaceDark3      = Color(0xFF262626)   // pressed / selected
+val OutlineDarkHair   = Color(0xFF242424)   // 1dp card hairline
+val OutlineDarkStrong = Color(0xFF3D3D3D)   // field borders, dividers that must read
 
-val TextDark1 = Color(0xFFEDF1F7)   // primary text        ~17:1 on BgDark
-val TextDark2 = Color(0xFFA9B4C4)   // secondary text      ~9:1 on BgDark
-val TextDark3 = Color(0xFF77839A)   // placeholder/disabled ~4.8:1 on BgDark
+val TextDark1 = Color(0xFFFFFFFF)   // primary text         21:1 on BgDark
+val TextDark2 = Color(0xFFB4B4B4)   // secondary text       ~10:1 on BgDark
+val TextDark3 = Color(0xFF8A8A8A)   // placeholder/disabled ~5.5:1 on BgDark
 
 // ── Light surfaces ──────────────────────────────────────────────────────────
-val BgLight            = Color(0xFFF4F6FA)
+val BgLight            = Color(0xFFF5F5F5)
 val SurfaceLight1      = Color(0xFFFFFFFF)
-val SurfaceLight2      = Color(0xFFEFF3F8)
-val SurfaceLight3      = Color(0xFFE4EAF2)
-val OutlineLightHair   = Color(0xFFDCE3ED)
-val OutlineLightStrong = Color(0xFFB4C0D2)
+val SurfaceLight2      = Color(0xFFF0F0F0)
+val SurfaceLight3      = Color(0xFFE6E6E6)
+val OutlineLightHair   = Color(0xFFE3E3E3)
+val OutlineLightStrong = Color(0xFFC2C2C2)
 
-val TextLight1 = Color(0xFF0E1420)
-val TextLight2 = Color(0xFF566178)
-val TextLight3 = Color(0xFF8A94A6)
+val TextLight1 = Color(0xFF0A0A0A)
+val TextLight2 = Color(0xFF5C5C5C)
+val TextLight3 = Color(0xFF8C8C8C)
 
 // ── Brand ───────────────────────────────────────────────────────────────────
-val PrimaryLight          = Color(0xFF2B5CE6)
-val PrimaryDark           = Color(0xFF6C93FF)
-val PrimaryContainerLightC = Color(0xFFDCE6FF)
-val PrimaryContainerDarkC  = Color(0xFF17284D)
+val PrimaryLight          = Color(0xFF000000)
+val PrimaryDark           = Color(0xFFFFFFFF)
+val PrimaryContainerLightC = Color(0xFFEBEBEB)
+val PrimaryContainerDarkC  = Color(0xFF1F1F1F)
 val AccentTeal            = Color(0xFF00C9A7)
 
 // ── Risk bands (RiskBand: NORMAL | MONITOR | AT_RISK) ───────────────────────
@@ -63,7 +64,7 @@ val VitalAirDark     = Color(0xFF5EEAD4); val VitalAirLight     = Color(0xFF0F76
 // ── Degraded-mode header tints (§8 of the software plan) ────────────────────
 val ModeOptimal   = Color(0xFF34D399)   // band + network
 val ModeLocalOnly = Color(0xFFFBBF24)   // band, no network
-val ModePhoneOnly = Color(0xFF7C93B8)   // no band, network
+val ModePhoneOnly = Color(0xFF9E9E9E)   // no band, network
 val ModeMinimal   = Color(0xFFE8833A)   // neither
 
 // ── SOS (fixed high-visibility scheme, deliberately theme-invariant) ────────
@@ -72,10 +73,8 @@ val SOSBackgroundDark  = Color(0xFF2A1416)
 val SOSRed             = Color(0xFFE5262F)
 
 // ── Gradients ───────────────────────────────────────────────────────────────
-val BrandGradientDark  = listOf(Color(0xFF2B4CC7), Color(0xFF00A88E))
-val BrandGradientLight = listOf(Color(0xFF2B5CE6), Color(0xFF00C9A7))
-val HeroGlowDark       = listOf(Color(0x334C7DFF), Color(0x0000C9A7))
-val HeroGlowLight      = listOf(Color(0x1F2B5CE6), Color(0x0000C9A7))
+val HeroGlowDark       = listOf(Color(0x1AFFFFFF), Color(0x00FFFFFF))
+val HeroGlowLight      = listOf(Color(0x0D000000), Color(0x00000000))
 
 // ── Legacy aliases ──────────────────────────────────────────────────────────
 // Dashboard/Insights/Chat/AppShell still reference the old Goose token names

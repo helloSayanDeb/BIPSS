@@ -45,7 +45,7 @@ data class SettingsUiState(
 
     val emergencyContacts: List<EmergencyContactEntity> = emptyList(),
 
-    val themePreference: ThemePreference = ThemePreference.SYSTEM,
+    val themePreference: ThemePreference = ThemePreference.DARK,
 
     val dataSharingEnabled: Boolean = false,
     val sharingUsername:    String? = null,
@@ -73,7 +73,7 @@ class SettingsViewModel(
     /** Separate StateFlow consumed by MainActivity for BipssTheme */
     val themePreference: StateFlow<ThemePreference> =
         prefsRepo.themePreference.stateIn(
-            viewModelScope, SharingStarted.WhileSubscribed(5_000), ThemePreference.SYSTEM
+            viewModelScope, SharingStarted.WhileSubscribed(5_000), ThemePreference.DARK
         )
 
     init {

@@ -38,7 +38,6 @@ data class BipssColors(
     val activity: Color,
     val sleep: Color,
     val air: Color,
-    val brandGradient: List<Color>,
     val heroGlow: List<Color>,
 )
 
@@ -50,7 +49,7 @@ private val DarkExtended = BipssColors(
     bandNormal = BandNormalDark, bandMonitor = BandMonitorDark, bandRisk = BandRiskDark,
     heart = VitalHeartDark, spo2 = VitalSpo2Dark, temp = VitalTempDark,
     activity = VitalActivityDark, sleep = VitalSleepDark, air = VitalAirDark,
-    brandGradient = BrandGradientDark, heroGlow = HeroGlowDark,
+    heroGlow = HeroGlowDark,
 )
 
 private val LightExtended = BipssColors(
@@ -63,7 +62,7 @@ private val LightExtended = BipssColors(
     bandNormal = BandNormalLight, bandMonitor = BandMonitorLight, bandRisk = BandRiskLight,
     heart = VitalHeartLight, spo2 = VitalSpo2Light, temp = VitalTempLight,
     activity = VitalActivityLight, sleep = VitalSleepLight, air = VitalAirLight,
-    brandGradient = BrandGradientLight, heroGlow = HeroGlowLight,
+    heroGlow = HeroGlowLight,
 )
 
 val LocalBipssColors = staticCompositionLocalOf { DarkExtended }
@@ -76,11 +75,11 @@ val LocalAmberOrange  = staticCompositionLocalOf { BandMonitorDark }
 
 private val DarkScheme = darkColorScheme(
     primary            = PrimaryDark,
-    onPrimary          = Color(0xFF06132E),
+    onPrimary          = Color.Black,
     primaryContainer   = PrimaryContainerDarkC,
     onPrimaryContainer = TextDark1,
-    secondary          = AccentTeal,
-    onSecondary        = Color(0xFF002019),
+    secondary          = Color(0xFFD4D4D4),
+    onSecondary        = Color.Black,
     tertiary           = VitalSleepDark,
     background         = BgDark,
     onBackground       = TextDark1,
@@ -88,8 +87,23 @@ private val DarkScheme = darkColorScheme(
     onSurface          = TextDark1,
     surfaceVariant     = SurfaceDark2,
     onSurfaceVariant   = TextDark2,
-    surfaceContainer   = SurfaceDark2,
+    // Every container and tint slot is set explicitly: Material's defaults
+    // are purple-tinted and would show up on tonal buttons, dialogs and sheets.
+    secondaryContainer   = SurfaceDark3,
+    onSecondaryContainer = TextDark1,
+    tertiaryContainer    = SurfaceDark3,
+    onTertiaryContainer  = TextDark1,
+    surfaceTint          = Color.Transparent,
+    surfaceDim           = BgDark,
+    surfaceBright        = SurfaceDark3,
+    surfaceContainerLowest = BgDark,
+    surfaceContainerLow  = SurfaceDark1,
+    surfaceContainer     = SurfaceDark2,
     surfaceContainerHigh = SurfaceDark3,
+    surfaceContainerHighest = Color(0xFF303030),
+    inverseSurface       = TextDark1,
+    inverseOnSurface     = BgDark,
+    inversePrimary       = PrimaryLight,
     outline            = OutlineDarkStrong,
     outlineVariant     = OutlineDarkHair,
     error              = BandRiskDark,
@@ -103,8 +117,8 @@ private val LightScheme = lightColorScheme(
     primary            = PrimaryLight,
     onPrimary          = Color.White,
     primaryContainer   = PrimaryContainerLightC,
-    onPrimaryContainer = Color(0xFF0A1F5C),
-    secondary          = Color(0xFF00806C),
+    onPrimaryContainer = TextLight1,
+    secondary          = Color(0xFF262626),
     onSecondary        = Color.White,
     tertiary           = VitalSleepLight,
     background         = BgLight,
@@ -113,8 +127,21 @@ private val LightScheme = lightColorScheme(
     onSurface          = TextLight1,
     surfaceVariant     = SurfaceLight2,
     onSurfaceVariant   = TextLight2,
-    surfaceContainer   = SurfaceLight2,
+    secondaryContainer   = SurfaceLight3,
+    onSecondaryContainer = TextLight1,
+    tertiaryContainer    = SurfaceLight3,
+    onTertiaryContainer  = TextLight1,
+    surfaceTint          = Color.Transparent,
+    surfaceDim           = SurfaceLight3,
+    surfaceBright        = SurfaceLight1,
+    surfaceContainerLowest = SurfaceLight1,
+    surfaceContainerLow  = BgLight,
+    surfaceContainer     = SurfaceLight2,
     surfaceContainerHigh = SurfaceLight3,
+    surfaceContainerHighest = Color(0xFFDDDDDD),
+    inverseSurface       = TextLight1,
+    inverseOnSurface     = SurfaceLight1,
+    inversePrimary       = PrimaryDark,
     outline            = OutlineLightStrong,
     outlineVariant     = OutlineLightHair,
     error              = BandRiskLight,
@@ -126,7 +153,7 @@ private val LightScheme = lightColorScheme(
 
 @Composable
 fun BipssTheme(
-    themePreference: ThemePreference = ThemePreference.SYSTEM,
+    themePreference: ThemePreference = ThemePreference.DARK,
     content: @Composable () -> Unit
 ) {
     val darkTheme = when (themePreference) {

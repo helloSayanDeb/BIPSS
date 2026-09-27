@@ -18,7 +18,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.em
+import androidx.compose.ui.platform.LocalDensity
 import com.bipss.app.domain.BaselineSchedule
 import com.bipss.app.domain.DataMode
 import com.bipss.app.domain.RiskScore
@@ -90,6 +91,14 @@ fun ScoreRing(
 ) {
     val colors = BipssTheme.colors
     val known = score.hasNumber
+    val label = if (known) "${score.score}" else NO_VALUE
+
+    // The number is sized from the gauge, in dp so a large system font cannot
+    // push it into the stroke. A fixed 34sp fitted the hero gauge but ran over
+    // the stroke in the 64dp and 46dp gauges, most visibly for "100".
+    val digitSize = with(LocalDensity.current) {
+        (size * if (label.length >= 3) 0.26f else 0.30f).toSp()
+    }
 
     RingGauge(
         progress = if (known) score.score / 100f else 0f,
@@ -100,8 +109,13 @@ fun ScoreRing(
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
-                if (known) "${score.score}" else NO_VALUE,
-                style = MetricHero.copy(fontSize = 34.sp),
+                label,
+                style = MetricHero.copy(
+                    fontSize = digitSize,
+                    lineHeight = digitSize,
+                    letterSpacing = (-0.02).em
+                ),
+                maxLines = 1,
                 color = if (known) colors.textPrimary else colors.textTertiary
             )
             // The caption only fits in a hero-sized ring. In the 46dp row

@@ -136,6 +136,8 @@ fun DashboardTodayScreen(
 
             // -- Header ------------------------------------------------------
             Row(verticalAlignment = Alignment.CenterVertically) {
+                BrandMark(size = 44.dp)
+                Spacer(Modifier.width(Space.m))
                 Column(Modifier.weight(1f)) {
                     Text(
                         "Today",

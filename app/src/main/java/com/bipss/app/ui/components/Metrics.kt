@@ -15,8 +15,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.PathMeasure
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -33,8 +35,11 @@ import com.bipss.app.ui.theme.MetricValue
 import com.bipss.app.ui.theme.Space
 
 /**
- * Animated arc gauge. Used at hero size for the leading risk domain and at
- * small size in the per-domain rows.
+ * Animated score gauge: a rounded square whose outline fills clockwise from
+ * top centre, like a clock hand. Used at hero size for the headline score and
+ * at small size in the per-domain rows. The square leaves more room inside
+ * than a circle of the same size, which is what lets a three-digit score sit
+ * clear of the stroke.
  */
 @Composable
 fun RingGauge(
@@ -49,27 +54,43 @@ fun RingGauge(
     val animated by animateFloatAsState(
         targetValue = progress.coerceIn(0f, 1f),
         animationSpec = tween(900, easing = EaseOutCubic),
-        label = "ring"
+        label = "gauge"
     )
     Box(modifier = modifier.size(size), contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
             val stroke = strokeWidth.toPx()
-            val inset = stroke / 2f
-            val arcSize = Size(this.size.width - stroke, this.size.height - stroke)
-            drawArc(
-                color = colors.hairline,
-                startAngle = -90f, sweepAngle = 360f, useCenter = false,
-                topLeft = Offset(inset, inset), size = arcSize,
-                style = Stroke(width = stroke, cap = StrokeCap.Round)
-            )
-            drawArc(
-                color = color,
-                startAngle = -90f, sweepAngle = animated * 360f, useCenter = false,
-                topLeft = Offset(inset, inset), size = arcSize,
-                style = Stroke(width = stroke, cap = StrokeCap.Round)
-            )
+            val outline = roundedSquareOutline(this.size, inset = stroke / 2f)
+            val style = Stroke(width = stroke, cap = StrokeCap.Round, join = StrokeJoin.Round)
+            drawPath(outline, colors.hairline, style = style)
+            if (animated > 0f) {
+                val measure = PathMeasure().apply { setPath(outline, false) }
+                val filled = Path()
+                measure.getSegment(0f, measure.length * animated, filled, true)
+                drawPath(filled, color, style = style)
+            }
         }
         content()
+    }
+}
+
+/** Rounded-square outline that starts at top centre and runs clockwise. */
+private fun roundedSquareOutline(area: Size, inset: Float, cornerFraction: Float = 0.3f): Path {
+    val l = inset
+    val t = inset
+    val r = area.width - inset
+    val b = area.height - inset
+    val d = (r - l) * cornerFraction * 2f
+    return Path().apply {
+        moveTo((l + r) / 2f, t)
+        lineTo(r - d / 2f, t)
+        arcTo(Rect(r - d, t, r, t + d), -90f, 90f, false)
+        lineTo(r, b - d / 2f)
+        arcTo(Rect(r - d, b - d, r, b), 0f, 90f, false)
+        lineTo(l + d / 2f, b)
+        arcTo(Rect(l, b - d, l + d, b), 90f, 90f, false)
+        lineTo(l, t + d / 2f)
+        arcTo(Rect(l, t, l + d, t + d), 180f, 90f, false)
+        close()
     }
 }
 

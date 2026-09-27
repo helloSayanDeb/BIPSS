@@ -1,9 +1,9 @@
 package com.bipss.app.ui.theme
 
 enum class ThemePreference {
-    SYSTEM,   // default — uses isSystemInDarkTheme()
+    SYSTEM,   // follows isSystemInDarkTheme(); ordinals are persisted, so keep this order
     LIGHT,
-    DARK;
+    DARK;     // the default when nothing is stored
 
     val displayName: String
         get() = when (this) {

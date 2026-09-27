@@ -294,7 +294,7 @@ class UserPreferencesRepository(private val context: Context) {
     private val KEY_DELETION_INITIATED_AT  = longPreferencesKey("deletion_initiated_at_ms")
 
     val themePreference: Flow<ThemePreference> = dataStore.data.map { prefs ->
-        ThemePreference.entries.getOrElse(prefs[KEY_THEME_PREFERENCE] ?: 0) { ThemePreference.SYSTEM }
+        prefs[KEY_THEME_PREFERENCE]?.let { ThemePreference.entries.getOrNull(it) } ?: ThemePreference.DARK
     }
 
     suspend fun setThemePreference(pref: ThemePreference) {

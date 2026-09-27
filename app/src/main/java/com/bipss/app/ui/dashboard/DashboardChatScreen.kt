@@ -33,6 +33,7 @@ import com.bipss.app.ai.CoachCardKind
 import com.bipss.app.domain.ChatMessage
 import com.bipss.app.domain.Sender
 import com.bipss.app.ui.components.BipssCard
+import com.bipss.app.ui.components.BrandMark
 import com.bipss.app.ui.components.IconBadge
 import com.bipss.app.navigation.LocalScaffoldPadding
 import com.bipss.app.ui.components.HairlineDivider
@@ -69,6 +70,8 @@ fun DashboardChatScreen(
             Modifier.fillMaxWidth().padding(horizontal = Space.gutter, vertical = Space.l),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            BrandMark(size = 44.dp)
+            Spacer(Modifier.width(Space.m))
             Column(Modifier.weight(1f)) {
                 Text("Coach", style = MaterialTheme.typography.headlineMedium, color = colors.textPrimary)
                 Text(

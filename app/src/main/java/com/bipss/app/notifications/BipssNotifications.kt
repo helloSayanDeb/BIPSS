@@ -58,12 +58,11 @@ object BipssNotifications {
     const val CH_REMINDER = "bipss_reminders"
     const val CH_SERVICE  = "bipss_service"
 
-    // TODO: replace these platform icons with a branded monochrome 24dp notification
-    // drawable once the icon set lands. Android tints and masks the small icon, so a
-    // colour asset would render as a white blob - it must be a single-colour alpha shape.
-    private const val ICON_ALERT    = android.R.drawable.ic_dialog_alert
-    private const val ICON_REMINDER = android.R.drawable.ic_popup_reminder
-    private const val ICON_COACHING = android.R.drawable.ic_menu_info_details
+    // The BIPSS logo as a single-colour alpha shape: Android tints and masks the
+    // small icon, so a colour asset would render as a white blob.
+    private val ICON_ALERT    = com.bipss.app.R.drawable.ic_stat_bipss
+    private val ICON_REMINDER = com.bipss.app.R.drawable.ic_stat_bipss
+    private val ICON_COACHING = com.bipss.app.R.drawable.ic_stat_bipss
 
     /**
      * Idempotent - safe to call on every app start. The guard is kept even though minSdk
