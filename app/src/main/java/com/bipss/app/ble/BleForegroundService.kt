@@ -48,13 +48,9 @@ class BleForegroundService : Service() {
         scope.launch {
             bleGattManager.connectionState.collectLatest { state ->
                 val connected = state is BleConnectionState.Connected
-                runCatching {
-                    androidx.core.app.NotificationManagerCompat.from(this@BleForegroundService)
-                        .notify(
-                            NotificationIds.SERVICE,
-                            BipssNotifications.buildServiceNotification(this@BleForegroundService, connected)
-                        )
-                }.onFailure { Log.w(TAG, "Could not update service notification: ${it.message}") }
+                // Through BipssNotifications so a missing POST_NOTIFICATIONS grant
+                // is checked and logged rather than thrown.
+                BipssNotifications.updateServiceNotification(this@BleForegroundService, connected)
             }
         }
     }

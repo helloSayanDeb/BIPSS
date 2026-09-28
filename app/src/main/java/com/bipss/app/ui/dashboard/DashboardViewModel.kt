@@ -87,6 +87,7 @@ data class DashboardUiState(
 
 class DashboardViewModel(
     private val sensorRepo: SensorRepository,
+    private val waterRepo:  com.bipss.app.data.WaterRepository,
     private val envRepo:    DisasterAlertRepository,
     private val prefsRepo:  UserPreferencesRepository,
     private val sleepRepo:  SleepRepository,
@@ -163,7 +164,7 @@ class DashboardViewModel(
 
     private fun observeWaterLog() {
         viewModelScope.launch {
-            combine(prefsRepo.lastWaterLogMs, prefsRepo.waterLogTotalMlToday) { last, totalMl -> last to totalMl }
+            combine(waterRepo.lastLogMs, waterRepo.todayTotals) { last, today -> last to today.totalMl }
                 .collect { (last, totalMl) ->
                     _uiState.update { it.copy(lastWaterLogMs = last, waterLogTotalMlToday = totalMl) }
                 }
@@ -206,7 +207,7 @@ class DashboardViewModel(
     /** Logs a drink and immediately recomputes, so the score visibly responds. */
     fun logWaterIntake(amountMl: Int) {
         viewModelScope.launch {
-            prefsRepo.logWaterIntake(amountMl)
+            waterRepo.log(amountMl)
             recomputeRiskScores()
         }
     }
@@ -226,7 +227,7 @@ class DashboardViewModel(
 
         val baseStats    = sensorRepo.baselineStatsDao.getByType(MetricTypes.HR)
         val baselineDays = prefsRepo.daysOfData()
-        val hoursSinceWater = prefsRepo.hoursSinceLastWaterLog()   // null when never logged
+        val hoursSinceWater = waterRepo.hoursSinceLastLog()   // null when never logged
 
         val dataMode = when {
             s.hasBand && s.isOnline  -> DataMode.FULL

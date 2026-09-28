@@ -12,6 +12,18 @@ data class MetricStats(
     @ColumnInfo(name = "sampleCount") val sampleCount: Int
 )
 
+/**
+ * One time bucket of a metric: sample-weighted mean plus the true extremes and
+ * how many samples went into it. [bucketStartMs] is aligned to the bucket size.
+ */
+data class MetricBucket(
+    @ColumnInfo(name = "bucketStartMs") val bucketStartMs: Long,
+    @ColumnInfo(name = "avgValue")      val avgValue:      Double,
+    @ColumnInfo(name = "minValue")      val minValue:      Double,
+    @ColumnInfo(name = "maxValue")      val maxValue:      Double,
+    @ColumnInfo(name = "sampleCount")   val sampleCount:   Int
+)
+
 @Dao
 interface RawReadingDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -51,6 +63,21 @@ interface RawReadingDao {
     """)
     suspend fun getRestingAverage(type: String, startMs: Long, endMs: Long, sampleCount: Int = 60): Double?
 
+    /**
+     * Raw samples grouped into [bucketMs]-wide buckets, anomalies excluded.
+     * Charts read this rather than every 1 Hz row (a day is ~86 k rows per metric).
+     */
+    @Query("""
+        SELECT (timestampMs / :bucketMs) * :bucketMs AS bucketStartMs,
+               AVG(value) AS avgValue, MIN(value) AS minValue, MAX(value) AS maxValue,
+               COUNT(*) AS sampleCount
+        FROM raw_readings
+        WHERE metricType = :type AND timestampMs BETWEEN :startMs AND :endMs AND isAnomalous = 0
+        GROUP BY timestampMs / :bucketMs
+        ORDER BY bucketStartMs ASC
+    """)
+    suspend fun getBuckets(type: String, startMs: Long, endMs: Long, bucketMs: Long): List<MetricBucket>
+
     @Query("SELECT MIN(timestampMs) FROM raw_readings")
     suspend fun earliestTimestamp(): Long?
 
@@ -83,6 +110,23 @@ interface MinuteAggregateDao {
         WHERE metricType = :type AND minuteEpoch BETWEEN :startMinute AND :endMinute
     """)
     suspend fun getStats(type: String, startMinute: Long, endMinute: Long): MetricStats?
+
+    /**
+     * Minute aggregates regrouped into [bucketMs]-wide buckets. The mean is
+     * weighted by each minute's sample count - an unweighted AVG(avg) would let
+     * a minute with one sample count as much as a minute with sixty.
+     */
+    @Query("""
+        SELECT ((minuteEpoch * 60000) / :bucketMs) * :bucketMs AS bucketStartMs,
+               SUM(avg * sampleCount) / SUM(sampleCount) AS avgValue,
+               MIN(min) AS minValue, MAX(max) AS maxValue,
+               SUM(sampleCount) AS sampleCount
+        FROM minute_aggregates
+        WHERE metricType = :type AND minuteEpoch BETWEEN :startMinute AND :endMinute AND sampleCount > 0
+        GROUP BY (minuteEpoch * 60000) / :bucketMs
+        ORDER BY bucketStartMs ASC
+    """)
+    suspend fun getBuckets(type: String, startMinute: Long, endMinute: Long, bucketMs: Long): List<MetricBucket>
 
     @Query("SELECT MIN(minuteEpoch) FROM minute_aggregates")
     suspend fun earliestMinute(): Long?
@@ -122,6 +166,12 @@ interface SleepSessionDao {
 
     @Query("SELECT COUNT(*) FROM sleep_sessions")
     suspend fun count(): Int
+
+    @Query("SELECT id FROM sleep_sessions WHERE startMs < :endMs AND endMs > :startMs")
+    suspend fun overlappingIds(startMs: Long, endMs: Long): List<Long>
+
+    @Query("DELETE FROM sleep_sessions WHERE id IN (:ids)")
+    suspend fun deleteByIds(ids: List<Long>)
 }
 
 @Dao
@@ -131,6 +181,9 @@ interface DesaturationEventDao {
 
     @Query("SELECT * FROM desaturation_events WHERE sessionId = :sessionId ORDER BY startMs ASC")
     suspend fun forSession(sessionId: Long): List<DesaturationEventEntity>
+
+    @Query("DELETE FROM desaturation_events WHERE sessionId IN (:sessionIds)")
+    suspend fun deleteForSessions(sessionIds: List<Long>)
 
     /** Only non-artefact events count toward the ODI. */
     @Query("SELECT COUNT(*) FROM desaturation_events WHERE sessionId = :sessionId AND motionArtefact = 0")
@@ -168,4 +221,41 @@ interface SosEventDao {
 
     @Query("SELECT * FROM sos_events ORDER BY triggeredAtMs DESC LIMIT 50")
     fun recentEvents(): Flow<List<SosEventEntity>>
+}
+
+/** Count and total volume of drinks in a window. */
+data class WaterTotals(
+    @ColumnInfo(name = "drinks") val drinks: Int,
+    @ColumnInfo(name = "totalMl") val totalMl: Int
+)
+
+@Dao
+interface WaterLogDao {
+    @Insert
+    suspend fun insert(entry: WaterLogEntity)
+
+    /** [startMs] inclusive, [endMs] exclusive - pass LocalDay ranges. */
+    @Query("""
+        SELECT COUNT(*) AS drinks, COALESCE(SUM(amountMl), 0) AS totalMl
+        FROM water_log WHERE timestampMs >= :startMs AND timestampMs < :endMs
+    """)
+    suspend fun totalsBetween(startMs: Long, endMs: Long): WaterTotals
+
+    @Query("""
+        SELECT COUNT(*) AS drinks, COALESCE(SUM(amountMl), 0) AS totalMl
+        FROM water_log WHERE timestampMs >= :startMs AND timestampMs < :endMs
+    """)
+    fun totalsBetweenFlow(startMs: Long, endMs: Long): Flow<WaterTotals>
+
+    @Query("SELECT MAX(timestampMs) FROM water_log")
+    fun lastLogMsFlow(): Flow<Long?>
+
+    @Query("SELECT MAX(timestampMs) FROM water_log")
+    suspend fun lastLogMs(): Long?
+
+    @Query("SELECT * FROM water_log ORDER BY timestampMs ASC")
+    suspend fun all(): List<WaterLogEntity>
+
+    @Query("DELETE FROM water_log WHERE timestampMs < :olderThanMs")
+    suspend fun pruneOlderThan(olderThanMs: Long)
 }

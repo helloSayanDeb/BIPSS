@@ -17,12 +17,11 @@ import com.bipss.app.domain.environmental.ImdAlert
 
 private const val TAG = "BipssNotifications"
 
-/** Deep-link extra read by MainActivity to pick the tab to land on. */
-private const val EXTRA_NAVIGATE_TO = "navigate_to"
-
-private const val NAV_INSIGHTS = "insights"
-private const val NAV_COACH    = "coach"
-private const val NAV_TODAY    = "today"
+// Deep-link targets are shared with MainActivity through navigation.DeepLink.
+private val NAV_INSIGHTS = com.bipss.app.navigation.DeepLink.Target.INSIGHTS
+private val NAV_COACH    = com.bipss.app.navigation.DeepLink.Target.COACH
+private val NAV_TODAY    = com.bipss.app.navigation.DeepLink.Target.TODAY
+private val NAV_SLEEP    = com.bipss.app.navigation.DeepLink.Target.SLEEP
 
 /** Fully-qualified so this file does not have to import the activity class. */
 private const val MAIN_ACTIVITY = "com.bipss.app.MainActivity"
@@ -193,7 +192,7 @@ object BipssNotifications {
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
-            .setContentIntent(deepLink(context, NAV_INSIGHTS, NotificationIds.APNEA_SUMMARY))
+            .setContentIntent(deepLink(context, NAV_SLEEP, NotificationIds.APNEA_SUMMARY))
             .build()
 
         safeNotify(context, NotificationIds.APNEA_SUMMARY, notification)
@@ -225,6 +224,11 @@ object BipssNotifications {
             .setShowWhen(false)
             .setContentIntent(deepLink(context, NAV_TODAY, NotificationIds.SERVICE))
             .build()
+    }
+
+    /** Refreshes the band-connection notice through the permission-safe path. */
+    fun updateServiceNotification(context: Context, connected: Boolean) {
+        safeNotify(context, NotificationIds.SERVICE, buildServiceNotification(context, connected))
     }
 
     fun cancel(context: Context, id: Int) {
@@ -259,10 +263,14 @@ object BipssNotifications {
      * IMMUTABLE is mandatory from API 31; UPDATE_CURRENT refreshes the extras of a
      * pending intent already held for the same request code.
      */
-    private fun deepLink(context: Context, destination: String, requestCode: Int): PendingIntent {
+    private fun deepLink(
+        context: Context,
+        destination: com.bipss.app.navigation.DeepLink.Target,
+        requestCode: Int
+    ): PendingIntent {
         val intent = Intent().apply {
             setClassName(context.packageName, MAIN_ACTIVITY)
-            putExtra(EXTRA_NAVIGATE_TO, destination)
+            putExtra(com.bipss.app.navigation.DeepLink.EXTRA_NAVIGATE_TO, destination.key)
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
         }
 

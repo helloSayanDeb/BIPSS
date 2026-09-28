@@ -59,10 +59,8 @@ fun DashboardInsightsScreen(
     val env = state.env
     val context = LocalContext.current
 
-    val locationPermission = rememberPermissionState(
-        android.Manifest.permission.ACCESS_FINE_LOCATION
-    )
-    val hasLocation = locationPermission.status.isGranted
+    val locationPermission = rememberLocationPermission { granted -> if (granted) vm.refreshEnvironment(force = true) }
+    val hasLocation = locationPermission.isGranted
 
     Column(
         Modifier
@@ -185,9 +183,10 @@ fun DashboardInsightsScreen(
         if (!hasLocation) {
             Spacer(Modifier.height(Space.xxl))
             LocationPermissionGateCard(
-                isPermanentlyDenied = !locationPermission.status.shouldShowRationale
-                        && !locationPermission.status.isGranted,
-                onGrant = { locationPermission.launchPermissionRequest() },
+                // Only after this screen has asked and Android stopped showing the
+                // dialog - not on first visit, which used to read as "denied permanently".
+                isPermanentlyDenied = locationPermission.isPermanentlyDenied,
+                onGrant = { locationPermission.request() },
                 onOpenSettings = {
                     context.startActivity(
                         Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
@@ -488,10 +487,10 @@ private fun RiskDetailCard(risk: RiskScore) {
             Spacer(Modifier.height(Space.s))
             FlowPills(risk.factors.map { it.label to it.isElevated })
         }
-        if (risk.measuredOutOf in 1..99) {
+        if (risk.measuredOutOf in 1 until risk.fullBudget) {
             Spacer(Modifier.height(Space.s))
             Text(
-                "Scored against the ${risk.measuredOutOf} of 100 points we could measure.",
+                "Scored against the ${risk.measuredOutOf} of ${risk.fullBudget} points we could measure.",
                 style = MaterialTheme.typography.labelSmall,
                 color = colors.textTertiary
             )

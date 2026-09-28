@@ -14,15 +14,27 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.bipss.app.ui.settings.SettingsViewModel
 import com.bipss.app.ui.shell.AppShell
 import com.bipss.app.ui.theme.BipssTheme
+import com.bipss.app.navigation.DeepLink
 import org.koin.androidx.compose.koinViewModel
+import org.koin.androidx.viewmodel.ext.android.viewModel
 
 class MainActivity : ComponentActivity() {
+
+    private val mainViewModel: MainViewModel by viewModel()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        // Cold start from a notification tap. Skipped on recreation so a
+        // rotation does not replay a tap that was already handled.
+        if (savedInstanceState == null) {
+            mainViewModel.onDeepLink(DeepLink.fromIntent(intent))
+            intent?.removeExtra(DeepLink.EXTRA_NAVIGATE_TO)
+        }
         setContent {
             val mainVm:     MainViewModel    = koinViewModel()
             val settingsVm: SettingsViewModel = koinViewModel()
+            val deepLink    by mainVm.pendingDeepLink.collectAsStateWithLifecycle()
 
             val mainState   by mainVm.uiState.collectAsStateWithLifecycle()
             val themePref   by settingsVm.themePreference.collectAsStateWithLifecycle()
@@ -42,9 +54,21 @@ class MainActivity : ComponentActivity() {
 
             BipssTheme(themePreference = themePref) {
                 if (!mainState.isLoading) {
-                    AppShell(startDestination = mainState.startDestination)
+                    AppShell(
+                        startDestination   = mainState.startDestination,
+                        deepLink           = deepLink,
+                        onDeepLinkConsumed = mainVm::consumeDeepLink
+                    )
                 }
             }
         }
+    }
+
+    /** A tap while the activity already exists arrives here (SINGLE_TOP), not in onCreate. */
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        mainViewModel.onDeepLink(DeepLink.fromIntent(intent))
+        intent.removeExtra(DeepLink.EXTRA_NAVIGATE_TO)
+        setIntent(intent)
     }
 }

@@ -43,6 +43,9 @@ class DisasterAlertRepository(
     /** Alerts centred further away than this are not shown, absent a name match. */
     private val MAX_RELEVANT_KM = 250.0
 
+    /** A remembered position older than this is not "where the user is". */
+    private val MAX_CACHED_LOCATION_AGE_MS = 24 * 3_600_000L
+
     /**
      * Assumed coverage radius for an alert that publishes no area.
      *
@@ -91,22 +94,41 @@ class DisasterAlertRepository(
     }
 
     private suspend fun doFetch(): EnvironmentalSnapshot {
+        // Without location permission nothing is fetched at all: every source
+        // here is location-scoped, and the national fallback that used to run
+        // instead (all-India alerts, an arbitrary CPCB station) is exactly what
+        // must never be shown. The last position is forgotten too.
+        if (!locationHelper.hasAnyPermission()) {
+            Log.i(TAG, "Location not granted - no environmental fetch")
+            prefsRepo.clearCachedLocation()
+            return getCachedSnapshot() ?: EnvironmentalSnapshot.EMPTY
+        }
+
         Log.d(TAG, "Fetching environmental snapshot")
 
-        // Location first - every downstream source is location-scoped.
+        // Location first - every downstream source is location-scoped. A fresh
+        // fix is preferred; failing that, a cached one no older than a day
+        // (e.g. a background run, which cannot request a new fix).
+        val now0 = System.currentTimeMillis()
         val cachedLoc = prefsRepo.cachedLocation.first()
-        val live = locationHelper.getCurrentLocation()
-        val lat = live?.first ?: cachedLoc?.lat
-        val lon = live?.second ?: cachedLoc?.lon
+            ?.takeIf { it.atMs != null && now0 - it.atMs <= MAX_CACHED_LOCATION_AGE_MS }
+        val live = locationHelper.getCurrentFix()
+        val lat = live?.lat ?: cachedLoc?.lat
+        val lon = live?.lon ?: cachedLoc?.lon
+        if (lat == null || lon == null) {
+            // Permission is granted but there is no usable position. Fetching
+            // anyway would mean nationwide data presented as local, so the
+            // previous (location-scoped) snapshot stays, with its real age.
+            Log.w(TAG, "No usable location - keeping the previous snapshot")
+            return getCachedSnapshot() ?: EnvironmentalSnapshot.EMPTY
+        }
 
         var district = cachedLoc?.district
         var state    = cachedLoc?.state
-        if (lat != null && lon != null) {
-            val resolved = locationHelper.resolveDistrictAndState(lat, lon)
-            district = resolved.first ?: district
-            state    = resolved.second ?: state
-            prefsRepo.cacheLocation(lat, lon, district, state)
-        }
+        val resolved = locationHelper.resolveDistrictAndState(lat, lon)
+        district = resolved.first ?: district
+        state    = resolved.second ?: state
+        if (live != null) prefsRepo.cacheLocation(lat, lon, district, state, live.timeMs)
 
         // Alerts: Sachet JSON is primary (it carries per-alert identifier,
         // severity, centroid and expiry). IMD RSS is the fallback - it has none
@@ -162,8 +184,9 @@ class DisasterAlertRepository(
             aqiSource         = blended.source,
             regionalAqiValue  = cpcb?.aqiValue,
             dominantPollutant = cpcb?.dominantPollutant,
-            pm25              = cpcb?.pm25,
-            pm10              = cpcb?.pm10,
+            pollutantSubIndices = cpcb?.pollutantSubIndices.orEmpty(),
+            aqiStationName    = cpcb?.stationName,
+            aqiStationDistanceKm = cpcb?.distanceKm,
             activeAlerts      = alerts,
             advisories        = advisories,
             alertSeverity     = severity,
@@ -191,8 +214,9 @@ class DisasterAlertRepository(
                 aqiSource        = snapshot.aqiSource.name,
                 regionalAqiValue = snapshot.regionalAqiValue,
                 aqiPollutant     = snapshot.dominantPollutant,
-                pm25             = snapshot.pm25,
-                pm10             = snapshot.pm10,
+                pollutantSubIndices = snapshot.pollutantSubIndices,
+                aqiStationName   = snapshot.aqiStationName,
+                aqiStationDistanceKm = snapshot.aqiStationDistanceKm,
                 alertSeverity    = severity.name,
                 alerts           = alerts,
                 alertsCheckedAtMs = alertsCheckedAtMs,
@@ -270,10 +294,10 @@ class DisasterAlertRepository(
         if (!state.isNullOrBlank() && alert.areas.any { it.contains(state, ignoreCase = true) })
             return Relevance.NEARBY
 
-        // With no location at all we cannot judge relevance, so we keep the
-        // alert rather than silently hiding a warning we simply could not place.
-        return if (district.isNullOrBlank() && state.isNullOrBlank() && lat == null)
-            Relevance.REGIONAL else null
+        // An alert that cannot be placed relative to the user is not shown.
+        // (There used to be a "no location at all -> keep everything as
+        // regional" branch; fetches now never run without a location.)
+        return null
     }
 
     /** Reads the cached snapshot. Returns null when nothing has ever been fetched. */
@@ -292,8 +316,9 @@ class DisasterAlertRepository(
                                     .getOrDefault(AqiSource.NONE),
             regionalAqiValue  = cached.regionalAqiValue,
             dominantPollutant = cached.aqiPollutant,
-            pm25              = cached.pm25,
-            pm10              = cached.pm10,
+            pollutantSubIndices = cached.pollutantSubIndices,
+            aqiStationName    = cached.aqiStationName,
+            aqiStationDistanceKm = cached.aqiStationDistanceKm,
             // Alerts survive offline now, with their age stamped on screen.
             activeAlerts      = cached.alerts,
             advisories        = cached.advisories,

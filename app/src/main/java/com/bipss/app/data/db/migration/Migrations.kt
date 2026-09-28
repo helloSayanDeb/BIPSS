@@ -133,3 +133,21 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
         )
     }
 }
+
+/**
+ * v5 → v6: water_log. Drinks were previously a single-day counter in DataStore
+ * keyed on the UTC day; the counter itself is migrated into this table once, at
+ * start-up, by [com.bipss.app.data.WaterRepository.migrateLegacyCounter].
+ */
+val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS `water_log` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `timestampMs` INTEGER NOT NULL,
+                `amountMl` INTEGER NOT NULL
+            )
+        """.trimIndent())
+        database.execSQL("CREATE INDEX IF NOT EXISTS `index_water_log_timestampMs` ON `water_log` (`timestampMs`)")
+    }
+}

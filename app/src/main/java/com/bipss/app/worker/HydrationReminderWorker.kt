@@ -2,7 +2,6 @@ package com.bipss.app.worker
 
 import android.content.Context
 import androidx.work.*
-import com.bipss.app.data.UserPreferencesRepository
 import com.bipss.app.notifications.BipssNotifications
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
@@ -25,13 +24,16 @@ class HydrationReminderWorker(
     workerParams: WorkerParameters
 ) : CoroutineWorker(appContext, workerParams), KoinComponent {
 
-    private val prefsRepo: UserPreferencesRepository by inject()
+    private val waterRepo: com.bipss.app.data.WaterRepository by inject()
 
     override suspend fun doWork(): Result {
+        // Nothing to do if the user has not allowed notifications.
+        if (!BipssNotifications.hasPermission(applicationContext)) return Result.success()
+
         val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
         if (hour !in QUIET_END until QUIET_START) return Result.success()
 
-        val hours = prefsRepo.hoursSinceLastWaterLog() ?: return Result.success()
+        val hours = waterRepo.hoursSinceLastLog() ?: return Result.success()
         if (hours >= REMIND_AFTER_HOURS) {
             val message = MESSAGES.random()
             BipssNotifications.showReminder(

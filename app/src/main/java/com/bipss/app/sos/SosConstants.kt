@@ -30,10 +30,18 @@ enum class SosTriggerSource {
     FALL_DETECTION_ML     // TODO: LiteRT SisFall classifier (future plan)
 }
 
+/** Stored as its name in sos_events.outcome (a TEXT column), so adding values needs no migration. */
 enum class SosOutcome {
     SENT,
+    /** Some contacts were confirmed sent, others were not. */
+    PARTIALLY_SENT,
     CANCELLED,
     NO_CONTACTS,
+    NO_SMS_PERMISSION,
+    NO_TELEPHONY,
+    /** Sent, but without any location. */
     LOCATION_DENIED,
+    /** Handed to the SMS service but no send confirmation arrived for anyone before the timeout. */
+    UNCONFIRMED,
     SEND_FAILED
 }

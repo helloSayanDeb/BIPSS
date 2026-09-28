@@ -185,7 +185,7 @@ fun OnboardingConnectBandScreen(
         Spacer(Modifier.height(Space.xl))
         AnimatedVisibility(visible = !isConnected, enter = fadeIn(), exit = fadeOut()) {
             Text(
-                "No band yet? Skip this — BIPSS still tracks environmental risk and works with data already in Health Connect.",
+                "No band yet? Skip this — BIPSS still shows local weather, air quality and alerts, and you can pair a band later in Settings.",
                 style = MaterialTheme.typography.bodySmall,
                 color = colors.textTertiary,
                 textAlign = TextAlign.Center,

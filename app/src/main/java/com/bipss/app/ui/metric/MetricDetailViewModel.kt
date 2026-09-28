@@ -16,9 +16,10 @@ import kotlinx.coroutines.launch
 /**
  * Backs one metric's history screen.
  *
- * Day reads raw samples; Week and Month read minute aggregates, because a
- * 30-day window at 1 Hz is millions of rows. Gaps where the band was not worn
- * are marked explicitly rather than bridged - see [insertGaps].
+ * Every range reads both history tables - raw rows for the last seven days,
+ * minute aggregates for anything older - bucketed to the range's resolution
+ * and merged (see [mergeBuckets]). Gaps where the band was not worn are marked
+ * explicitly rather than bridged - see [insertGaps].
  */
 class MetricDetailViewModel(
     private val metricType:  String,
@@ -54,24 +55,21 @@ class MetricDetailViewModel(
             val now = System.currentTimeMillis()
             val start = now - range.durationMs
 
-            val raw = if (range == TimeRange.DAY) {
-                rawDao.getRange(metricType, start, now)
-                    .map { GraphPoint(it.timestampMs, it.value.toFloat()) }
-            } else {
-                aggDao.getRange(metricType, start / 60_000L, now / 60_000L)
-                    .map { GraphPoint(it.minuteEpoch * 60_000L, it.avg) }
-            }
+            val rawBuckets = rawDao.getBuckets(metricType, start, now, range.bucketMs)
+            val aggBuckets = aggDao.getBuckets(metricType, start / 60_000L, now / 60_000L, range.bucketMs)
+            val buckets = mergeBuckets(rawBuckets, aggBuckets)
+            val raw = bucketsToPoints(buckets, range.bucketMs)
+            val stats = combineStats(buckets)
 
-            val stats = if (range == TimeRange.DAY) rawDao.getStats(metricType, start, now)
-                        else aggDao.getStats(metricType, start / 60_000L, now / 60_000L)
-
+            // Raw rows only cover the last week, so the resting figure is
+            // labelled as such on screen rather than implied to span the range.
             val resting = if (metricType == MetricTypes.HR)
-                rawDao.getRestingAverage(metricType, start, now)?.toFloat() else null
+                rawDao.getRestingAverage(metricType, maxOf(start, now - 7 * 86_400_000L), now)?.toFloat() else null
 
             _uiState.update {
                 it.copy(
                     points       = insertGaps(raw, range.gapThresholdMs),
-                    stats        = stats,
+                    stats        = stats.takeIf { it.sampleCount > 0 },
                     baseline     = baselineDao.getByType(metricType)?.mean,
                     restingValue = resting,
                     currentValue = raw.lastOrNull()?.value,

@@ -5,22 +5,25 @@ import kotlin.math.roundToInt
 /**
  * CPCB National Air Quality Index.
  *
- * The breakpoints below are the published ones from the National Air Quality
- * Index report (Central Pollution Control Board, 2014). They are transcribed
- * here rather than read from the feed because data.gov.in resource 3b01bcb8
- * does not publish an index at all - it returns one row per pollutant per
- * station carrying pollutant_id / pollutant_min / pollutant_avg /
- * pollutant_max. The old fetcher read fields named "aqi_index" and
- * "prominent_pollutant", which that resource has never contained, so it could
- * only ever produce nothing. The index has to be computed: take a sub-index
- * per pollutant, and the station AQI is the largest of them, with the
- * pollutant that produced it named as dominant.
+ * **What the data.gov.in feed actually reports.** Resource 3b01bcb8 ("Real time
+ * Air Quality Index") returns one row per pollutant per station, and its
+ * `min_value` / `avg_value` / `max_value` are that pollutant's **AQI
+ * sub-index**, not a concentration. This was established from the feed
+ * itself: CO arrives around 20-35 at ordinary Kolkata stations, which is
+ * impossible as mg/m3 (34 is the top of the "severe" band) and far too low as
+ * ug/m3, but is exactly the CO sub-index of ~0.4-0.7 mg/m3 air; independent
+ * comparisons against CPCB's archive show the same (feed CO 28.0 against an
+ * archived 0.56 mg/m3). The previous code fed those sub-indices back through
+ * the concentration tables below - converting every pollutant twice - and then
+ * discarded almost every CO row as "implausible", which silently removed CO
+ * even on the days it genuinely mattered.
  *
- * UNITS: CO is expressed in mg/m3. Every other pollutant here is in ug/m3, and
- * the CO band boundaries are roughly a thousand times smaller because of it.
- * Passing a ug/m3 CO figure into this table returns 500 and passing a mg/m3
- * particulate figure returns 0 - both silently, both wildly wrong. The unit
- * has to be right at the call site; nothing here can detect the mistake.
+ * [fromSubIndices] is therefore what the feed path uses: the station AQI is the
+ * largest sub-index, subject to CPCB's validity rule (at least three
+ * pollutants, one of them PM2.5 or PM10). The published concentration
+ * breakpoints are kept in [subIndex]/[compute] for sources that genuinely
+ * report concentrations. In those tables CO is in mg/m3 and everything else
+ * in ug/m3.
  *
  * Pure Kotlin, no Android dependencies - unit-testable.
  */
@@ -188,15 +191,51 @@ object AqiIndex {
         val avg:         Float?
     )
 
-    /** The computed station index and the sub-indices behind it, keyed by canonical id. */
+    /** CPCB validity rule: an index needs at least this many pollutants... */
+    const val MIN_POLLUTANTS = 3
+
+    /**
+     * The computed station index and the sub-indices behind it, keyed by
+     * canonical id. [meetsCpcbMinimum] is CPCB's own validity rule: at least
+     * [MIN_POLLUTANTS] pollutants, one of them PM2.5 or PM10.
+     */
     data class AqiComputation(
         val aqi:               Int,
         val dominantPollutant: String,
-        val subIndices:        Map<String, Int>
+        val subIndices:        Map<String, Int>,
+        val meetsCpcbMinimum:  Boolean = meetsMinimum(subIndices.keys)
     )
 
+    private fun meetsMinimum(ids: Set<String>): Boolean =
+        ids.size >= MIN_POLLUTANTS && (ID_PM25 in ids || ID_PM10 in ids)
+
     /**
-     * Station AQI from a set of per-pollutant rows, or null when none were usable.
+     * Station AQI from rows whose values are **already sub-indices** - the
+     * data.gov.in real-time feed. The AQI is the largest sub-index; the
+     * pollutant that set it is dominant. Returns null when no row is usable.
+     *
+     * A value outside 0..500 is not a sub-index at all and is dropped, never
+     * clamped into range. Where a station repeats a pollutant the higher value
+     * wins, which is the cautious reading for a health screen.
+     */
+    fun fromSubIndices(readings: List<PollutantReading>): AqiComputation? {
+        val subIndices = LinkedHashMap<String, Int>()
+        for (reading in readings) {
+            val value = reading.avg ?: continue
+            if (value.isNaN() || value < 0f || value > MAX_INDEX) continue
+            val id = canonicalId(reading.pollutantId) ?: continue
+            val index = value.roundToInt()
+            val existing = subIndices[id]
+            if (existing == null || index > existing) subIndices[id] = index
+        }
+        val dominant = subIndices.maxByOrNull { it.value } ?: return null
+        return AqiComputation(dominant.value, dominant.key, subIndices)
+    }
+
+    /**
+     * Station AQI from per-pollutant **concentrations** (CO in mg/m3, the rest
+     * in ug/m3), or null when none were usable. Not for the data.gov.in feed,
+     * whose values are already sub-indices - see [fromSubIndices].
      *
      * Rows with no average, an unknown pollutant or an uncomputable sub-index
      * are dropped. If that leaves nothing the result is null rather than a
@@ -207,17 +246,14 @@ object AqiIndex {
      * the cautious reading for a health screen. A tie for dominance goes to the
      * pollutant seen first in the input.
      *
-     * CPCB's own guidance additionally requires a minimum spread of pollutants
-     * before an index counts as valid. That is not enforced here, so a caller
-     * can decide what to do with a thin station; [AqiComputation.subIndices]
-     * shows exactly how many contributed.
+     * CPCB's minimum-spread rule is reported in [AqiComputation.meetsCpcbMinimum]
+     * rather than enforced, so the caller decides what to do with a thin station.
      */
     fun compute(readings: List<PollutantReading>): AqiComputation? {
         val subIndices = LinkedHashMap<String, Int>()
         for (reading in readings) {
             val avg      = reading.avg ?: continue
             val id       = canonicalId(reading.pollutantId) ?: continue
-            if (id == ID_CO && !isPlausibleCoMgPerM3(avg)) continue
             val value    = subIndex(id, avg) ?: continue
             val existing = subIndices[id]
             if (existing == null || value > existing) subIndices[id] = value
@@ -229,29 +265,6 @@ object AqiIndex {
             subIndices        = subIndices
         )
     }
-
-    /**
-     * Whether a CO figure can be read as mg/m3, the unit this table expects.
-     *
-     * The CPCB feed is not consistent about CO units: Kolkata stations were
-     * observed reporting values around 20-35 on 8 Sep 2026, which is impossible
-     * as an ambient mg/m3 reading (34 mg/m3 is the top of the "severe" band and
-     * is an evacuate-the-building concentration) but entirely ordinary as
-     * ug/m3. Because the national index is the MAXIMUM sub-index, a single
-     * mis-scaled CO row does not nudge the result - it takes it over
-     * completely, turning a moderate day into a fabricated "very poor" one.
-     *
-     * Anything above this ceiling is therefore discarded rather than converted.
-     * Guessing the unit and dividing by 1000 would silently invent a reading;
-     * dropping the row leaves the index to the six pollutants whose units are
-     * unambiguous, and PM2.5 and PM10 are what drive the Indian AQI in practice
-     * anyway. [AqiComputation.subIndices] shows which pollutants contributed,
-     * so an omission is visible rather than hidden.
-     */
-    private fun isPlausibleCoMgPerM3(value: Float): Boolean = value in 0f..MAX_PLAUSIBLE_CO_MG
-
-    /** Above this an ambient CO figure is certainly not mg/m3. */
-    private const val MAX_PLAUSIBLE_CO_MG = 20f
 
     /** The band name for an index, so callers never restate the boundaries themselves. */
     fun bandLabel(aqi: Int): String = AqiRiskLevel.fromAqi(aqi).label

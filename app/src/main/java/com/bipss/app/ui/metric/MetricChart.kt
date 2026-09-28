@@ -49,12 +49,13 @@ data class GraphPoint(
 /**
  * Window the detail view can show. [gapThresholdMs] widens with the window
  * because a five-minute hole is a real hole in a day view but invisible noise
- * across a month.
+ * across a month. [bucketMs] is the plotting resolution; it is always smaller
+ * than the gap threshold so a real gap can never hide inside one bucket.
  */
-enum class TimeRange(val label: String, val durationMs: Long, val gapThresholdMs: Long) {
-    DAY("Day", 24 * 3600_000L, 5 * 60_000L),
-    WEEK("Week", 7 * 24 * 3600_000L, 30 * 60_000L),
-    MONTH("Month", 30 * 24 * 3600_000L, 3 * 3600_000L),
+enum class TimeRange(val label: String, val durationMs: Long, val gapThresholdMs: Long, val bucketMs: Long) {
+    DAY("Day", 24 * 3600_000L, 5 * 60_000L, 60_000L),
+    WEEK("Week", 7 * 24 * 3600_000L, 30 * 60_000L, 5 * 60_000L),
+    MONTH("Month", 30 * 24 * 3600_000L, 3 * 3600_000L, 30 * 60_000L),
 }
 
 private const val EmDash = "—"
@@ -279,6 +280,7 @@ fun MetricStatsRow(
     restingValue: Float?,
     unit: String,
     modifier: Modifier = Modifier,
+    restingLabel: String = "RESTING",
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -287,7 +289,7 @@ fun MetricStatsRow(
         StatFigure("MIN", minValue, unit, Modifier.weight(1f))
         StatFigure("AVG", avgValue, unit, Modifier.weight(1f))
         StatFigure("MAX", maxValue, unit, Modifier.weight(1f))
-        StatFigure("RESTING", restingValue, unit, Modifier.weight(1f))
+        StatFigure(restingLabel, restingValue, unit, Modifier.weight(1f))
     }
 }
 

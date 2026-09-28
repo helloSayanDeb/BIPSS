@@ -105,55 +105,35 @@ class UserPreferencesRepository(private val context: Context) {
         dataStore.edit { it[KEY_CHATBOT_ENGINE_FAILED] = failed }
     }
 
-    // ── Water log ────────────────────────────────────────────────────────────
+    // ── Water log (legacy) ───────────────────────────────────────────────────
+    // Drinks now live in Room (see WaterRepository). These keys held a single
+    // UTC-day counter and are read once to migrate, then removed.
     private val KEY_LAST_WATER_LOG_MS = longPreferencesKey("last_water_log_ms")
     private val KEY_WATER_LOG_COUNT   = intPreferencesKey("water_log_count_today")
     private val KEY_WATER_LOG_ML      = intPreferencesKey("water_log_ml_today")
     private val KEY_WATER_LOG_DAY     = longPreferencesKey("water_log_day_epoch")
 
-    val lastWaterLogMs: Flow<Long?> = dataStore.data.map { it[KEY_LAST_WATER_LOG_MS] }
+    data class LegacyWaterCounter(val lastLogMs: Long, val count: Int, val totalMl: Int)
 
-    /** Glasses logged today. Resets automatically when the day rolls over. */
-    val waterLogCountToday: Flow<Int> = dataStore.data.map { prefs ->
-        val day = prefs[KEY_WATER_LOG_DAY] ?: return@map 0
-        if (day != todayEpochDay()) 0 else prefs[KEY_WATER_LOG_COUNT] ?: 0
-    }
-
-    /** Total mL logged today. Resets automatically when the day rolls over. */
-    val waterLogTotalMlToday: Flow<Int> = dataStore.data.map { prefs ->
-        val day = prefs[KEY_WATER_LOG_DAY] ?: return@map 0
-        if (day != todayEpochDay()) 0 else prefs[KEY_WATER_LOG_ML] ?: 0
-    }
-
-    suspend fun logWaterIntake(amountMl: Int = 250, timestampMs: Long = System.currentTimeMillis()) {
+    /** Returns the old counter (if any) and deletes its keys, so it migrates exactly once. */
+    suspend fun consumeLegacyWaterCounter(): LegacyWaterCounter? {
+        var result: LegacyWaterCounter? = null
         dataStore.edit { prefs ->
-            prefs[KEY_LAST_WATER_LOG_MS] = timestampMs
-            val today = todayEpochDay()
-            val sameDay = prefs[KEY_WATER_LOG_DAY] == today
-            prefs[KEY_WATER_LOG_DAY]   = today
-            prefs[KEY_WATER_LOG_COUNT] = if (sameDay) (prefs[KEY_WATER_LOG_COUNT] ?: 0) + 1 else 1
-            prefs[KEY_WATER_LOG_ML]    = if (sameDay) (prefs[KEY_WATER_LOG_ML] ?: 0) + amountMl else amountMl
+            val last = prefs[KEY_LAST_WATER_LOG_MS]
+            if (last != null) {
+                result = LegacyWaterCounter(
+                    lastLogMs = last,
+                    count     = prefs[KEY_WATER_LOG_COUNT] ?: 0,
+                    totalMl   = prefs[KEY_WATER_LOG_ML] ?: 0
+                )
+            }
+            prefs.remove(KEY_LAST_WATER_LOG_MS)
+            prefs.remove(KEY_WATER_LOG_COUNT)
+            prefs.remove(KEY_WATER_LOG_ML)
+            prefs.remove(KEY_WATER_LOG_DAY)
         }
+        return result
     }
-
-    /**
-     * Hours since the last logged drink, or **null when nothing has ever been
-     * logged**.
-     *
-     * This deliberately does not fall back to 8 hours. That old default fed
-     * `dehydMod = (8/8) x 20`, putting a permanent, invented 20 points into
-     * every Heat Stress score forever and surfacing "Hydration Low" as a
-     * finding when it was actually a constant. Not having logged a drink is
-     * not evidence of not having drunk one, so the honest answer is "unknown"
-     * and the hydration component drops out of the score entirely.
-     */
-    suspend fun hoursSinceLastWaterLog(): Float? {
-        val last = dataStore.data.map { it[KEY_LAST_WATER_LOG_MS] }.first() ?: return null
-        return ((System.currentTimeMillis() - last) / 3_600_000f).coerceIn(0f, 24f)
-    }
-
-    private fun todayEpochDay(): Long =
-        System.currentTimeMillis() / 86_400_000L
 
     // ── Baseline age ─────────────────────────────────────────────────────────
     // Drives the widening 3 -> 7 -> 15 -> 30 -> 90 day schedule. Stamped from
@@ -176,7 +156,7 @@ class UserPreferencesRepository(private val context: Context) {
     }
 
     // ── Alert notification de-duplication ────────────────────────────────────
-    // Without this the 3-hourly sync re-notifies the same warning all day.
+    // Without this the 15-minute sync re-notifies the same warning all day.
     private val KEY_NOTIFIED_ALERT_IDS = stringSetPreferencesKey("notified_alert_ids")
 
     suspend fun hasNotifiedAlert(identifier: String): Boolean =
@@ -239,6 +219,15 @@ class UserPreferencesRepository(private val context: Context) {
         dataStore.edit { if (pending) it[KEY_FABRICATED_DOC_SWEEP] = true else it.remove(KEY_FABRICATED_DOC_SWEEP) }
     }
 
+    private val KEY_ANOMALY_REFLAG_DONE = booleanPreferencesKey("legacy_anomaly_reflag_done")
+
+    suspend fun isAnomalyReflagDone(): Boolean =
+        dataStore.data.map { it[KEY_ANOMALY_REFLAG_DONE] ?: false }.first()
+
+    suspend fun markAnomalyReflagDone() {
+        dataStore.edit { it[KEY_ANOMALY_REFLAG_DONE] = true }
+    }
+
     suspend fun isLegacyCleanupV1Done(): Boolean =
         dataStore.data.map { it[KEY_LEGACY_CLEANUP_V1] ?: false }.first()
 
@@ -289,21 +278,34 @@ class UserPreferencesRepository(private val context: Context) {
     private val KEY_LAST_DISTRICT = stringPreferencesKey("last_district")
     private val KEY_LAST_STATE    = stringPreferencesKey("last_state")
 
+    private val KEY_LAST_LOC_AT   = longPreferencesKey("last_location_at_ms")
+
     data class CachedLocation(
         val lat: Double, val lon: Double,
-        val district: String?, val state: String?
+        val district: String?, val state: String?,
+        /** When the fix was taken; null for caches written before this was recorded. */
+        val atMs: Long? = null
     )
 
     val cachedLocation: Flow<CachedLocation?> = dataStore.data.map { prefs ->
         val lat = prefs[KEY_LAST_LAT]?.toDoubleOrNull() ?: return@map null
         val lon = prefs[KEY_LAST_LON]?.toDoubleOrNull() ?: return@map null
-        CachedLocation(lat, lon, prefs[KEY_LAST_DISTRICT], prefs[KEY_LAST_STATE])
+        CachedLocation(lat, lon, prefs[KEY_LAST_DISTRICT], prefs[KEY_LAST_STATE], prefs[KEY_LAST_LOC_AT])
     }
 
-    suspend fun cacheLocation(lat: Double, lon: Double, district: String?, state: String?) {
+    /** Forgets the last position - called when location permission is not (or no longer) granted. */
+    suspend fun clearCachedLocation() {
+        dataStore.edit {
+            it.remove(KEY_LAST_LAT); it.remove(KEY_LAST_LON)
+            it.remove(KEY_LAST_DISTRICT); it.remove(KEY_LAST_STATE); it.remove(KEY_LAST_LOC_AT)
+        }
+    }
+
+    suspend fun cacheLocation(lat: Double, lon: Double, district: String?, state: String?, atMs: Long = System.currentTimeMillis()) {
         dataStore.edit {
             it[KEY_LAST_LAT] = lat.toString()
             it[KEY_LAST_LON] = lon.toString()
+            it[KEY_LAST_LOC_AT] = atMs
             district?.takeIf { d -> d.isNotBlank() }?.let { d -> it[KEY_LAST_DISTRICT] = d }
             state?.takeIf    { s -> s.isNotBlank() }?.let { s -> it[KEY_LAST_STATE]    = s }
         }
@@ -334,8 +336,11 @@ class UserPreferencesRepository(private val context: Context) {
         val aqiSource:         String  = "NONE",
         val regionalAqiValue:  Int?    = null,
         val aqiPollutant:      String? = null,
-        val pm25:              Float?  = null,
-        val pm10:              Float?  = null,
+        // Old caches carried pm25/pm10 (sub-indices mislabelled as
+        // concentrations); unknown keys are ignored on decode.
+        val pollutantSubIndices: Map<String, Int> = emptyMap(),
+        val aqiStationName:    String? = null,
+        val aqiStationDistanceKm: Double? = null,
         val alertSeverity:     String  = "NONE",
         val alerts:            List<ImdAlert>       = emptyList(),
         // Caches written before these fields existed decode to "never checked",
@@ -369,7 +374,6 @@ class UserPreferencesRepository(private val context: Context) {
     // ── Plan 9: Settings ─────────────────────────────────────────────────────
     private val KEY_THEME_PREFERENCE       = intPreferencesKey("theme_preference")
     private val KEY_CLOUD_BACKUP_ENABLED   = booleanPreferencesKey("cloud_backup_enabled")
-    private val KEY_DELETION_INITIATED_AT  = longPreferencesKey("deletion_initiated_at_ms")
 
     val themePreference: Flow<ThemePreference> = dataStore.data.map { prefs ->
         prefs[KEY_THEME_PREFERENCE]?.let { ThemePreference.entries.getOrNull(it) } ?: ThemePreference.DARK
@@ -385,10 +389,70 @@ class UserPreferencesRepository(private val context: Context) {
         dataStore.edit { it[KEY_CLOUD_BACKUP_ENABLED] = enabled }
     }
 
-    val deletionInitiatedAtMs: Flow<Long?> = dataStore.data.map { it[KEY_DELETION_INITIATED_AT] }
+    // ── Cloud (sharing) deletion ─────────────────────────────────────────────
+    // The uid whose shared data must be deleted. Survives clearLocalDataPrefs,
+    // because the local wipe happens immediately while the cloud deletion may
+    // have to wait for a network connection.
+    private val KEY_PENDING_CLOUD_DELETION_UID = stringPreferencesKey("pending_cloud_deletion_uid")
+    private val KEY_CLOUD_DELETION_STATUS      = stringPreferencesKey("cloud_deletion_status")
+    private val KEY_CLOUD_DELETION_COUNT       = intPreferencesKey("cloud_deletion_count")
+    private val KEY_CLOUD_DELETION_AT          = longPreferencesKey("cloud_deletion_finished_at_ms")
+    private val KEY_CLOUD_ACCOUNT_REMOVED      = booleanPreferencesKey("cloud_deletion_account_removed")
+    // Set by a local wipe, cleared once onboarding has been reset. If the
+    // process dies between the two, start-up finishes the reset.
+    private val KEY_ONBOARDING_RESET_PENDING   = booleanPreferencesKey("onboarding_reset_pending")
 
-    suspend fun initiateCloudDeletion() {
-        dataStore.edit { it[KEY_DELETION_INITIATED_AT] = System.currentTimeMillis() }
+    val pendingCloudDeletionUid: Flow<String?> = dataStore.data.map { it[KEY_PENDING_CLOUD_DELETION_UID] }
+
+    suspend fun setPendingCloudDeletionUid(uid: String?) {
+        dataStore.edit { if (uid == null) it.remove(KEY_PENDING_CLOUD_DELETION_UID) else it[KEY_PENDING_CLOUD_DELETION_UID] = uid }
+    }
+
+    val cloudDeletionStatus: Flow<com.bipss.app.data.sharing.CloudDeletionStatus> = dataStore.data.map { prefs ->
+        prefs[KEY_CLOUD_DELETION_STATUS]
+            ?.let { runCatching { com.bipss.app.data.sharing.CloudDeletionStatus.valueOf(it) }.getOrNull() }
+            ?: com.bipss.app.data.sharing.CloudDeletionStatus.NONE
+    }
+    val cloudDeletionCount: Flow<Int> = dataStore.data.map { it[KEY_CLOUD_DELETION_COUNT] ?: 0 }
+    val cloudDeletionFinishedAtMs: Flow<Long?> = dataStore.data.map { it[KEY_CLOUD_DELETION_AT] }
+    /** Whether the last finished deletion also removed the anonymous Firebase account (not just signed out). */
+    val cloudDeletionAccountRemoved: Flow<Boolean> = dataStore.data.map { it[KEY_CLOUD_ACCOUNT_REMOVED] ?: false }
+    val onboardingResetPending: Flow<Boolean> = dataStore.data.map { it[KEY_ONBOARDING_RESET_PENDING] ?: false }
+
+    suspend fun setCloudDeletionStatus(status: com.bipss.app.data.sharing.CloudDeletionStatus, count: Int) {
+        dataStore.edit {
+            it[KEY_CLOUD_DELETION_STATUS] = status.name
+            it[KEY_CLOUD_DELETION_COUNT] = count
+        }
+    }
+
+    /**
+     * Records a finished deletion and resets the sharing identity. With
+     * [keepLocalSharingState] (a contamination purge) the opt-in stays as it
+     * was; the next upload signs in as a new identity and starts from scratch.
+     */
+    suspend fun onCloudDeletionFinished(deletedCount: Int, keepLocalSharingState: Boolean, accountRemoved: Boolean) {
+        dataStore.edit {
+            it.remove(KEY_PENDING_CLOUD_DELETION_UID)
+            it[KEY_CLOUD_DELETION_STATUS] = com.bipss.app.data.sharing.CloudDeletionStatus.DONE.name
+            it[KEY_CLOUD_DELETION_COUNT] = deletedCount
+            it[KEY_CLOUD_DELETION_AT] = System.currentTimeMillis()
+            it[KEY_CLOUD_ACCOUNT_REMOVED] = accountRemoved
+            it.remove(KEY_SHARING_FIREBASE_UID)
+            it.remove(KEY_SHARING_LAST_AGG_MINUTE)
+            it.remove(KEY_SHARING_LAST_SLEEP_MS)
+            it.remove(KEY_SHARING_LAST_DESAT_MS)
+            it.remove(KEY_PENDING_REMOTE_DELETES)
+            it.remove(KEY_FABRICATED_DOC_SWEEP)
+            if (keepLocalSharingState) it.remove(KEY_REMOTE_PURGE_REQUESTED)
+        }
+    }
+
+    suspend fun resetOnboarding() {
+        dataStore.edit {
+            it.remove(KEY_ONBOARDING_DONE)
+            it.remove(KEY_ONBOARDING_RESET_PENDING)
+        }
     }
 
     // ── Drive backup metadata ────────────────────────────────────────────────
@@ -401,14 +465,31 @@ class UserPreferencesRepository(private val context: Context) {
     suspend fun setLastBackupAtMs(ms: Long)  { dataStore.edit { it[KEY_LAST_BACKUP_AT_MS]  = ms } }
     suspend fun setLastRestoreAtMs(ms: Long) { dataStore.edit { it[KEY_LAST_RESTORE_AT_MS] = ms } }
 
+    /**
+     * Clears every preference except the few that must outlive a local wipe:
+     *  - the pending cloud-deletion uid and its status (the cloud side may
+     *    still be running, and its outcome must stay visible);
+     *  - the onboarding flag, which is reset separately once the user has
+     *    seen the deletion result - clearing it here would yank the app back
+     *    to the welcome screen mid-dialog. A reset-pending marker is written
+     *    instead, so a process death before "Done" still ends in onboarding;
+     *  - the downloaded model's location (the model is not personal data,
+     *    and forgetting it would orphan a large file);
+     *  - the theme.
+     * Sharing consent and identity are cleared: opting in again starts over.
+     */
     suspend fun clearLocalDataPrefs() {
         dataStore.edit { prefs ->
-            // Remove everything except cloud backup toggle
-            val cloudBackup = prefs[KEY_CLOUD_BACKUP_ENABLED]
+            val keep = listOf<Preferences.Key<*>>(
+                KEY_PENDING_CLOUD_DELETION_UID, KEY_CLOUD_DELETION_STATUS, KEY_CLOUD_DELETION_COUNT,
+                KEY_CLOUD_DELETION_AT, KEY_CLOUD_ACCOUNT_REMOVED, KEY_ONBOARDING_DONE, KEY_MODEL_VERSION,
+                KEY_MODEL_FILE_PATH, KEY_MODEL_SIZE_BYTES, KEY_THEME_PREFERENCE
+            )
+            val saved = keep.mapNotNull { key -> prefs.asMap()[key]?.let { key to it } }
             prefs.clear()
-            cloudBackup?.let { prefs[KEY_CLOUD_BACKUP_ENABLED] = it }
-            // Data sharing keys are intentionally cleared: consent and
-            // identity reset on "Delete my data".
+            @Suppress("UNCHECKED_CAST")
+            saved.forEach { (key, value) -> prefs[key as Preferences.Key<Any>] = value }
+            prefs[KEY_ONBOARDING_RESET_PENDING] = true
         }
     }
 

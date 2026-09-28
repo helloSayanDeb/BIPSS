@@ -13,10 +13,13 @@ import com.bipss.app.data.db.entity.*
         DesaturationEventEntity::class,
         ContextFeedbackEntity::class,
         EmergencyContactEntity::class,
-        SosEventEntity::class
+        SosEventEntity::class,
+        WaterLogEntity::class
     ],
-    version  = 5,
-    exportSchema = false
+    version  = 6,
+    // Exported from v6 so every later hand-written migration can be checked
+    // against the schema Room actually expects (see app/schemas/).
+    exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun rawReadingDao():         RawReadingDao
@@ -27,4 +30,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun contextFeedbackDao():    ContextFeedbackDao
     abstract fun emergencyContactDao():   EmergencyContactDao
     abstract fun sosEventDao():           SosEventDao
+    abstract fun waterLogDao():           WaterLogDao
 }

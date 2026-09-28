@@ -15,7 +15,19 @@
         android:usesPermissionFlags="neverForLocation"
         tools:targetApi="s" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
-    <!-- Legacy BLE location requirement for API < 31 -->
+    <!--
+      Android 8-11 (minSdk 26) predate the split permissions above: scanning and
+      connecting there need the legacy pair, without which startScan() and
+      connectGatt() throw SecurityException.
+    -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+
+    <!--
+      Location: local weather/air quality/alerts and the SOS position. Either
+      grant is accepted (a user may choose "approximate"); on API < 31 BLE
+      scanning also requires it.
+    -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
@@ -37,24 +49,21 @@
     <uses-permission android:name="android.permission.READ_CONTACTS" />
 
     <!--
-      Health Connect — scoped to interoperable fields only (height/weight/
-      steps). Heart rate and SpO2 are deliberately NOT declared here: those
-      raw wearable readings stay private to this app's own Room database
-      (see SensorRepository / HealthConnectRepository doc comment), since
-      Health Connect is an OS-level store any granted app can read from.
+      Health Connect - only what is used: the profile's height and weight are
+      written there. Nothing is read from it, and wearable readings (heart rate,
+      SpO2) are deliberately never written: they stay in this app's own Room
+      database, since Health Connect is an OS-level store any granted app can read.
     -->
-    <uses-permission android:name="android.permission.health.READ_HEIGHT" />
     <uses-permission android:name="android.permission.health.WRITE_HEIGHT" />
-    <uses-permission android:name="android.permission.health.READ_WEIGHT" />
     <uses-permission android:name="android.permission.health.WRITE_WEIGHT" />
-    <uses-permission android:name="android.permission.health.READ_STEPS" />
-    <uses-permission android:name="android.permission.health.WRITE_STEPS" />
 
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
+    <!-- SEND_SMS would otherwise imply telephony and hide the app from tablets/Chromebooks. -->
+    <uses-feature android:name="android.hardware.telephony" android:required="false" />
 
     <application
         android:name=".BipssApplication"
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -78,12 +87,26 @@
             android:exported="false"
             android:foregroundServiceType="connectedDevice" />
 
-        <!-- Health Connect permissions rationale -->
+        <!--
+          Health Connect permission rationale. Android 14+ looks for
+          VIEW_PERMISSION_USAGE with the HEALTH_PERMISSIONS category on an alias
+          guarded by START_VIEW_PERMISSION_USAGE; Android 13 and below look for
+          the androidx action. Without a match the permission request fails silently.
+        -->
         <activity-alias
             android:name="ViewPermissionUsageActivity"
             android:exported="true"
             android:targetActivity=".MainActivity"
             android:permission="android.permission.START_VIEW_PERMISSION_USAGE">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
+                <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="HealthConnectRationaleActivity"
+            android:exported="true"
+            android:targetActivity=".MainActivity">
             <intent-filter>
                 <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
             </intent-filter>

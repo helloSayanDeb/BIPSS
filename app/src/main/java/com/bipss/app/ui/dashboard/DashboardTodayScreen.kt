@@ -41,7 +41,6 @@ import com.bipss.app.ui.theme.SOSRed
 import com.bipss.app.ui.theme.Space
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
-import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.google.accompanist.permissions.rememberPermissionState
 import org.koin.androidx.compose.koinViewModel
 
@@ -56,28 +55,30 @@ fun DashboardTodayScreen(
     val sosState by sosVm.state.collectAsStateWithLifecycle()
     val colors = BipssTheme.colors
 
-    val smsPermState = rememberMultiplePermissionsState(listOf(android.Manifest.permission.SEND_SMS))
-    val locPermState = rememberPermissionState(android.Manifest.permission.ACCESS_FINE_LOCATION)
+    val locPermState = rememberLocationPermission()
 
     // The first sync fires at launch, which on a fresh install is before the
     // location grant has landed - leaving weather and air quality unresolved
     // and the alert list unfiltered. Re-sync as soon as location becomes
-    // available rather than waiting three hours for the periodic worker.
-    androidx.compose.runtime.LaunchedEffect(locPermState.status.isGranted) {
-        if (locPermState.status.isGranted && state.env.latitude == null) {
+    // available rather than waiting for the next periodic (15-minute) sync.
+    androidx.compose.runtime.LaunchedEffect(locPermState.isGranted) {
+        if (locPermState.isGranted && state.env.latitude == null) {
             vm.refreshEnvironment()
         }
     }
 
+    // Every state has a visible screen, including the failure ones - an
+    // unrendered error used to leave SOS silently dead until the app restarted.
     when (val s = sosState) {
-        is SosUiState.Countdown -> SosCountdownOverlay(state = s, onCancel = { sosVm.cancelSos() })
-        is SosUiState.FetchingLocation, is SosUiState.SendingSms -> SosSendingSpinner()
-        is SosUiState.Sent -> SosSentOverlay(state = s, onDismiss = { sosVm.dismissResult() })
+        is SosUiState.Countdown  -> SosCountdownOverlay(state = s, onCancel = { sosVm.cancelSos() })
+        is SosUiState.Sending    -> SosSendingSpinner()
+        is SosUiState.Sent       -> SosSentOverlay(state = s, onDismiss = { sosVm.dismissResult() })
+        is SosUiState.NotSent    -> SosNotSentOverlay(state = s, onDismiss = { sosVm.dismissResult() })
         is SosUiState.FalseAlarm -> SosFalseAlarmOverlay(onDismiss = { sosVm.dismissResult() })
-        else -> Unit
+        SosUiState.Idle          -> Unit
     }
 
-    if (!locPermState.status.isGranted && !state.locationPermissionSkipped) {
+    if (!locPermState.isGranted && !state.locationPermissionSkipped) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -108,7 +109,7 @@ fun DashboardTodayScreen(
                 )
                 Spacer(Modifier.height(Space.xxl))
                 androidx.compose.material3.Button(
-                    onClick = { locPermState.launchPermissionRequest() },
+                    onClick = { locPermState.request() },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("Grant Permission")
@@ -322,13 +323,9 @@ fun DashboardTodayScreen(
         }
 
         FloatingActionButton(
-            onClick = {
-                if (!smsPermState.allPermissionsGranted) smsPermState.launchMultiplePermissionRequest()
-                else {
-                    if (!locPermState.status.isGranted) locPermState.launchPermissionRequest()
-                    sosVm.triggerSos(SosTriggerSource.MANUAL)
-                }
-            },
+            // Always starts the countdown at once. Missing permissions or
+            // contacts are shown inside the countdown, never in its way.
+            onClick = { sosVm.triggerSos(SosTriggerSource.MANUAL) },
             containerColor = SOSRed,
             contentColor = Color.White,
             shape = CircleShape,
@@ -443,15 +440,15 @@ private fun WaterLogCard(
     onLogWater: (Int) -> Unit
 ) {
     val colors = BipssTheme.colors
-    val label = remember(lastLogMs) {
-        if (lastLogMs == null) "Not logged yet"
-        else {
-            val mins = (System.currentTimeMillis() - lastLogMs) / 60_000
-            when {
-                mins < 1L  -> "Just now"
-                mins < 60L -> "$mins min ago"
-                else       -> "${mins / 60}h ${mins % 60}m ago"
-            }
+    // Recomputed on a ticking clock - a label remembered only on lastLogMs
+    // froze at whatever it said when the drink was logged.
+    val nowMs = rememberNowMs()
+    val label = if (lastLogMs == null) "Not logged yet" else {
+        val mins = ((nowMs - lastLogMs) / 60_000).coerceAtLeast(0L)
+        when {
+            mins < 1L  -> "Just now"
+            mins < 60L -> "$mins min ago"
+            else       -> "${mins / 60}h ${mins % 60}m ago"
         }
     }
 

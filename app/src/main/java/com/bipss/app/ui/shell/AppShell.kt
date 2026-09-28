@@ -21,6 +21,8 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.compose.runtime.LaunchedEffect
+import com.bipss.app.navigation.DeepLink
 import com.bipss.app.navigation.NavGraph
 import com.bipss.app.navigation.Routes
 import com.bipss.app.navigation.bottomNavItems
@@ -30,10 +32,31 @@ import com.bipss.app.ui.theme.BipssTheme
 @Composable
 fun AppShell(
     navController: NavHostController = rememberNavController(),
-    startDestination: String = Routes.ONBOARDING_WELCOME
+    startDestination: String = Routes.ONBOARDING_WELCOME,
+    deepLink: DeepLink.Target? = null,
+    onDeepLinkConsumed: () -> Unit = {}
 ) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute      = navBackStackEntry?.destination?.route
+
+    // Notification taps. Dropped during onboarding - there is no tab shell to
+    // land on, and replaying the tap once setup finishes would be a surprise -
+    // and consumed once handled either way.
+    LaunchedEffect(deepLink, startDestination) {
+        val target = deepLink ?: return@LaunchedEffect
+        if (startDestination != Routes.DASHBOARD_TODAY) {
+            onDeepLinkConsumed()
+            return@LaunchedEffect
+        }
+        runCatching {
+            if (target.isTab) navController.navigateToTab(target.route)
+            else {
+                navController.navigateToTab(Routes.DASHBOARD_TODAY)
+                navController.navigate(target.route) { launchSingleTop = true }
+            }
+        }
+        onDeepLinkConsumed()
+    }
 
     val isDashboard = dashboardRoutes.any {
         currentRoute?.startsWith(it) == true || currentRoute == it
@@ -48,15 +71,7 @@ fun AppShell(
                     BipssTabBar(
                         items        = bottomNavItems,
                         currentRoute = currentRoute,
-                        onItemClick  = { route ->
-                            navController.navigate(route) {
-                                popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
-                                }
-                                launchSingleTop = true
-                                restoreState    = true
-                            }
-                        }
+                        onItemClick  = { route -> navController.navigateToTab(route) }
                     )
                 }
             }
@@ -67,6 +82,15 @@ fun AppShell(
                 innerPadding     = innerPadding
             )
         }
+    }
+}
+
+/** Tab navigation with the same back-stack behaviour as tapping the bottom bar. */
+private fun NavHostController.navigateToTab(route: String) {
+    navigate(route) {
+        popUpTo(graph.findStartDestination().id) { saveState = true }
+        launchSingleTop = true
+        restoreState    = true
     }
 }
 

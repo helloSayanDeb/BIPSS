@@ -26,7 +26,8 @@ suspend fun rewindSharedAggWatermarkBefore(prefs: UserPreferencesRepository, fab
 /**
  * One-time repairs for data written by code that no longer exists.
  *
- * Both repairs remove data that was never a measurement of the user:
+ * The first two repairs remove data that was never a measurement of the user;
+ * the third restores real measurements a removed rule had hidden:
  *
  *  - **Demo Mode** replayed bench-test captures straight into `raw_readings`,
  *    the minute aggregates, the Welford baselines and sleep analysis, stamped
@@ -40,6 +41,8 @@ suspend fun rewindSharedAggWatermarkBefore(prefs: UserPreferencesRepository, fab
  *    sharing store (plus a one-time remote sweep in case the local row is
  *    already gone), and the upload watermark it pushed forward is rewound to
  *    just before the window it made the exporter skip.
+ *  - The removed **3-sigma anomaly gate** flagged exercise heart rate; those
+ *    flags are re-evaluated once against the physiological bounds.
  *
  * Each repair is recorded as done only after its destructive step succeeded,
  * so a crash mid-way is retried on the next start. Workers that write to the
@@ -63,6 +66,10 @@ class LegacyDataCleanup(
             if (!prefs.isLegacyCleanupV1Done()) {
                 removeFabricatedTestAggregate()
                 prefs.markLegacyCleanupV1Done()
+            }
+            if (!prefs.isAnomalyReflagDone()) {
+                reflagAnomaliesByBounds()
+                prefs.markAnomalyReflagDone()
             }
         } catch (e: Exception) {
             Log.e(TAG, "Legacy clean-up failed - will retry next start", e)
@@ -104,6 +111,22 @@ class LegacyDataCleanup(
         rewindWatermarkBefore(minutes.min())
         sql.execSQL("DELETE FROM minute_aggregates WHERE $FABRICATED_ROW")
         Log.i(TAG, "Removed ${minutes.size} fabricated test aggregate row(s)")
+    }
+
+    /**
+     * The removed 3-sigma gate flagged samples by distance from an all-time
+     * mean, which marked ordinary exercise heart rate as anomalous. Those rows
+     * are now excluded from charts and aggregates, so they are re-judged once
+     * by the physiological bounds alone - before aggregation, which waits on
+     * [awaitReady], can roll them up without them.
+     */
+    private fun reflagAnomaliesByBounds() {
+        val sql = db.openHelper.writableDatabase
+        val inBounds = SensorRepository.SANITY_BOUNDS.entries.joinToString(" OR ") { (type, range) ->
+            "(metricType = '$type' AND value BETWEEN ${range.start} AND ${range.endInclusive})"
+        }
+        sql.execSQL("UPDATE raw_readings SET isAnomalous = 0 WHERE isAnomalous = 1 AND ($inBounds)")
+        Log.i(TAG, "Re-evaluated legacy anomaly flags against physiological bounds")
     }
 
     private suspend fun rewindWatermarkBefore(fabricatedMinute: Long) =

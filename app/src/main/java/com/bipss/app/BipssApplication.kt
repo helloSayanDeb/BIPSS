@@ -38,16 +38,23 @@ class BipssApplication : Application(), Configuration.Provider, KoinComponent {
         }
 
         BipssNotifications.createChannels(this)
-
-        // Periodic background work.
-        EnvDataSyncWorker.schedule(this)
-        // Rolls raw 1 Hz samples into minute aggregates so history views stay queryable.
-        AggregationWorker.schedule(this)
-        HydrationReminderWorker.schedule(this)
-        SleepAnalysisWorker.schedule(this)
-        DataSharingWorker.schedule(this)
-
+        schedulePeriodicWork(this)
         startUp()
+    }
+
+    companion object {
+        /**
+         * The app's periodic background work. Idempotent (unique work), so it
+         * is also called after "Delete my data" cancels everything mid-process.
+         */
+        fun schedulePeriodicWork(context: android.content.Context) {
+            EnvDataSyncWorker.schedule(context)
+            // Rolls raw 1 Hz samples into minute aggregates so history views stay queryable.
+            AggregationWorker.schedule(context)
+            HydrationReminderWorker.schedule(context)
+            SleepAnalysisWorker.schedule(context)
+            DataSharingWorker.schedule(context)
+        }
     }
 
     /**
@@ -63,6 +70,34 @@ class BipssApplication : Application(), Configuration.Provider, KoinComponent {
     private fun startUp() {
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             runCatching { getKoin().get<LegacyDataCleanup>().run() }
+            // Persist band readings for the life of the process, not just
+            // while a screen happens to be open.
+            runCatching { getKoin().get<com.bipss.app.data.SensorRepository>().start() }
+            runCatching { getKoin().get<com.bipss.app.data.WaterRepository>().migrateLegacyCounter() }
+            // Shared data uploaded while Demo Mode was on is purged from the
+            // cloud too; local sharing consent is left as the user set it.
+            // A cloud deletion the user asked for must finish even if the work
+            // was lost (cancelled by a later wipe, or the app force-stopped).
+            runCatching {
+                val prefs: UserPreferencesRepository = getKoin().get()
+                val status = prefs.cloudDeletionStatus.first()
+                if (prefs.pendingCloudDeletionUid.first() != null &&
+                    (status == com.bipss.app.data.sharing.CloudDeletionStatus.PENDING ||
+                        status == com.bipss.app.data.sharing.CloudDeletionStatus.IN_PROGRESS)
+                ) {
+                    com.bipss.app.data.sharing.CloudDeletionWorker.enqueue(this@BipssApplication)
+                }
+            }
+            runCatching {
+                val prefs: UserPreferencesRepository = getKoin().get()
+                val uid = prefs.sharingFirebaseUid.first()
+                if (prefs.remotePurgeRequested.first() && uid != null && prefs.pendingCloudDeletionUid.first() == null) {
+                    prefs.setPendingCloudDeletionUid(uid)
+                    com.bipss.app.data.sharing.CloudDeletionWorker.enqueue(
+                        this@BipssApplication, com.bipss.app.data.sharing.CloudDeletionWorker.MODE_PURGE_KEEP_LOCAL
+                    )
+                }
+            }
             runCatching {
                 val prefs: UserPreferencesRepository = getKoin().get()
                 val mac = prefs.pairedBandMac.first() ?: return@launch

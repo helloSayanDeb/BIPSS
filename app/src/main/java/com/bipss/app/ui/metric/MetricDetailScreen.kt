@@ -118,6 +118,8 @@ fun MetricDetailScreen(
                             avgValue     = state.stats?.avgValue,
                             maxValue     = state.stats?.maxValue,
                             restingValue = state.restingValue,
+                            // Resting HR comes from raw rows, which only span a week.
+                            restingLabel = if (state.range == com.bipss.app.ui.metric.TimeRange.MONTH) "RESTING · 7D" else "RESTING",
                             unit         = meta.unit
                         )
                     }

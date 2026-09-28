@@ -69,6 +69,15 @@ class SleepRepository(
             avgSpo2          = spo2InSession.takeIf { it.isNotEmpty() }
                                    ?.map { it.value }?.average()?.toFloat()
         )
+        // Re-analysing a night used to REPLACE the session under a new id and
+        // leave its old desaturation events pointing at nothing; a slightly
+        // shifted start even produced a second copy of the same night. Any
+        // overlapping session and its events are removed first.
+        val stale = sleepDao.overlappingIds(entity.startMs, entity.endMs)
+        if (stale.isNotEmpty()) {
+            desatDao.deleteForSessions(stale)
+            sleepDao.deleteByIds(stale)
+        }
         val sessionId = sleepDao.insert(entity)
 
         // Breathing screening, if there is any SpO2 at all. Absence of SpO2
@@ -127,6 +136,8 @@ class SleepRepository(
         val sessions = sleepDao.all()
         val screenings = nightlyScreenings()
         val fmt = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.UK)
+        val dayFmt = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.UK)
+        val timeFmt = java.text.SimpleDateFormat("HH:mm", java.util.Locale.UK)
 
         return buildString {
             appendLine("BIPSS overnight breathing record")
@@ -143,16 +154,18 @@ class SleepRepository(
             appendLine("A qualifying event is a drop of at least ${ApneaScreening.MIN_DROP_PERCENT.toInt()}% from a two-minute")
             appendLine("moving baseline, lasting at least ${ApneaScreening.MIN_EVENT_MS / 1000}s, without coincident motion.")
             appendLine()
-            appendLine("Date            Sleep start       Sleep end         TST      Eff.  Events  Rejected  ODI")
-            appendLine("-".repeat(100))
+            appendLine("Date        Start  End    TST      Eff.  Events  Rejected  ODI")
+            appendLine("-".repeat(64))
 
             sessions.forEachIndexed { i, s ->
                 val sc = screenings.getOrNull(i)
                 val tst = "${s.totalSleepMs / 3_600_000}h ${(s.totalSleepMs % 3_600_000) / 60_000}m"
                 appendLine(
-                    fmt.format(java.util.Date(s.startMs)).padEnd(16) +
-                        fmt.format(java.util.Date(s.startMs)).padEnd(18) +
-                        fmt.format(java.util.Date(s.endMs)).padEnd(18) +
+                    // Date, then clock times: the old row printed the full
+                    // start timestamp twice with no separator between them.
+                    dayFmt.format(java.util.Date(s.startMs)).padEnd(12) +
+                        timeFmt.format(java.util.Date(s.startMs)).padEnd(7) +
+                        timeFmt.format(java.util.Date(s.endMs)).padEnd(7) +
                         tst.padEnd(9) +
                         "${s.efficiencyPct}%".padEnd(6) +
                         (sc?.eventCount?.toString() ?: "-").padEnd(8) +

@@ -64,7 +64,8 @@ class ChatDetailsViewModel(
     private val sleepRepo:     SleepRepository,
     private val sensorRepo:    SensorRepository,
     private val envRepo:       DisasterAlertRepository,
-    private val calculator:    RiskScoreCalculator
+    private val calculator:    RiskScoreCalculator,
+    private val waterRepo:     com.bipss.app.data.WaterRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ChatDetailsUiState())
@@ -109,7 +110,7 @@ class ChatDetailsViewModel(
                 baselineHRStd   = baseStats?.stdDev,
                 baselineDays    = prefsRepo.daysOfData(),
                 env             = env.takeIf { it.fetchedAtMs > 0L },
-                hoursSinceWater = prefsRepo.hoursSinceLastWaterLog(),
+                hoursSinceWater = waterRepo.hoursSinceLastLog(),
                 sleepScore      = sleepRepo.lastNightScore(),
                 recoveryScore   = null,
                 strainScore     = null,
@@ -131,7 +132,9 @@ class ChatDetailsViewModel(
                 scores     = scores,
                 env        = env,
                 topAlert   = topAlert,
-                waterLoggedYesterday = prefsRepo.waterLogCountToday.first()
+                // The previous local calendar day - not "today so far", and not
+                // a UTC day that ends at 05:30 IST.
+                waterLoggedYesterday = waterRepo.yesterdayTotals().drinks
             )
 
             _uiState.update { state ->
@@ -256,7 +259,7 @@ class ChatDetailsViewModel(
 
     fun logWater(amountMl: Int) {
         viewModelScope.launch {
-            prefsRepo.logWaterIntake(amountMl)
+            waterRepo.log(amountMl)
             _uiState.update { it.copy(waterLoggedAt = System.currentTimeMillis()) }
             val msg = ChatMessage(
                 content = "${amountMl}mL of water logged. Staying hydrated helps lower your Heat Stress risk score.",

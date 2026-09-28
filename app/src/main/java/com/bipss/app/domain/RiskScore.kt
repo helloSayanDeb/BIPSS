@@ -23,6 +23,8 @@ data class RiskScore(
     val missingInputs: List<String>      = emptyList(),
     /** Of the points this domain can award, how many were actually measurable. */
     val measuredOutOf: Int               = 100,
+    /** The domain's full point budget (Heat Stress awards 125, most others 100). */
+    val fullBudget:    Int               = 100,
     val computedAt:    Long              = System.currentTimeMillis()
 ) {
     /** True when a number may be displayed for this score. */

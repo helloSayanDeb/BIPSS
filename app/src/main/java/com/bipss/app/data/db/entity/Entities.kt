@@ -122,3 +122,16 @@ data class SosEventEntity(
     val recipientCount: Int,
     val notes:          String = ""
 )
+
+/**
+ * One logged drink. A table rather than DataStore counters because "today" and
+ * "yesterday" are then just queries between local-midnight bounds
+ * (see [com.bipss.app.domain.time.LocalDay]) - the old single-day counter
+ * overwrote yesterday the moment today got its first entry.
+ */
+@Entity(tableName = "water_log", indices = [Index(value = ["timestampMs"])])
+data class WaterLogEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val timestampMs: Long,
+    val amountMl:    Int
+)

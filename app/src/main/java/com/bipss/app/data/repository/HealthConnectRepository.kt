@@ -6,7 +6,6 @@ import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
 import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.HeightRecord
-import androidx.health.connect.client.records.StepsRecord
 import androidx.health.connect.client.records.WeightRecord
 import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
@@ -18,7 +17,7 @@ import java.time.temporal.ChronoUnit
 
 /**
  * Health Connect integration, deliberately scoped to interoperable fields
- * only — height, weight, steps. Raw wearable readings (heart rate, SpO2,
+ * only — height and weight, written from the profile. Raw wearable readings (heart rate, SpO2,
  * skin temp, baselines) are NEVER written here; they stay in the app's
  * private Room database (see SensorRepository), because Health Connect is
  * an OS-level shared store — any app the user separately grants read access
@@ -30,11 +29,10 @@ class HealthConnectRepository(private val context: Context) {
     companion object {
         private const val TAG = "HealthConnectRepo"
 
+        /** Exactly what the app uses - it writes height and weight, nothing else. */
         val PERMISSIONS: Set<String> = setOf(
             HealthPermission.getWritePermission(HeightRecord::class),
             HealthPermission.getWritePermission(WeightRecord::class),
-            HealthPermission.getReadPermission(StepsRecord::class),
-            HealthPermission.getWritePermission(StepsRecord::class),
         )
     }
 
@@ -81,22 +79,4 @@ class HealthConnectRepository(private val context: Context) {
         }
     }
 
-    /** Sum of today's step records, or null if unavailable/no permission. */
-    suspend fun readTodaySteps(): Long? {
-        if (!isAvailable()) return null
-        return try {
-            val client = HealthConnectClient.getOrCreate(context)
-            val startOfDay = Instant.now().truncatedTo(ChronoUnit.DAYS)
-            val response = client.readRecords(
-                ReadRecordsRequest(
-                    recordType = StepsRecord::class,
-                    timeRangeFilter = TimeRangeFilter.between(startOfDay, Instant.now())
-                )
-            )
-            response.records.sumOf { it.count }
-        } catch (e: Exception) {
-            Log.w(TAG, "Health Connect steps read skipped: ${e.message}")
-            null
-        }
-    }
 }

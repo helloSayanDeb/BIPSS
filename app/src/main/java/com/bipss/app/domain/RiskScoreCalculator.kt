@@ -200,7 +200,8 @@ class RiskScoreCalculator {
             confidence    = confidenceFrom(b.possible, 125f, bodyMissing),
             dataMode      = dataMode,
             missingInputs = b.missing,
-            measuredOutOf = b.possible.toInt()
+            measuredOutOf = b.possible.toInt(),
+            fullBudget    = 125
         )
     }
 

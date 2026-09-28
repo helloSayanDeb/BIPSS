@@ -58,6 +58,12 @@ android {
     }
 }
 
+// Room schema export (enabled from DB v6) so hand-written migrations can be
+// checked against the schema Room expects.
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
 dependencies {
     // Core
     implementation(libs.androidx.core.ktx)

@@ -64,20 +64,12 @@ class AqiIndexTest {
     }
 
     @Test
-    fun `implausible CO is dropped instead of dominating the index`() {
-        // A Kolkata station reported CO 31 on 8 Sep 2026. Read as mg/m3 that is
-        // a "very poor" 380-ish and would take over the maximum; the PM2.5
-        // beside it says moderate. The row must be discarded, not converted.
-        val result = AqiIndex.compute(
-            listOf(
-                AqiIndex.PollutantReading("PM2.5", 62f),
-                AqiIndex.PollutantReading("CO", 31f)
-            )
-        )
+    fun `concentration path no longer drops high CO`() {
+        // 20 mg/m3 of CO is genuinely severe air and must count, not be discarded.
+        val result = AqiIndex.compute(listOf(AqiIndex.PollutantReading("CO", 20f)))
         assertNotNull(result)
-        assertEquals("PM2.5", result!!.dominantPollutant)
-        assertEquals(104, result.aqi)
-        assertTrue("CO must not contribute", !result.subIndices.containsKey("CO"))
+        assertEquals("CO", result!!.dominantPollutant)
+        assertTrue(result.aqi > 300)
     }
 
     @Test
@@ -85,6 +77,65 @@ class AqiIndexTest {
         val result = AqiIndex.compute(listOf(AqiIndex.PollutantReading("CO", 1.5f)))
         assertNotNull(result)
         assertEquals("CO", result!!.dominantPollutant)
+    }
+
+    // -- The data.gov.in feed publishes sub-indices, not concentrations ----------
+
+    @Test
+    fun `feed values are taken as sub-indices, not converted again`() {
+        // Kolkata-style row set: PM2.5 index 62, PM10 57, CO 28 (~0.56 mg/m3), NO2 20.
+        val result = AqiIndex.fromSubIndices(listOf(
+            AqiIndex.PollutantReading("PM2.5", 62f),
+            AqiIndex.PollutantReading("PM10", 57f),
+            AqiIndex.PollutantReading("CO", 28f),
+            AqiIndex.PollutantReading("NO2", 20f)
+        ))
+        assertNotNull(result)
+        // The old double conversion turned PM2.5 62 into 104 ("moderate").
+        assertEquals(62, result!!.aqi)
+        assertEquals("PM2.5", result.dominantPollutant)
+        assertEquals(28, result.subIndices["CO"])
+        assertTrue(result.meetsCpcbMinimum)
+    }
+
+    @Test
+    fun `high CO sub-index is kept and can dominate`() {
+        val result = AqiIndex.fromSubIndices(listOf(
+            AqiIndex.PollutantReading("PM2.5", 80f),
+            AqiIndex.PollutantReading("PM10", 70f),
+            AqiIndex.PollutantReading("CO", 240f)
+        ))
+        assertEquals("CO", result!!.dominantPollutant)
+        assertEquals(240, result.aqi)
+    }
+
+    @Test
+    fun `fewer than three pollutants does not meet the CPCB minimum`() {
+        val result = AqiIndex.fromSubIndices(listOf(
+            AqiIndex.PollutantReading("PM2.5", 62f),
+            AqiIndex.PollutantReading("CO", 28f)
+        ))
+        assertNotNull(result)
+        assertTrue(!result!!.meetsCpcbMinimum)
+    }
+
+    @Test
+    fun `three gases without particulate do not meet the CPCB minimum`() {
+        val result = AqiIndex.fromSubIndices(listOf(
+            AqiIndex.PollutantReading("NO2", 20f),
+            AqiIndex.PollutantReading("SO2", 10f),
+            AqiIndex.PollutantReading("CO", 28f)
+        ))
+        assertTrue(!result!!.meetsCpcbMinimum)
+    }
+
+    @Test
+    fun `a value outside 0 to 500 is not a sub-index and is dropped`() {
+        val result = AqiIndex.fromSubIndices(listOf(
+            AqiIndex.PollutantReading("PM2.5", 62f),
+            AqiIndex.PollutantReading("PM10", 9000f)
+        ))
+        assertEquals(1, result!!.subIndices.size)
     }
 
     @Test

@@ -13,10 +13,9 @@ import com.bipss.app.data.db.entity.RawReadingEntity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
 import kotlin.math.sqrt
 
-const val ANOMALY_THRESHOLD_SIGMA = 3.0   // readings > 3 sigma from baseline are anomalous
-const val BASELINE_MIN_READINGS   = 10    // minimum readings before baseline is used
 
 /** Metric type keys used in raw_readings. */
 object MetricTypes {
@@ -77,17 +76,51 @@ class SensorRepository(
     private val _bandSensorAqi = MutableStateFlow<Int?>(null)
     val bandSensorAqi: StateFlow<Int?> = _bandSensorAqi.asStateFlow()
 
-    /** The single flow of band readings consumed by the dashboard. */
-    val sensorEvents: SharedFlow<SensorReading> = bleGattManager.sensorReadings
-        .onEach { reading -> persistAndUpdateBaseline(reading) }
-        .shareIn(appScope, SharingStarted.WhileSubscribed(5_000), replay = 1)
+    private val _sensorEvents = MutableSharedFlow<SensorReading>(replay = 1, extraBufferCapacity = 64)
+
+    /** The single flow of band readings consumed by the screens. */
+    val sensorEvents: SharedFlow<SensorReading> = _sensorEvents.asSharedFlow()
+
+    private var started = false
+    @Volatile private var firstReadingRecorded = false
+
+    /**
+     * Starts persisting band readings, independent of any screen.
+     *
+     * Persistence used to sit upstream of `shareIn(WhileSubscribed)`, so it
+     * only ran while some view model was collecting: close the app overnight
+     * with the band still connected (the foreground service keeps the link up)
+     * and nothing reached the database - exactly the night sleep analysis
+     * needed. Called once from the Application.
+     */
+    @Synchronized
+    fun start() {
+        if (started) return
+        started = true
+        // "Delete my data" clears the first-reading stamp mid-process; the
+        // next reading after that must stamp it again.
+        appScope.launch {
+            prefsRepo.firstReadingMs.collect { if (it == null) firstReadingRecorded = false }
+        }
+        appScope.launch {
+            bleGattManager.sensorReadings.collect { reading ->
+                runCatching { persistAndUpdateBaseline(reading) }
+                    .onFailure { android.util.Log.e("SensorRepository", "Persist failed", it) }
+                _sensorEvents.emit(reading)
+            }
+        }
+    }
 
     private suspend fun persistAndUpdateBaseline(reading: SensorReading) {
         val ts = reading.timestamp
 
         // Stamp the first reading so the baseline schedule counts from real
-        // data rather than from install time.
-        prefsRepo.recordFirstReadingIfNeeded(ts)
+        // data rather than from install time. Once per process is enough -
+        // it used to be a DataStore write on every single sample.
+        if (!firstReadingRecorded) {
+            prefsRepo.recordFirstReadingIfNeeded(ts)
+            firstReadingRecorded = true
+        }
 
         reading.heartRate?.let      { updateMetric(MetricTypes.HR, it.toDouble(), ts) }
         reading.spO2?.let           { updateMetric(MetricTypes.SPO2, it.toDouble(), ts) }
@@ -101,33 +134,34 @@ class SensorRepository(
     }
 
     /**
-     * Absolute sanity bounds used when the baseline has too few readings for
-     * statistical anomaly detection. These prevent impossible first samples
-     * from poisoning the Welford mean permanently. Once the baseline matures,
-     * the existing 3-sigma gate takes over.
+     * Physiological / sensor bounds. A reading outside them is a fault, not a
+     * measurement, and is kept out of the baseline and the statistics.
+     *
+     * There is deliberately no longer a "3 sigma from the all-time mean" gate:
+     * against a lifetime average of resting and sleeping heart rate, any real
+     * workout sits beyond 3 sigma, so exercise was being flagged anomalous and
+     * then silently dropped from the Week/Month charts and the aggregates -
+     * erasing the very data Strain needs. Signal quality from the band
+     * pipeline, not distance from a mean, decides whether a pulse reading is
+     * trustworthy.
      */
-    private val SANITY_BOUNDS = mapOf(
-        MetricTypes.HR        to 40.0..180.0,
-        MetricTypes.SPO2      to 70.0..100.0,
-        MetricTypes.SKIN_TEMP to 30.0..42.0,
-        MetricTypes.HRV       to 5.0..300.0,
-        MetricTypes.AMBIENT   to -10.0..55.0,
-        MetricTypes.HUMIDITY  to 0.0..100.0,
-        MetricTypes.ACCEL_MAG to 0.0..20.0
-    )
+    companion object {
+        val SANITY_BOUNDS: Map<String, ClosedFloatingPointRange<Double>> = mapOf(
+            MetricTypes.HR        to 30.0..230.0,
+            MetricTypes.SPO2      to 70.0..100.0,
+            MetricTypes.SKIN_TEMP to 30.0..42.0,
+            MetricTypes.HRV       to 5.0..300.0,
+            MetricTypes.AMBIENT   to -10.0..55.0,
+            MetricTypes.HUMIDITY  to 0.0..100.0,
+            MetricTypes.ACCEL_MAG to 0.0..20.0
+        )
+    }
 
     private suspend fun updateMetric(type: String, value: Double, timestampMs: Long) {
         val existing = baselineStatsDao.getByType(type)
 
-        val isAnomaly = if (existing != null && existing.count >= BASELINE_MIN_READINGS && existing.stdDev > 0) {
-            // Stage B: baseline-relative anomaly detection.
-            kotlin.math.abs(value - existing.mean) / existing.stdDev > ANOMALY_THRESHOLD_SIGMA
-        } else {
-            // Stage A: no baseline yet — use hard physiological sanity bounds
-            // so an impossible first reading cannot poison the Welford seed.
-            val bounds = SANITY_BOUNDS[type]
-            bounds != null && value !in bounds
-        }
+        val bounds = SANITY_BOUNDS[type]
+        val isAnomaly = bounds != null && value !in bounds
 
         rawReadingDao.insert(
             RawReadingEntity(

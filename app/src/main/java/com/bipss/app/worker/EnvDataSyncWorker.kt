@@ -11,12 +11,13 @@ import org.koin.core.component.inject
 import java.util.concurrent.TimeUnit
 
 /**
- * Fetches environmental data every three hours and notifies on new severe alerts.
+ * Fetches environmental data every 15 minutes (WorkManager's minimum periodic
+ * interval) and notifies on new severe alerts.
  *
  * De-duplication against previously notified identifiers is what makes this
  * usable: without it the same rainfall warning would fire a fresh notification
- * every three hours for as long as it stayed active, and users would silence
- * the channel within a day.
+ * on every run for as long as it stayed active, and users would silence the
+ * channel within a day.
  */
 class EnvDataSyncWorker(
     appContext:   Context,
@@ -48,6 +49,9 @@ class EnvDataSyncWorker(
     companion object {
         private const val WORK_NAME = "env_data_sync"
 
+        /** WorkManager does not run periodic work more often than this. */
+        const val SYNC_INTERVAL_MINUTES = 15L
+
         /** A burst of notifications is worse than none - cap it. */
         private const val MAX_NOTIFICATIONS_PER_RUN = 3
 
@@ -56,14 +60,16 @@ class EnvDataSyncWorker(
                 .setRequiredNetworkType(NetworkType.CONNECTED)
                 .build()
 
-            val request = PeriodicWorkRequestBuilder<EnvDataSyncWorker>(1, TimeUnit.HOURS)
+            val request = PeriodicWorkRequestBuilder<EnvDataSyncWorker>(SYNC_INTERVAL_MINUTES, TimeUnit.MINUTES)
                 .setConstraints(constraints)
                 .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 15, TimeUnit.MINUTES)
                 .build()
 
+            // UPDATE, not KEEP: KEEP would leave existing installs on the old
+            // hourly schedule forever.
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
                 WORK_NAME,
-                ExistingPeriodicWorkPolicy.KEEP,
+                ExistingPeriodicWorkPolicy.UPDATE,
                 request
             )
         }

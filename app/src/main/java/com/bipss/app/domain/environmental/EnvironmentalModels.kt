@@ -32,8 +32,10 @@ data class EnvironmentalSnapshot(
     /** Regional station AQI, kept beside the band reading for the indoor/outdoor inference. */
     val regionalAqiValue:  Int?           = null,
     val dominantPollutant: String?        = null,
-    val pm25:              Float?         = null,
-    val pm10:              Float?         = null,
+    /** CPCB per-pollutant sub-indices of the station used (the feed publishes indices, not concentrations). */
+    val pollutantSubIndices: Map<String, Int> = emptyMap(),
+    val aqiStationName:    String?        = null,
+    val aqiStationDistanceKm: Double?     = null,
 
     val activeAlerts:      List<ImdAlert>       = emptyList(),
     val advisories:        List<HealthAdvisory> = emptyList(),
@@ -217,23 +219,23 @@ data class RankedAlert(
 /**
  * A CPCB station reading.
  *
- * data.gov.in resource 3b01bcb8 returns one row per pollutant, not a
- * pre-computed AQI: fields are pollutant_id / pollutant_min / pollutant_avg /
- * pollutant_max per station. The index is computed from those sub-indices;
- * there is no aqi_index field to read.
+ * data.gov.in resource 3b01bcb8 returns one row per pollutant whose values are
+ * that pollutant's sub-index; the station AQI is the largest of them. [aqiValue]
+ * is null when the station reported too few pollutants for CPCB's own validity
+ * rule - the sub-indices it did report are still in [pollutantSubIndices].
  */
 data class AqiSnapshot(
-    val stationCity:       String,
-    val stationName:       String? = null,
-    val aqiValue:          Int,
-    val dominantPollutant: String,
-    val pm25:              Float?  = null,
-    val pm10:              Float?  = null,
-    val latitude:          Double? = null,
-    val longitude:         Double? = null,
-    val fetchedAtMs:       Long    = System.currentTimeMillis()
+    val stationCity:         String,
+    val stationName:         String? = null,
+    val aqiValue:            Int?,
+    val dominantPollutant:   String?,
+    val pollutantSubIndices: Map<String, Int> = emptyMap(),
+    val distanceKm:          Double? = null,
+    val latitude:            Double? = null,
+    val longitude:           Double? = null,
+    val fetchedAtMs:         Long    = System.currentTimeMillis()
 ) {
-    val riskLevel: AqiRiskLevel get() = AqiRiskLevel.fromAqi(aqiValue)
+    val riskLevel: AqiRiskLevel? get() = aqiValue?.let { AqiRiskLevel.fromAqi(it) }
 }
 
 /** CPCB national AQI bands. Boundaries are the published ones. */

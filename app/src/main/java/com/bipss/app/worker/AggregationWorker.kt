@@ -34,14 +34,31 @@ class AggregationWorker(
         val rawDao = db.rawReadingDao()
         val aggDao = db.minuteAggregateDao()
 
-        val rawCutoff = System.currentTimeMillis() - RAW_RETENTION_DAYS * 86_400_000L
+        // On a minute boundary: a cutoff inside a minute would aggregate and
+        // prune its first half now, and the next run would REPLACE that
+        // aggregate with one built from the second half alone.
+        val rawCutoff = (System.currentTimeMillis() - RAW_RETENTION_DAYS * 86_400_000L) / 60_000L * 60_000L
 
         var batches = 0
         while (batches < MAX_BATCHES_PER_RUN) {
             val old = rawDao.getOlderThan(rawCutoff, BATCH_SIZE)
             if (old.isEmpty()) break
 
-            val rows = old
+            // A full batch can end part-way through a minute. Aggregating that
+            // partial minute and letting the next batch REPLACE it would lose
+            // the first half of its samples, so a full batch stops at the last
+            // complete minute and leaves the rest for the next pass.
+            val lastMinute = old.maxOf { it.timestampMs } / 60_000L
+            val batchIsFull = old.size >= BATCH_SIZE
+            val cutoffMs = if (batchIsFull && old.first().timestampMs / 60_000L < lastMinute)
+                lastMinute * 60_000L else old.maxOf { it.timestampMs } + 1
+            val complete = old.filter { it.timestampMs < cutoffMs }
+
+            val rows = complete
+                // Out-of-bounds samples are sensor faults (see SensorRepository
+                // SANITY_BOUNDS): excluded from averages, as from the charts,
+                // and pruned with the rest of the raw rows.
+                .filterNot { it.isAnomalous }
                 .groupBy { it.metricType to (it.timestampMs / 60_000L) }
                 .map { (key, samples) ->
                     val values = samples.map { it.value.toFloat() }
@@ -56,9 +73,8 @@ class AggregationWorker(
                 }
             aggDao.upsertAll(rows)
 
-            // Only safe because everything in this batch is now aggregated.
-            val highWater = old.maxOf { it.timestampMs }
-            rawDao.pruneOlderThan(highWater + 1)
+            // Only safe because everything below the cutoff is now aggregated.
+            rawDao.pruneOlderThan(cutoffMs)
             batches++
         }
 

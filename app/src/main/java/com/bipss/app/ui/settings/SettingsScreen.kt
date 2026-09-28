@@ -40,7 +40,8 @@ fun SettingsScreen(
     val state by vm.uiState.collectAsStateWithLifecycle()
     val colors = BipssTheme.colors
 
-    if (state.showDeleteLocalDataDialog) DeleteDataDialog(state, vm)
+    if (state.showDeleteLocalDataDialog) DeleteDataDialog(vm)
+    state.deletionResult?.let { DeletionResultDialog(it, state, vm) }
     if (state.showForgetDeviceDialog)    ForgetDeviceDialog(vm)
 
     Scaffold(
@@ -352,12 +353,19 @@ private fun PrivacySection(state: SettingsUiState, vm: SettingsViewModel) {
         }
     }
 
-    if (state.deletionDaysRemaining != null) {
+    // The real, persisted status of the last shared-data deletion.
+    cloudDeletionLine(state)?.let { line ->
         Spacer(Modifier.height(Space.m))
         InfoBanner(
-            text = "Cloud deletion completes in ${state.deletionDaysRemaining} day(s). You can still cancel before then.",
-            icon = Icons.Rounded.HourglassEmpty,
-            tint = colors.bandMonitor
+            text = line,
+            icon = if (state.cloudDeletionStatus == com.bipss.app.data.sharing.CloudDeletionStatus.DONE)
+                Icons.Rounded.CheckCircle else Icons.Rounded.HourglassEmpty,
+            tint = when (state.cloudDeletionStatus) {
+                com.bipss.app.data.sharing.CloudDeletionStatus.DONE -> colors.bandNormal
+                com.bipss.app.data.sharing.CloudDeletionStatus.FAILED,
+                com.bipss.app.data.sharing.CloudDeletionStatus.IDENTITY_LOST -> colors.bandRisk
+                else -> colors.bandMonitor
+            }
         )
     }
 
@@ -420,7 +428,7 @@ private fun EmergencyContacts(
 ) {
     val colors = BipssTheme.colors
     val smsPerm = rememberMultiplePermissionsState(listOf(android.Manifest.permission.SEND_SMS))
-    val locPerm = rememberPermissionState(android.Manifest.permission.ACCESS_FINE_LOCATION)
+    val locPerm = rememberLocationPermission()
 
     Text(
         "Contacts here receive an SMS with your location when SOS fires. Stored on this device only.",
@@ -440,13 +448,13 @@ private fun EmergencyContacts(
         )
         Spacer(Modifier.height(Space.s))
     }
-    if (!locPerm.status.isGranted) {
+    if (!locPerm.isGranted) {
         InfoBanner(
             text = "Location sharpens the coordinates sent with an SOS.",
             icon = Icons.Rounded.LocationOn,
             tint = colors.bandMonitor,
             action = {
-                GhostButton("Allow", { locPerm.launchPermissionRequest() }, color = colors.bandMonitor)
+                GhostButton("Allow", { locPerm.request() }, color = colors.bandMonitor)
             }
         )
         Spacer(Modifier.height(Space.s))
@@ -528,8 +536,27 @@ private fun AboutCard() {
 
 // ── Dialogs ─────────────────────────────────────────────────────────────────
 
+/** One honest sentence about the shared-data deletion, or null when there is nothing to report. */
+private fun cloudDeletionLine(state: SettingsUiState): String? = when (state.cloudDeletionStatus) {
+    com.bipss.app.data.sharing.CloudDeletionStatus.NONE -> null
+    com.bipss.app.data.sharing.CloudDeletionStatus.PENDING ->
+        "Deleting your shared data is queued. It will finish automatically once you're online."
+    com.bipss.app.data.sharing.CloudDeletionStatus.IN_PROGRESS ->
+        "Deleting your shared data… ${state.cloudDeletionCount} record(s) removed so far."
+    com.bipss.app.data.sharing.CloudDeletionStatus.DONE ->
+        if (state.cloudAccountRemoved)
+            "Your shared data was deleted (${state.cloudDeletionCount} record(s)), and its anonymous sharing ID removed."
+        else
+            "Your shared data was deleted (${state.cloudDeletionCount} record(s)). Its anonymous sharing ID could not be " +
+                "removed, but this phone is signed out of it, so sharing again starts a new ID."
+    com.bipss.app.data.sharing.CloudDeletionStatus.FAILED ->
+        "Deleting your shared data failed after several attempts. Try Delete my data again while online."
+    com.bipss.app.data.sharing.CloudDeletionStatus.IDENTITY_LOST ->
+        "Your shared data could not be deleted from this phone: the anonymous sharing ID it was stored under is no longer signed in here."
+}
+
 @Composable
-private fun DeleteDataDialog(state: SettingsUiState, vm: SettingsViewModel) {
+private fun DeleteDataDialog(vm: SettingsViewModel) {
     val colors = BipssTheme.colors
     AlertDialog(
         onDismissRequest = { vm.dismissDeleteDialog() },
@@ -537,10 +564,11 @@ private fun DeleteDataDialog(state: SettingsUiState, vm: SettingsViewModel) {
         title = { Text("Delete my data", color = colors.textPrimary) },
         text = {
             Text(
-                if (state.cloudBackupEnabled)
-                    "Local data is cleared immediately and cloud data enters a 7-day deletion grace period. Insights pause while baselines rebuild."
-                else
-                    "This permanently deletes all local readings, baselines and settings. Insights pause while baselines rebuild.",
+                "This deletes, from this phone and now: every reading, baseline, sleep record, water log, " +
+                    "emergency contact, SOS log, your profile and your settings. If you have shared data with " +
+                    "BIPSS, that is deleted too - immediately if you are online, otherwise automatically once you " +
+                    "are. Not touched: your theme, the downloaded AI model file, any backup in your own Google " +
+                    "Drive, and height or weight already saved to Health Connect.",
                 color = colors.textSecondary
             )
         },
@@ -552,6 +580,37 @@ private fun DeleteDataDialog(state: SettingsUiState, vm: SettingsViewModel) {
         dismissButton = {
             TextButton(onClick = { vm.dismissDeleteDialog() }) {
                 Text("Cancel", color = colors.textSecondary)
+            }
+        }
+    )
+}
+
+/** What actually happened, line by line. The shared-data line updates live from the worker's status. */
+@Composable
+private fun DeletionResultDialog(result: DeletionResult, state: SettingsUiState, vm: SettingsViewModel) {
+    val colors = BipssTheme.colors
+    AlertDialog(
+        onDismissRequest = {},
+        containerColor = colors.card,
+        title = { Text("Your data", color = colors.textPrimary) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(Space.m)) {
+                Text(
+                    if (result.localDeleted)
+                        "✓ Your readings, history, contacts, profile and settings have been deleted from this phone."
+                    else "Deleting data on this phone…",
+                    color = colors.textPrimary
+                )
+                Text(
+                    if (!result.hadSharedData) "You never shared data with BIPSS, so there was nothing in the cloud to delete."
+                    else cloudDeletionLine(state) ?: "Deleting your shared data is queued.",
+                    color = colors.textSecondary
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { vm.onDeletionAcknowledged() }) {
+                Text("Done", color = MaterialTheme.colorScheme.primary)
             }
         }
     )

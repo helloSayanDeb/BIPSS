@@ -1,7 +1,18 @@
 package com.bipss.app.sos
 
 import android.annotation.SuppressLint
+import android.app.Activity
+import android.app.PendingIntent
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.Build
+import android.telephony.SmsManager
+import android.telephony.SubscriptionManager
+import android.util.Log
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.withTimeoutOrNull
 import android.location.Geocoder
 import android.location.Location
 import android.Manifest
@@ -19,28 +30,48 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeout
 import kotlin.coroutines.resume
 
+/** A position fix with the information needed to describe how good it is. */
+data class LocationFix(
+    val lat: Double,
+    val lon: Double,
+    val accuracyM: Float?,
+    val timeMs: Long,
+    /** Only approximate (coarse) permission is granted, so the fix is deliberately fuzzed by Android. */
+    val isApproximate: Boolean
+)
+
 class LocationHelper(private val context: Context) {
 
     private val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
 
+    fun hasFinePermission(): Boolean = ContextCompat.checkSelfPermission(
+        context, Manifest.permission.ACCESS_FINE_LOCATION
+    ) == PackageManager.PERMISSION_GRANTED
+
+    /** Either precise or approximate location is granted. */
+    fun hasAnyPermission(): Boolean = hasFinePermission() || ContextCompat.checkSelfPermission(
+        context, Manifest.permission.ACCESS_COARSE_LOCATION
+    ) == PackageManager.PERMISSION_GRANTED
+
+    suspend fun getCurrentLocation(): Pair<Double, Double>? =
+        getCurrentFix()?.let { it.lat to it.lon }
+
+    /** A fresh fix, or null without permission, on failure, or after [timeoutMs]. */
     @SuppressLint("MissingPermission")
-    suspend fun getCurrentLocation(): Pair<Double, Double>? {
-        val hasPermission = ContextCompat.checkSelfPermission(
-            context, Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED ||
-        ContextCompat.checkSelfPermission(
-            context, Manifest.permission.ACCESS_COARSE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-
-        if (!hasPermission) return null
-
+    suspend fun getCurrentFix(timeoutMs: Long = 10_000L): LocationFix? {
+        if (!hasAnyPermission()) return null
+        val approximate = !hasFinePermission()
         return try {
-            withTimeout(10_000L) {
+            withTimeout(timeoutMs) {
                 suspendCancellableCoroutine { cont ->
                     val cts = CancellationTokenSource()
-                    fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cts.token)
+                    val priority = if (approximate) Priority.PRIORITY_BALANCED_POWER_ACCURACY else Priority.PRIORITY_HIGH_ACCURACY
+                    fusedLocationClient.getCurrentLocation(priority, cts.token)
                         .addOnSuccessListener { location: Location? ->
-                            if (cont.isActive) cont.resume(location?.let { it.latitude to it.longitude })
+                            if (cont.isActive) cont.resume(location?.let {
+                                LocationFix(it.latitude, it.longitude,
+                                    if (it.hasAccuracy()) it.accuracy else null, it.time, approximate)
+                            })
                         }
                         .addOnFailureListener {
                             if (cont.isActive) cont.resume(null)
@@ -93,39 +124,158 @@ class LocationHelper(private val context: Context) {
     }
 }
 
+/** One SMS recipient. */
+data class SmsRecipient(val name: String, val phoneNumber: String)
+
+/**
+ * What the radio reported for one recipient. [sent] is only true on RESULT_OK
+ * for every part. [unconfirmed] means no verdict arrived in time: the message
+ * was handed to the phone's SMS service and may still go out - or may have
+ * failed - so it is reported as neither sent nor failed.
+ */
+data class SmsSendResult(
+    val recipient:   SmsRecipient,
+    val sent:        Boolean,
+    val error:       String? = null,
+    val unconfirmed: Boolean = false
+)
+
+/** Whether this device can send an SMS at all right now. */
+enum class SmsCapability { OK, NO_PERMISSION, NO_TELEPHONY }
+
+/**
+ * Sends SMS and reports what actually happened.
+ *
+ * "Success" used to mean "no exception was thrown", with null sent-intents, so
+ * a message the radio rejected still counted as sent - and a zero count was
+ * then shown as "Alert sent". Each part now carries a sent-intent and a
+ * recipient only counts as sent when the radio returns RESULT_OK for every
+ * part. That confirms the message left the phone for the carrier; delivery to
+ * the handset is not tracked, since delivery reports can take minutes.
+ */
 class SmsSender(private val context: Context) {
 
+    fun capability(): SmsCapability = when {
+        !context.packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY_MESSAGING) &&
+            !context.packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY) -> SmsCapability.NO_TELEPHONY
+        ContextCompat.checkSelfPermission(context, Manifest.permission.SEND_SMS)
+            != PackageManager.PERMISSION_GRANTED -> SmsCapability.NO_PERMISSION
+        else -> SmsCapability.OK
+    }
+
+    /**
+     * The SmsManager for the default SMS subscription. `getSystemService` only
+     * returns an instance from API 31; below that it is null, which previously
+     * made every send throw inside a catch and silently fail on Android 8-11.
+     */
+    @Suppress("DEPRECATION")
+    private fun smsManager(): SmsManager {
+        val subId = SmsManager.getDefaultSmsSubscriptionId()
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val base = context.getSystemService(SmsManager::class.java)
+            if (subId != SubscriptionManager.INVALID_SUBSCRIPTION_ID) base.createForSubscriptionId(subId) else base
+        } else {
+            if (subId != SubscriptionManager.INVALID_SUBSCRIPTION_ID) SmsManager.getSmsManagerForSubscriptionId(subId)
+            else SmsManager.getDefault()
+        }
+    }
+
+    /**
+     * Sends [body] to every recipient and waits (up to [timeoutMs]) for the
+     * radio's verdict on each. A recipient with no verdict by then is reported
+     * as not sent - never assumed to have gone through.
+     */
     @SuppressLint("MissingPermission")
-    fun sendSosMessages(
-        contacts:  List<com.bipss.app.data.db.entity.EmergencyContactEntity>,
-        userName:  String,
-        lat:       Double?,
-        lng:       Double?,
-        timestamp: String
-    ): Int {
-        val locationPart = if (lat != null && lng != null)
-            "https://maps.google.com/?q=${"%.6f".format(lat)},${"%.6f".format(lng)}"
-        else "location unavailable"
+    suspend fun send(recipients: List<SmsRecipient>, body: String, timeoutMs: Long = 20_000L): List<SmsSendResult> {
+        if (recipients.isEmpty()) return emptyList()
+        if (capability() != SmsCapability.OK) {
+            return recipients.map { SmsSendResult(it, sent = false, error = capability().name) }
+        }
+        val manager = smsManager()
+        // divideMessage always: the 160-character limit only holds for GSM-7.
+        // A name in Bengali or Devanagari switches the whole message to UCS-2,
+        // where one part holds 70 characters.
+        val parts = manager.divideMessage(body)
+        val action = "com.bipss.app.SMS_SENT." + System.nanoTime()
 
-        val message = "$userName may have had a fall or medical event at $timestamp. " +
-                      "Last known location: $locationPart. Automated alert from BIPSS."
-
-        val smsManager = context.getSystemService(android.telephony.SmsManager::class.java)
-        var successCount = 0
-
-        contacts.forEach { contact ->
-            try {
-                if (message.length > 160) {
-                    val parts = smsManager.divideMessage(message)
-                    smsManager.sendMultipartTextMessage(contact.phoneNumber, null, parts, null, null)
-                } else {
-                    smsManager.sendTextMessage(contact.phoneNumber, null, message, null, null)
+        val outcomes = HashMap<Int, BooleanArray>()   // recipient index -> per-part OK
+        val reported = HashMap<Int, BooleanArray>()   // recipient index -> per-part verdict arrived
+        val codes = HashMap<Int, Int>()               // recipient index -> first failing result code
+        val done = CompletableDeferred<Unit>()
+        var remaining = recipients.size * parts.size
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(ctx: Context, intent: Intent) {
+                val r = intent.getIntExtra(EXTRA_RECIPIENT, -1)
+                val p = intent.getIntExtra(EXTRA_PART, -1)
+                synchronized(outcomes) {
+                    if (r >= 0 && p >= 0) {
+                        outcomes.getOrPut(r) { BooleanArray(parts.size) }[p] = resultCode == Activity.RESULT_OK
+                        reported.getOrPut(r) { BooleanArray(parts.size) }[p] = true
+                        if (resultCode != Activity.RESULT_OK) codes.putIfAbsent(r, resultCode)
+                    }
+                    remaining--
+                    if (remaining <= 0) done.complete(Unit)
                 }
-                successCount++
-            } catch (e: Exception) {
-                android.util.Log.e("SmsSender", "Failed to send SOS to ${contact.phoneNumber}: ${e.message}")
             }
         }
-        return successCount
+        ContextCompat.registerReceiver(context, receiver, IntentFilter(action), ContextCompat.RECEIVER_NOT_EXPORTED)
+        val errors = HashMap<Int, String>()
+        try {
+            recipients.forEachIndexed { r, recipient ->
+                val sentIntents = ArrayList<PendingIntent>(parts.size)
+                parts.indices.forEach { p ->
+                    val intent = Intent(action).setPackage(context.packageName)
+                        .putExtra(EXTRA_RECIPIENT, r).putExtra(EXTRA_PART, p)
+                    sentIntents += PendingIntent.getBroadcast(
+                        context, r * 100 + p, intent,
+                        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                    )
+                }
+                try {
+                    if (parts.size > 1) {
+                        manager.sendMultipartTextMessage(recipient.phoneNumber, null, parts, sentIntents, null)
+                    } else {
+                        manager.sendTextMessage(recipient.phoneNumber, null, parts[0], sentIntents[0], null)
+                    }
+                } catch (e: Exception) {
+                    Log.e("SmsSender", "Send to ${recipient.name} failed: ${e.message}")
+                    errors[r] = e.message ?: e.javaClass.simpleName
+                    synchronized(outcomes) {
+                        remaining -= parts.size
+                        if (remaining <= 0) done.complete(Unit)
+                    }
+                }
+            }
+            withTimeoutOrNull(timeoutMs) { done.await() }
+        } finally {
+            runCatching { context.unregisterReceiver(receiver) }
+        }
+        return recipients.mapIndexed { r, recipient ->
+            synchronized(outcomes) {
+                val allReported = reported[r]?.all { it } == true
+                val ok = allReported && outcomes[r]?.all { it } == true
+                when {
+                    errors[r] != null -> SmsSendResult(recipient, sent = false, error = errors[r])
+                    ok                -> SmsSendResult(recipient, sent = true)
+                    codes[r] != null  -> SmsSendResult(recipient, sent = false, error = describeResultCode(codes[r]!!))
+                    // No verdict before the timeout: neither sent nor failed.
+                    else              -> SmsSendResult(recipient, sent = false, unconfirmed = true,
+                                                       error = "no confirmation within ${timeoutMs / 1000} s")
+                }
+            }
+        }
+    }
+
+    private fun describeResultCode(code: Int): String = when (code) {
+        SmsManager.RESULT_ERROR_RADIO_OFF       -> "mobile radio is off"
+        SmsManager.RESULT_ERROR_NO_SERVICE      -> "no mobile service"
+        SmsManager.RESULT_ERROR_NULL_PDU        -> "message could not be encoded"
+        SmsManager.RESULT_ERROR_GENERIC_FAILURE -> "the network rejected it"
+        else                                    -> "SMS error $code"
+    }
+
+    private companion object {
+        const val EXTRA_RECIPIENT = "recipient"
+        const val EXTRA_PART = "part"
     }
 }

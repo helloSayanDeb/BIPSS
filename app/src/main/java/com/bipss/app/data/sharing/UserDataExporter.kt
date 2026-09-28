@@ -31,6 +31,9 @@ class UserDataExporter(
 
     companion object {
         private const val TAG = "DataExporter"
+
+        /** Every subcollection written under users/{uid}. Deletion enumerates exactly these. */
+        val SUBCOLLECTIONS = listOf("minute_aggregates", "sleep_sessions", "desaturation_events", "baseline_stats")
         /** Firestore batch write limit. */
         private const val BATCH_SIZE = 500
     }

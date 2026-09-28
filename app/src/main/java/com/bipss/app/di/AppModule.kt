@@ -15,6 +15,7 @@ import com.bipss.app.data.db.migration.MIGRATION_1_2
 import com.bipss.app.data.db.migration.MIGRATION_2_3
 import com.bipss.app.data.db.migration.MIGRATION_3_4
 import com.bipss.app.data.db.migration.MIGRATION_4_5
+import com.bipss.app.data.db.migration.MIGRATION_5_6
 import com.bipss.app.data.sharing.DataSharingRepository
 import com.bipss.app.data.sharing.UserDataExporter
 import com.bipss.app.data.environmental.CpcbAqiFetcher
@@ -78,7 +79,7 @@ val appModule = module {
     // ── Room ──────────────────────────────────────────────────────────────────
     single {
         Room.databaseBuilder(androidContext(), AppDatabase::class.java, "bipss_db")
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
             .build()
     }
 
@@ -91,6 +92,7 @@ val appModule = module {
     single { get<AppDatabase>().contextFeedbackDao() }
     single { get<AppDatabase>().emergencyContactDao() }
     single { get<AppDatabase>().sosEventDao() }
+    single { get<AppDatabase>().waterLogDao() }
 
     // ── BLE ───────────────────────────────────────────────────────────────────
     single { BleGattManager(androidContext()) }
@@ -98,6 +100,7 @@ val appModule = module {
     // ── Sensor Pipeline ───────────────────────────────────────────────────────
     single { SensorRepository(get(), get(), get(), get()) }
     single { com.bipss.app.data.LegacyDataCleanup(get(), get()) }
+    single { com.bipss.app.data.WaterRepository(get(), get()) }
 
     // ── Sleep ─────────────────────────────────────────────────────────────────
     single {
@@ -142,7 +145,7 @@ val appModule = module {
     viewModel { MainViewModel(get()) }
 
     viewModel {
-        DashboardViewModel(get(), get(), get(), get(), get(), get(), androidContext())
+        DashboardViewModel(get(), get(), get(), get(), get(), get(), get(), androidContext())
     }
 
     viewModel { com.bipss.app.ui.recovery.RecoveryDetailViewModel(get(), get()) }
@@ -155,7 +158,8 @@ val appModule = module {
             sleepRepo     = get(),
             sensorRepo    = get(),
             envRepo       = get(),
-            calculator    = get()
+            calculator    = get(),
+            waterRepo     = get()
         )
     }
 
@@ -174,7 +178,7 @@ val appModule = module {
     }
 
     viewModel {
-        SettingsViewModel(get(), get(), get(), get(), get(), get(), get())
+        SettingsViewModel(get(), get(), get(), get(), get(), get(), get(), androidContext())
     }
 
     viewModel {

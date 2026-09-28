@@ -37,7 +37,6 @@ data class SettingsUiState(
     val downloadPhase:   DownloadProgress = DownloadProgress.Idle,
 
     val cloudBackupEnabled:    Boolean = false,
-    val deletionDaysRemaining: Int?    = null,
     val isBackingUp:           Boolean = false,
     val isRestoring:           Boolean = false,
     val backupStatusMessage:   String? = null,
@@ -50,7 +49,21 @@ data class SettingsUiState(
     val sharingUsername:    String? = null,
 
     val showDeleteLocalDataDialog: Boolean = false,
-    val showForgetDeviceDialog:    Boolean = false
+    val showForgetDeviceDialog:    Boolean = false,
+
+    /** Non-null while the "Delete my data" result is on screen. */
+    val deletionResult: DeletionResult? = null,
+    /** Outcome of the most recent shared-data deletion, shown in Privacy afterwards. */
+    val cloudDeletionStatus: com.bipss.app.data.sharing.CloudDeletionStatus = com.bipss.app.data.sharing.CloudDeletionStatus.NONE,
+    val cloudDeletionCount:  Int = 0,
+    val cloudAccountRemoved: Boolean = false
+)
+
+/** What "Delete my data" actually did. Every line on the result screen comes from here. */
+data class DeletionResult(
+    val localDeleted:    Boolean,
+    /** True when there was shared (Firebase) data to delete at all. */
+    val hadSharedData:   Boolean
 )
 
 class SettingsViewModel(
@@ -60,7 +73,8 @@ class SettingsViewModel(
     private val emergencyContactDao:  EmergencyContactDao,
     private val chatbotEngine:        ChatbotEngine,
     private val db:                   AppDatabase,
-    val driveBackupManager:           DriveBackupManager
+    val driveBackupManager:           DriveBackupManager,
+    private val appContext:           Context
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -108,25 +122,21 @@ class SettingsViewModel(
         }
 
         viewModelScope.launch {
+            combine(prefsRepo.cloudBackupEnabled, prefsRepo.themePreference) { backup, theme -> backup to theme }
+                .collect { (backup, theme) ->
+                    _uiState.update { it.copy(cloudBackupEnabled = backup, themePreference = theme) }
+                }
+        }
+
+        viewModelScope.launch {
             combine(
-                prefsRepo.cloudBackupEnabled,
-                prefsRepo.deletionInitiatedAtMs,
-                prefsRepo.themePreference
-            ) { backup, deletionAt, theme ->
-                Triple(backup, deletionAt, theme)
-            }.collect { (backup, deletionAt, theme) ->
-                val daysRemaining = deletionAt?.let {
-                    val remaining = 7 - ((System.currentTimeMillis() - it) / 86_400_000L)
-                    if (remaining > 0) remaining.toInt() else null
+                prefsRepo.cloudDeletionStatus, prefsRepo.cloudDeletionCount, prefsRepo.cloudDeletionAccountRemoved
+            ) { status, count, removed -> Triple(status, count, removed) }
+                .collect { (status, count, removed) ->
+                    _uiState.update {
+                        it.copy(cloudDeletionStatus = status, cloudDeletionCount = count, cloudAccountRemoved = removed)
+                    }
                 }
-                _uiState.update {
-                    it.copy(
-                        cloudBackupEnabled    = backup,
-                        deletionDaysRemaining = daysRemaining,
-                        themePreference       = theme
-                    )
-                }
-            }
         }
 
         viewModelScope.launch {
@@ -257,21 +267,57 @@ class SettingsViewModel(
     fun onDeleteDataTap() { _uiState.update { it.copy(showDeleteLocalDataDialog = true) } }
     fun dismissDeleteDialog() { _uiState.update { it.copy(showDeleteLocalDataDialog = false) } }
 
+    /**
+     * Deletes everything on this phone now, and everything shared with BIPSS
+     * as soon as the phone is online.
+     *
+     * Collection is stopped first (band, background work) so nothing is
+     * written back mid-wipe. The shared-data identity is captured before the
+     * local wipe, handed to [com.bipss.app.data.sharing.CloudDeletionWorker],
+     * and kept through the wipe so the cloud side can finish later. Nothing
+     * here claims a deletion that has not happened: the result screen reads
+     * the worker's real, persisted status.
+     */
     fun onDeleteDataConfirmed() {
         viewModelScope.launch {
-            val backupWasEnabled = prefsRepo.cloudBackupEnabled.first()
-            if (backupWasEnabled) {
-                prefsRepo.initiateCloudDeletion()
-                _uiState.update { it.copy(showDeleteLocalDataDialog = false, deletionDaysRemaining = 7) }
-            } else {
-                // Room's clearAllTables() is a blocking call that must run off the
-                // main thread. Without Dispatchers.IO this ANRs or crashes outright.
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    db.clearAllTables()
-                }
-                prefsRepo.clearLocalDataPrefs()
-                _uiState.update { it.copy(showDeleteLocalDataDialog = false) }
+            _uiState.update { it.copy(showDeleteLocalDataDialog = false) }
+            // A deletion still pending from an earlier wipe (offline, or failed)
+            // is picked up again: the sharing uid itself was cleared by that wipe.
+            val pendingUid = prefsRepo.pendingCloudDeletionUid.first()
+            val sharedUid = prefsRepo.sharingFirebaseUid.first() ?: pendingUid
+
+            bleGattManager.disconnect()
+            com.bipss.app.ble.BleForegroundService.stop(appContext)
+            // Stops anything mid-write (aggregation, sleep analysis, sync) so it
+            // cannot put rows back while the tables are cleared. The periodic
+            // jobs are rescheduled below; nothing restarts the process for us.
+            androidx.work.WorkManager.getInstance(appContext).cancelAllWork()
+
+            if (sharedUid != null) {
+                val resuming = pendingUid == sharedUid
+                prefsRepo.setPendingCloudDeletionUid(sharedUid)
+                prefsRepo.setCloudDeletionStatus(
+                    com.bipss.app.data.sharing.CloudDeletionStatus.PENDING,
+                    if (resuming) prefsRepo.cloudDeletionCount.first() else 0
+                )
             }
+            // Room's clearAllTables() blocks; it must not run on the main thread.
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { db.clearAllTables() }
+            prefsRepo.clearLocalDataPrefs()
+            if (sharedUid != null) {
+                com.bipss.app.data.sharing.CloudDeletionWorker.enqueue(appContext, replace = true)
+            }
+            com.bipss.app.BipssApplication.schedulePeriodicWork(appContext)
+
+            _uiState.update { it.copy(deletionResult = DeletionResult(localDeleted = true, hadSharedData = sharedUid != null)) }
+        }
+    }
+
+    /** After the user has read the result: back to the start, since the profile is gone. */
+    fun onDeletionAcknowledged() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(deletionResult = null) }
+            prefsRepo.resetOnboarding()
         }
     }
 
