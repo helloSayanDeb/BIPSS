@@ -105,7 +105,7 @@ class ChatDetailsViewModel(
                 hr              = s.heartRate,
                 spo2            = s.spO2,
                 skinTempC       = s.skinTempC,
-                hrvRmssd        = null,
+                prvRmssd        = null,
                 baselineHR      = baseStats?.mean,
                 baselineHRStd   = baseStats?.stdDev,
                 baselineDays    = prefsRepo.daysOfData(),

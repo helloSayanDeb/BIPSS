@@ -1,5 +1,7 @@
 package com.bipss.app.data
 
+import androidx.datastore.core.DataStore
+
 import android.content.Context
 import androidx.datastore.preferences.core.*
 import com.bipss.app.domain.environmental.HealthAdvisory
@@ -19,9 +21,10 @@ private val envJson = Json { ignoreUnknownKeys = true; encodeDefaults = true }
  * Central DataStore repository. Accumulates keys from all plans (1–10).
  * All keys are private; access is through typed Flow properties and suspend setters.
  */
-class UserPreferencesRepository(private val context: Context) {
-
-    private val dataStore = context.dataStore
+class UserPreferencesRepository(
+    private val context:   Context,
+    private val dataStore: DataStore<Preferences>
+) {
 
     // ── Plan 1: Onboarding gate ───────────────────────────────────────────────
     private val KEY_ONBOARDING_DONE   = booleanPreferencesKey("has_completed_onboarding")

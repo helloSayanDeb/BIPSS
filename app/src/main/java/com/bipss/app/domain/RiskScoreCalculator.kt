@@ -88,7 +88,7 @@ class RiskScoreCalculator {
         hr:              Int?,
         spo2:            Int?,
         skinTempC:       Float?,
-        hrvRmssd:        Int?,
+        prvRmssd:        Int?,
         baselineHR:      Double?,
         baselineHRStd:   Double?,
         baselineDays:    Int,
@@ -107,7 +107,7 @@ class RiskScoreCalculator {
             computeFlood(env, dataMode)
         )
 
-        val recovery = computeRecovery(hrvRmssd, hr, baselineHR, baselineDays, recoveryScore, dataMode)
+        val recovery = computeRecovery(prvRmssd, hr, baselineHR, baselineDays, recoveryScore, dataMode)
         val sleep    = computeSleep(sleepScore, dataMode)
         val strain   = computeStrain(strainScore, dataMode)
         val readiness = computeReadiness(recovery, sleep, strain, hazards, dataMode)
@@ -398,7 +398,7 @@ class RiskScoreCalculator {
     // -- Wellness pillars ------------------------------------------------------
 
     private fun computeRecovery(
-        hrvRmssd:      Int?,
+        prvRmssd:      Int?,
         hr:            Int?,
         baselineHR:    Double?,
         baselineDays:  Int,
@@ -413,10 +413,10 @@ class RiskScoreCalculator {
                 confidence = BaselineSchedule.confidenceFor(baselineDays)
             )
         }
-        if (hrvRmssd == null && hr == null) {
+        if (prvRmssd == null && hr == null) {
             return unavailable(
                 RiskScoreType.RECOVERY, ScoreAvailability.NEEDS_BAND, dataMode,
-                listOf("heart rate variability")
+                listOf("pulse rate variability")
             )
         }
         if (baselineHR == null || !BaselineSchedule.isUsable(baselineDays)) {
@@ -435,12 +435,12 @@ class RiskScoreCalculator {
             b.factor(if (delta <= 2f) "Resting HR At Baseline" else "Resting HR Elevated", delta > 2f)
         } else b.skip("resting heart rate")
 
-        if (hrvRmssd != null) {
+        if (prvRmssd != null) {
             // Higher RMSSD is better recovery; 20 ms is poor, 70 ms is strong.
-            val f = ((hrvRmssd - 20f) / 50f).coerceIn(0f, 1f)
+            val f = ((prvRmssd - 20f) / 50f).coerceIn(0f, 1f)
             b.add(f * 40f, 40f)
-            b.factor(if (f > 0.5f) "HRV Strong" else "HRV Suppressed", f <= 0.5f)
-        } else b.skip("heart rate variability")
+            b.factor(if (f > 0.5f) "PRV Strong" else "PRV Suppressed", f <= 0.5f)
+        } else b.skip("pulse rate variability")
 
         return RiskScore(
             type          = RiskScoreType.RECOVERY,

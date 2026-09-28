@@ -207,7 +207,9 @@ object BipssNotifications {
      * always-visible UI this app has into a lie.
      */
     fun buildServiceNotification(context: Context, connected: Boolean): Notification {
-        val text = if (connected) {
+        val text = if (com.bipss.app.SimulationMode.isActive(context)) {
+            "Simulated band - not real data."
+        } else if (connected) {
             "Band connected. Readings are being recorded."
         } else {
             "Band not connected. Waiting to reconnect."
@@ -245,6 +247,11 @@ object BipssNotifications {
      * log line and nothing else.
      */
     private fun safeNotify(context: Context, id: Int, notification: Notification) {
+        // Alerts computed from simulated data must not look like real ones.
+        if (id != NotificationIds.SERVICE && com.bipss.app.SimulationMode.isActive(context)) {
+            Log.i(TAG, "Notification $id suppressed in simulation mode")
+            return
+        }
         if (!hasPermission(context)) {
             Log.i(TAG, "Notification $id skipped, POST_NOTIFICATIONS not granted")
             return

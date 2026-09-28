@@ -151,3 +151,17 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
         database.execSQL("CREATE INDEX IF NOT EXISTS `index_water_log_timestampMs` ON `water_log` (`timestampMs`)")
     }
 }
+
+/**
+ * v6 -> v7: the legacy variability metric key becomes "PRV". The band times
+ * pulse waves at the wrist, so the value is pulse rate variability.
+ * No schema change - only the stored key. (baseline_stats is keyed by metric
+ * type, and no "PRV" row can exist before this migration.)
+ */
+val MIGRATION_6_7 = object : Migration(6, 7) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("UPDATE `raw_readings` SET `metricType` = 'PRV' WHERE `metricType` = 'HRV'")
+        database.execSQL("UPDATE `minute_aggregates` SET `metricType` = 'PRV' WHERE `metricType` = 'HRV'")
+        database.execSQL("UPDATE `baseline_stats` SET `metricType` = 'PRV' WHERE `metricType` = 'HRV'")
+    }
+}

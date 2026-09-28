@@ -33,7 +33,7 @@ data class DashboardUiState(
     val heartRate:        Int?                   = null,
     val spO2:             Int?                   = null,
     val skinTempC:        Float?                 = null,
-    val hrvRmssd:         Int?                   = null,
+    val prvRmssd:         Int?                   = null,
     val stepCount:        Int?                   = null,
     val batteryPercent:   Int?                   = null,
 
@@ -133,13 +133,12 @@ class DashboardViewModel(
                         heartRate        = reading.heartRate ?: s.heartRate,
                         spO2             = reading.spO2      ?: s.spO2,
                         skinTempC        = reading.skinTempC ?: s.skinTempC,
-                        hrvRmssd         = reading.hrvRmssd  ?: s.hrvRmssd,
+                        prvRmssd         = reading.bandPrvRmssdMs  ?: s.prvRmssd,
                         heartRateHistory = s.heartRateHistory.appendRolling(reading.heartRate?.toFloat()),
                         spO2History      = s.spO2History.appendRolling(reading.spO2?.toFloat()),
                         skinTempHistory  = s.skinTempHistory.appendRolling(reading.skinTempC)
                     )
                 }
-                envRepo.updateBandSensorAqi(reading.aqiRaw)
                 recomputeRiskScores()
             }
         }
@@ -242,14 +241,14 @@ class DashboardViewModel(
             hr              = s.heartRate,
             spo2            = s.spO2,
             skinTempC       = s.skinTempC,
-            hrvRmssd        = s.hrvRmssd,
+            prvRmssd        = s.prvRmssd,
             baselineHR      = baseStats?.mean,
             baselineHRStd   = baseStats?.stdDev,
             baselineDays    = baselineDays,
             env             = env,
             hoursSinceWater = hoursSinceWater,
             // Null means the pillar reports "needs data" rather than zero.
-            // Recovery is derived inside the calculator from HRV and resting
+            // Recovery is derived inside the calculator from PRV and resting
             // HR; strain awaits the activity pipeline and stays honest until then.
             sleepScore      = sleepRepo.lastNightScore(),
             recoveryScore   = null,
@@ -269,7 +268,9 @@ class DashboardViewModel(
         ).let { AlertRanker.topRelevant(it) }
 
         val inference = ContextInferencer.infer(
-            sensorAqi   = sensorRepo.bandSensorAqi.value,
+            // The band reports ENS160 UBA (1-5), a different scale from the
+            // 0-500 station AQI, so it cannot be compared as a ratio here.
+            sensorAqi   = null,
             apiAqi      = s.env.regionalAqiValue,
             sensorTempC = null,
             apiTempC    = s.env.ambientTempC

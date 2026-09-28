@@ -34,7 +34,7 @@ class BipssApplication : Application(), Configuration.Provider, KoinComponent {
             androidLogger(Level.ERROR)
             androidContext(this@BipssApplication)
             workManagerFactory()
-            modules(appModule)
+            modules(listOf(appModule) + com.bipss.app.debug.debugModules)
         }
 
         BipssNotifications.createChannels(this)
@@ -69,6 +69,7 @@ class BipssApplication : Application(), Configuration.Provider, KoinComponent {
      */
     private fun startUp() {
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            if (SimulationMode.isActive(this@BipssApplication)) seedSimulationProfile()
             runCatching { getKoin().get<LegacyDataCleanup>().run() }
             // Persist band readings for the life of the process, not just
             // while a screen happens to be open.
@@ -106,6 +107,20 @@ class BipssApplication : Application(), Configuration.Provider, KoinComponent {
                 ble.connectToDevice(mac, autoConnect = true)
             }
         }
+    }
+
+    /**
+     * Simulation mode only, and only when asked for with skip_onboarding: a
+     * placeholder profile in the separate simulation preferences, so a
+     * scenario can be shown without walking through onboarding. Never touches
+     * the real preferences file.
+     */
+    private suspend fun seedSimulationProfile() {
+        if (!SimulationMode.wantsSeededProfile(this)) return
+        val prefs: UserPreferencesRepository = getKoin().get()
+        if (prefs.hasCompletedOnboarding.first()) return
+        prefs.saveUserProfile(com.bipss.app.data.UserProfile(name = "Simulated user", age = 30, heightCm = 170f, weightKg = 65f))
+        prefs.setOnboardingComplete()
     }
 
     // Koin-managed WorkManager initializer

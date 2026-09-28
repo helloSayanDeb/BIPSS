@@ -29,6 +29,8 @@ import okhttp3.RequestBody.Companion.toRequestBody
 
 private const val TAG = "DriveBackupManager"
 private const val BACKUP_FILE_NAME = "bipss_backup.json"
+/** The metric key PRV was stored under before schema v7 (see MIGRATION_6_7). */
+private const val LEGACY_VARIABILITY_KEY = "HRV"
 private const val DRIVE_APPDATA_SCOPE = "https://www.googleapis.com/auth/drive.appdata"
 private const val DRIVE_FILES_URL = "https://www.googleapis.com/drive/v3/files"
 private const val DRIVE_UPLOAD_URL = "https://www.googleapis.com/upload/drive/v3/files"
@@ -105,6 +107,9 @@ class DriveBackupManager(
     }
 
     suspend fun backupNow(): BackupResult {
+        if (com.bipss.app.SimulationMode.isActive(context)) {
+            return BackupResult.Failure("Backup is off while the simulated band is in use.")
+        }
         val account = lastSignedInAccount()
         if (account == null || !hasDriveAppDataScope(account)) {
             return BackupResult.NotSignedIn(signInClient().signInIntent)
@@ -127,6 +132,9 @@ class DriveBackupManager(
     }
 
     suspend fun restoreLatest(): BackupResult {
+        if (com.bipss.app.SimulationMode.isActive(context)) {
+            return BackupResult.Failure("Restore is off while the simulated band is in use.")
+        }
         val account = lastSignedInAccount()
         if (account == null || !hasDriveAppDataScope(account)) {
             return BackupResult.NotSignedIn(signInClient().signInIntent)
@@ -194,7 +202,9 @@ class DriveBackupManager(
         val demoWipeAt = prefsRepo.legacyDemoWipeAtMs.first()
         if (demoWipeAt == null || payload.backedUpAtMs >= demoWipeAt) {
             payload.baselineStats.forEach {
-                baselineStatsDao.upsert(BaselineStatsEntity(it.metricType, it.mean, it.m2, it.count, it.stdDev))
+                // Backups made before schema v7 use the old variability key.
+                val type = if (it.metricType == LEGACY_VARIABILITY_KEY) com.bipss.app.data.MetricTypes.PRV else it.metricType
+                baselineStatsDao.upsert(BaselineStatsEntity(type, it.mean, it.m2, it.count, it.stdDev))
             }
         }
     }

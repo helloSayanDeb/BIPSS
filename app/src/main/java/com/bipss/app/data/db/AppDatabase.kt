@@ -16,7 +16,7 @@ import com.bipss.app.data.db.entity.*
         SosEventEntity::class,
         WaterLogEntity::class
     ],
-    version  = 6,
+    version  = 7,
     // Exported from v6 so every later hand-written migration can be checked
     // against the schema Room actually expects (see app/schemas/).
     exportSchema = true

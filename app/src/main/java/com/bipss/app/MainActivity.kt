@@ -8,6 +8,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -54,11 +57,22 @@ class MainActivity : ComponentActivity() {
 
             BipssTheme(themePreference = themePref) {
                 if (!mainState.isLoading) {
-                    AppShell(
-                        startDestination   = mainState.startDestination,
-                        deepLink           = deepLink,
-                        onDeepLinkConsumed = mainVm::consumeDeepLink
-                    )
+                    val simulated = SimulationMode.isActive(this@MainActivity)
+                    androidx.compose.foundation.layout.Column {
+                        if (simulated) com.bipss.app.ui.components.SimulationBanner()
+                        // The banner already sits under the status bar; screens
+                        // below must not pad for it a second time.
+                        androidx.compose.foundation.layout.Box(
+                            if (simulated) androidx.compose.ui.Modifier.consumeWindowInsets(WindowInsets.statusBars)
+                            else androidx.compose.ui.Modifier
+                        ) {
+                            AppShell(
+                                startDestination   = mainState.startDestination,
+                                deepLink           = deepLink,
+                                onDeepLinkConsumed = mainVm::consumeDeepLink
+                            )
+                        }
+                    }
                 }
             }
         }

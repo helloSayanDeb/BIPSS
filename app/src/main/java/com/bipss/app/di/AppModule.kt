@@ -60,7 +60,8 @@ val appModule = module {
     }
 
     // ── DataStore ─────────────────────────────────────────────────────────────
-    single { UserPreferencesRepository(androidContext()) }
+    single { com.bipss.app.data.createPreferencesDataStore(androidContext()) }
+    single { UserPreferencesRepository(androidContext(), get()) }
 
     // ── Health Connect (height/weight/steps only — see class doc) ───────────────
     single { HealthConnectRepository(androidContext()) }
@@ -78,8 +79,10 @@ val appModule = module {
 
     // ── Room ──────────────────────────────────────────────────────────────────
     single {
-        Room.databaseBuilder(androidContext(), AppDatabase::class.java, "bipss_db")
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+        // A separate file in simulation mode, so simulated data never mixes with real data.
+        Room.databaseBuilder(androidContext(), AppDatabase::class.java, com.bipss.app.SimulationMode.databaseName(androidContext()))
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
+                com.bipss.app.data.db.migration.MIGRATION_6_7)
             .build()
     }
 

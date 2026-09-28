@@ -10,6 +10,7 @@ import com.bipss.app.ble.SensorReading
 import com.bipss.app.data.db.AppDatabase
 import com.bipss.app.data.db.entity.BaselineStatsEntity
 import com.bipss.app.data.db.entity.RawReadingEntity
+import androidx.room.withTransaction
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.*
@@ -22,13 +23,17 @@ object MetricTypes {
     const val HR         = "HR"
     const val SPO2       = "SPO2"
     const val SKIN_TEMP  = "SKIN_TEMP"
-    const val HRV        = "HRV"
+    /** Pulse rate variability (RMSSD of pulse intervals, ms). Stored under the legacy key before schema v7 (see MIGRATION_6_7). */
+    const val PRV        = "PRV"
+    /** Movement over one second, mg*s (band firmware v2). */
+    const val ACTIVITY   = "ACTIVITY"
+    /** Legacy accelerometer magnitude; only Demo Mode ever wrote it. Kept so old rows stay readable. */
     const val ACCEL_MAG  = "ACCEL_MAG"
     const val AMBIENT    = "AMBIENT_TEMP"
     const val HUMIDITY   = "HUMIDITY"
 
     /** Metrics that have their own detail screen. */
-    val displayable = listOf(HR, SPO2, SKIN_TEMP, HRV)
+    val displayable = listOf(HR, SPO2, SKIN_TEMP, PRV)
 }
 
 /** Connectivity as a Flow, shared between the dashboard and the environmental repository. */
@@ -72,7 +77,7 @@ class SensorRepository(
     /** Band battery percent, straight from the BLE manager. Null until the band reports it. */
     val batteryPercent: StateFlow<Int?> = bleGattManager.batteryPercent
 
-    /** Latest band-sensor air quality index, or null when no band is streaming. */
+    /** Latest ENS160 reading on its UBA 1..5 scale, or null when no band is streaming. */
     private val _bandSensorAqi = MutableStateFlow<Int?>(null)
     val bandSensorAqi: StateFlow<Int?> = _bandSensorAqi.asStateFlow()
 
@@ -111,7 +116,11 @@ class SensorRepository(
         }
     }
 
-    private suspend fun persistAndUpdateBaseline(reading: SensorReading) {
+    /** One transaction per reading: a single commit instead of one per metric. */
+    private suspend fun persistAndUpdateBaseline(reading: SensorReading) =
+        db.withTransaction { persistReading(reading) }
+
+    private suspend fun persistReading(reading: SensorReading) {
         val ts = reading.timestamp
 
         // Stamp the first reading so the baseline schedule counts from real
@@ -125,12 +134,12 @@ class SensorRepository(
         reading.heartRate?.let      { updateMetric(MetricTypes.HR, it.toDouble(), ts) }
         reading.spO2?.let           { updateMetric(MetricTypes.SPO2, it.toDouble(), ts) }
         reading.skinTempC?.let      { updateMetric(MetricTypes.SKIN_TEMP, it.toDouble(), ts) }
-        reading.hrvRmssd?.let       { updateMetric(MetricTypes.HRV, it.toDouble(), ts) }
-        reading.accelMagnitude?.let { updateMetric(MetricTypes.ACCEL_MAG, it.toDouble(), ts) }
+        reading.bandPrvRmssdMs?.let { updateMetric(MetricTypes.PRV, it.toDouble(), ts) }
+        reading.activityCount?.let  { updateMetric(MetricTypes.ACTIVITY, it.toDouble(), ts) }
         reading.ambientTempC?.let   { updateMetric(MetricTypes.AMBIENT, it.toDouble(), ts) }
         reading.humidityPct?.let    { updateMetric(MetricTypes.HUMIDITY, it.toDouble(), ts) }
 
-        _bandSensorAqi.value = reading.aqiRaw
+        _bandSensorAqi.value = reading.ensUba
     }
 
     /**
@@ -150,7 +159,8 @@ class SensorRepository(
             MetricTypes.HR        to 30.0..230.0,
             MetricTypes.SPO2      to 70.0..100.0,
             MetricTypes.SKIN_TEMP to 30.0..42.0,
-            MetricTypes.HRV       to 5.0..300.0,
+            MetricTypes.PRV       to 5.0..300.0,
+            MetricTypes.ACTIVITY  to 0.0..65_534.0,
             MetricTypes.AMBIENT   to -10.0..55.0,
             MetricTypes.HUMIDITY  to 0.0..100.0,
             MetricTypes.ACCEL_MAG to 0.0..20.0

@@ -56,16 +56,6 @@ class DisasterAlertRepository(
     private val ASSUMED_ALERT_RADIUS_KM = 150.0
 
     /**
-     * Most recent air quality read from the band's own ENS160, set by the
-     * sensor pipeline. Null when no band is streaming, which keeps the
-     * regional station value from silently masquerading as a personal reading.
-     */
-    @Volatile
-    private var bandSensorAqi: Int? = null
-
-    fun updateBandSensorAqi(aqi: Int?) { bandSensorAqi = aqi }
-
-    /**
      * Guards against duplicate concurrent fetches.
      *
      * Several view models observe this repository and each runs a fetch on
@@ -158,13 +148,11 @@ class DisasterAlertRepository(
         if (alertCheckFailed) sourcesChecked = previous?.alertSourcesChecked.orEmpty()
         val severity = alerts.maxByOrNull { it.severity.rank }?.severity ?: AlertSeverity.NONE
 
-        // Air quality. Regional station and band sensor are kept separate:
-        // the band reads the air the wearer is actually breathing, the station
-        // reads a site kilometres away, and their divergence is what powers the
-        // indoor/outdoor inference.
+        // Air quality: the regional station only. The band's ENS160 reports
+        // UBA 1-5, not a 0-500 AQI, so it is never shown in place of the
+        // station value; relating the two scales needs indoor/outdoor context.
         val cpcb = cpcbFetcher.fetchAqi(state, lat, lon)
-        val sensor = bandSensorAqi
-        val blended = BlendedReading.of(sensor?.toFloat(), cpcb?.aqiValue?.toFloat())
+        val blended = BlendedReading.of(null, cpcb?.aqiValue?.toFloat())
         val aqiValue = blended.displayValue?.toInt()
 
         // Weather: Open-Meteo is the only source (no key needed).

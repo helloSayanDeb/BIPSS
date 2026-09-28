@@ -10,7 +10,7 @@ import androidx.room.PrimaryKey
 )
 data class RawReadingEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val metricType:   String,   // "HR", "SPO2", "SKIN_TEMP", "ACCEL_MAG", "HRV", ...
+    val metricType:   String,   // "HR", "SPO2", "SKIN_TEMP", "PRV", "ACTIVITY", ... (see MetricTypes)
     val value:        Double,
     /**
      * True sample time, derived from the band's own uptime clock - NOT the

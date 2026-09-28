@@ -84,6 +84,16 @@ fun MetricDetailScreen(
                 }
             }
 
+            if (metricType == MetricTypes.PRV) item {
+                // The only place the older term appears: to say what PRV stands in for.
+                Text(
+                    "Beat-to-beat variation in your pulse, measured at the wrist " +
+                        "(a proxy for HRV). An estimate: wrist pulse timing is noisier than a chest strap.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.textSecondary
+                )
+            }
+
             item {
                 TimeRangeSelector(
                     selected = state.range,
@@ -177,6 +187,6 @@ private fun metricColor(metricType: String) = when (metricType) {
     MetricTypes.HR        -> BipssTheme.colors.heart
     MetricTypes.SPO2      -> BipssTheme.colors.spo2
     MetricTypes.SKIN_TEMP -> BipssTheme.colors.temp
-    MetricTypes.HRV       -> BipssTheme.colors.activity
+    MetricTypes.PRV       -> BipssTheme.colors.activity
     else                  -> BipssTheme.colors.air
 }

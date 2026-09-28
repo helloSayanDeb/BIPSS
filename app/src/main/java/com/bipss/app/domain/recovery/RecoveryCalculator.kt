@@ -5,7 +5,7 @@ import com.bipss.app.domain.BaselineSchedule
 data class RecoveryMetrics(
     val restingHr: Int?,
     val baselineHr: Double?,
-    val hrvRmssd: Int?,
+    val prvRmssd: Int?,
     val baselineDays: Int
 )
 
@@ -25,8 +25,8 @@ data class RecoveryBreakdown(
 
 object RecoveryCalculator {
     fun compute(metrics: RecoveryMetrics): RecoveryBreakdown {
-        if (metrics.hrvRmssd == null && metrics.restingHr == null) {
-            return RecoveryBreakdown(null, emptyList(), listOf("heart rate variability", "resting heart rate"))
+        if (metrics.prvRmssd == null && metrics.restingHr == null) {
+            return RecoveryBreakdown(null, emptyList(), listOf("pulse rate variability", "resting heart rate"))
         }
         if (metrics.baselineHr == null || !BaselineSchedule.isUsable(metrics.baselineDays)) {
             return RecoveryBreakdown(null, emptyList(), listOf(BaselineSchedule.missingLabel(metrics.baselineDays)))
@@ -57,15 +57,15 @@ object RecoveryCalculator {
             missing.add("resting heart rate")
         }
 
-        if (metrics.hrvRmssd != null) {
-            val f = ((metrics.hrvRmssd - 20f) / 50f).coerceIn(0f, 1f)
+        if (metrics.prvRmssd != null) {
+            val f = ((metrics.prvRmssd - 20f) / 50f).coerceIn(0f, 1f)
             val points = f * 40f
             totalEarned += points
             totalPossible += 40f
             
             components.add(
                 RecoveryComponent(
-                    label = "HRV",
+                    label = "PRV",
                     score = points.toInt(),
                     maxScore = 40,
                     summary = if (f > 0.5f) "Strong" else "Suppressed",
@@ -73,7 +73,7 @@ object RecoveryCalculator {
                 )
             )
         } else {
-            missing.add("heart rate variability")
+            missing.add("pulse rate variability")
         }
 
         val total = if (totalPossible <= 0f) null else ((totalEarned / totalPossible) * 100f).toInt().coerceIn(0, 100)

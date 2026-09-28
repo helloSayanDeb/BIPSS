@@ -10,18 +10,24 @@ import android.content.Context
 import android.os.Build
 import android.os.ParcelUuid
 import android.util.Log
+import com.bipss.app.BuildConfig
 import com.bipss.app.ble.BleConstants.BATTERY_SERVICE
 import com.bipss.app.ble.BleConstants.BIPSS_SERVICE_UUID
 import com.bipss.app.ble.BleConstants.CCCD_UUID
 import com.bipss.app.ble.BleConstants.CHAR_BATTERY_LEVEL
-import com.bipss.app.ble.BleConstants.CHAR_SENSOR_FRAME
+import com.bipss.app.ble.BleConstants.CHAR_STATUS
+import com.bipss.app.ble.BleConstants.CHAR_WAVEFORM
+import com.bipss.app.ble.protocol.BandPacketParser
+import com.bipss.app.ble.protocol.BandProtocol
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicBoolean
 
 private const val TAG = "BleGattManager"
 
@@ -35,25 +41,49 @@ sealed class BleConnectionState {
     data class Error(val message: String) : BleConnectionState()
 }
 
+/** Which wire protocol the connected band speaks - see docs/ble-protocol-v2.md. */
+enum class BandProtocolVersion {
+    /** 24-byte frame only: no motion data, no waveform. */
+    V1_LEGACY,
+    /** 20-byte status + waveform packets. */
+    V2
+}
+
 /**
- * One decoded reading, stamped with the time it was actually measured.
+ * One decoded 1 Hz reading, stamped with the time it was measured.
  *
- * [timestamp] comes from the band's uptime clock plus a per-connection offset,
- * not from arrival time. If the band ever buffers and replays, arrival-time
- * stamping would place thousands of samples at the same instant, which
- * corrupts every baseline and makes every graph wrong.
+ * [timestamp] comes from the band's uptime clock mapped onto wall time by
+ * [BandClock], not from arrival time: if the band ever buffers and replays,
+ * arrival-time stamping would pile samples onto one instant.
  */
 data class SensorReading(
-    val heartRate:   Int?   = null,
-    val hrvRmssd:    Int?   = null,
-    val spO2:        Int?   = null,
-    val skinTempC:   Float? = null,
-    val ambientTempC: Float? = null,
-    val humidityPct: Float? = null,
-    val aqiRaw:      Int?   = null,
-    val accelMagnitude: Float? = null,
-    val timestamp:   Long   = System.currentTimeMillis()
+    val heartRate:      Int?   = null,
+    /** RMSSD the band computed itself - pulse rate variability (PRV). */
+    val bandPrvRmssdMs: Int?   = null,
+    val spO2:           Int?   = null,
+    val skinTempC:      Float? = null,
+    val ambientTempC:   Float? = null,
+    val humidityPct:    Float? = null,
+    /** ENS160 air quality on the UBA 1..5 scale - not comparable to a 0..500 AQI. */
+    val ensUba:         Int?   = null,
+    /** Movement over the last second, mg*s. Null on v1 bands, which have no motion data. */
+    val activityCount:  Int?   = null,
+    val timestamp:      Long   = System.currentTimeMillis()
 )
+
+/**
+ * Entry point for the debug band simulator. Packets go through the same
+ * decode path as the radio - parser, clock, loss detection - so simulated data
+ * exercises exactly the code a real band does.
+ *
+ * Unlike the radio path, which drops a packet when consumers are behind,
+ * these suspend until there is room: a simulator replaying hours of data in
+ * minutes must be paced by the app, not outrun it.
+ */
+interface BandPacketSink {
+    suspend fun status(bytes: ByteArray, arrivalMs: Long)
+    suspend fun waveform(bytes: ByteArray, arrivalMs: Long)
+}
 
 @SuppressLint("MissingPermission")
 class BleGattManager(private val context: Context) {
@@ -69,10 +99,32 @@ class BleGattManager(private val context: Context) {
     val sensorReadings: SharedFlow<SensorReading> = _sensorReadings.asSharedFlow()
 
     /**
-     * Band battery, kept deliberately outside [SensorReading].
-     *
-     * Battery is device telemetry, not a health metric. Letting it into
-     * raw_readings would put it into the baseline maths alongside heart rate.
+     * PPG + accelerometer, 12.5 chunks a second from a v2 band. A consumer that
+     * falls far enough behind loses chunks here; it must check
+     * [WaveformChunk.firstSampleIndex] continuity itself, not only
+     * [WaveformChunk.gapBefore].
+     */
+    private val _waveform = MutableSharedFlow<WaveformChunk>(replay = 0, extraBufferCapacity = 512)
+    val waveform: SharedFlow<WaveformChunk> = _waveform.asSharedFlow()
+
+    private val _protocol = MutableStateFlow<BandProtocolVersion?>(null)
+    /** Null while no band is connected. */
+    val protocolVersion: StateFlow<BandProtocolVersion?> = _protocol.asStateFlow()
+
+    private val _legacyFramesTruncated = MutableStateFlow(false)
+    /**
+     * A v1 band whose 24-byte frames arrive cut to 20 bytes because the MTU
+     * stayed at its default: nothing it sends can be decoded.
+     */
+    val legacyFramesTruncated: StateFlow<Boolean> = _legacyFramesTruncated.asStateFlow()
+
+    private val _isSimulated = MutableStateFlow(false)
+    /** True while the debug simulator, not a radio, is the source of band data. */
+    val isSimulated: StateFlow<Boolean> = _isSimulated.asStateFlow()
+
+    /**
+     * Band battery, kept outside [SensorReading]: it is device telemetry, and
+     * letting it into raw_readings would put it into the baseline maths.
      */
     private val _batteryPercent = MutableStateFlow<Int?>(null)
     val batteryPercent: StateFlow<Int?> = _batteryPercent.asStateFlow()
@@ -80,14 +132,21 @@ class BleGattManager(private val context: Context) {
     private var gatt: BluetoothGatt? = null
     private var pairedMac: String? = null
     private var reconnectAttempts = 0
-    private var userInitiatedDisconnect = false
+    private var reconnectJob: Job? = null
+    private var mtuFallbackJob: Job? = null
+    @Volatile private var userInitiatedDisconnect = false
 
-    /**
-     * wallClockMs - bandUptimeMs, established from the first frame of each
-     * connection. Cleared on disconnect because the band may have rebooted,
-     * which resets its uptime and invalidates the old offset.
-     */
-    private var clockOffsetMs: Long? = null
+    // Per-connection state, reset by resetLinkState().
+    private val linkLock = Any()
+    private val clock = BandClock()
+    private val assembler = WaveformAssembler(clock)
+    private val opQueue = GattOpQueue(scope)
+    private val subscribed = AtomicBoolean(false)
+    private var mtuAnswered = false
+    private var cacheRefreshTried = false
+    @Volatile private var cacheRefreshInFlight = false
+    private var staleCacheReported = false
+    private var consecutiveV2Headers = 0
 
     // -- Scanning --------------------------------------------------------------
 
@@ -128,13 +187,20 @@ class BleGattManager(private val context: Context) {
     // -- Connection ------------------------------------------------------------
 
     fun connectToDevice(address: String, autoConnect: Boolean = true) {
+        if (_isSimulated.value) return
         stopScan()
+        reconnectJob?.cancel()
         userInitiatedDisconnect = false
         pairedMac = address
         val device = bluetoothAdapter?.getRemoteDevice(address) ?: return
         _connectionState.value = BleConnectionState.Connecting
 
-        // Bonding gives us link-layer encryption for health data in transit.
+        // A second connectGatt without closing the first leaks a client
+        // interface; Android has a small fixed number of them, and once they
+        // are exhausted no connection works until Bluetooth is restarted.
+        closeGatt()
+
+        // Bonding gives link-layer encryption for health data in transit.
         if (device.bondState == BluetoothDevice.BOND_NONE) {
             runCatching { device.createBond() }
         }
@@ -143,99 +209,222 @@ class BleGattManager(private val context: Context) {
 
     fun disconnect() {
         userInitiatedDisconnect = true
+        reconnectJob?.cancel()
         gatt?.disconnect()
+        closeGatt()
+        if (_isSimulated.value) detachSimulatedBand()
+        _connectionState.value = BleConnectionState.Disconnected
+    }
+
+    private fun closeGatt() {
+        mtuFallbackJob?.cancel()
+        opQueue.clear()
         gatt?.close()
         gatt = null
-        clockOffsetMs = null
-        _connectionState.value = BleConnectionState.Disconnected
+        resetLinkState()
+    }
+
+    private fun resetLinkState() {
+        synchronized(linkLock) {
+            // The band may have rebooted while away, so nothing about its
+            // clocks can be carried across a reconnect.
+            clock.reset()
+            assembler.reset()
+        }
+        subscribed.set(false)
+        _legacyFramesTruncated.value = false
+        mtuAnswered = false
+        cacheRefreshTried = false
+        cacheRefreshInFlight = false
+        staleCacheReported = false
+        consecutiveV2Headers = 0
+        _protocol.value = null
     }
 
     // -- GATT callbacks --------------------------------------------------------
 
     private val gattCallback = object : BluetoothGattCallback() {
 
-        override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
+        override fun onConnectionStateChange(g: BluetoothGatt, status: Int, newState: Int) {
+            if (g !== gatt) {
+                // A late callback for a handle we have already replaced.
+                if (newState == BluetoothProfile.STATE_DISCONNECTED) g.close()
+                return
+            }
             when (newState) {
                 BluetoothProfile.STATE_CONNECTED -> {
                     Log.i(TAG, "Connected - discovering services")
                     reconnectAttempts = 0
-                    gatt.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH)
-                    gatt.discoverServices()
+                    // Fast intervals for discovery and subscription only; see subscribeAll.
+                    g.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH)
+                    g.discoverServices()
                 }
                 BluetoothProfile.STATE_DISCONNECTED -> {
                     Log.w(TAG, "Disconnected (status=$status)")
-                    // The band may reboot while away, so the uptime-to-wallclock
-                    // offset cannot be carried across a reconnect.
-                    clockOffsetMs = null
-                    gatt.close()
-                    this@BleGattManager.gatt = null
+                    closeGatt()
                     _connectionState.value = BleConnectionState.Disconnected
                     scheduleReconnect()
                 }
             }
         }
 
-        override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
+        override fun onServicesDiscovered(g: BluetoothGatt, status: Int) {
+            cacheRefreshInFlight = false
             if (status != BluetoothGatt.GATT_SUCCESS) {
                 _connectionState.value = BleConnectionState.Error("Service discovery failed")
                 return
             }
+            val service = g.getService(BIPSS_SERVICE_UUID)
+            if (service == null) {
+                if (refreshServiceCache(g)) return
+                _connectionState.value = BleConnectionState.Error(
+                    "This device doesn't offer the BIPSS band service. Unpair it in Android's Bluetooth settings and pair again."
+                )
+                return
+            }
+            _protocol.value = if (service.getCharacteristic(CHAR_WAVEFORM) != null) {
+                BandProtocolVersion.V2
+            } else {
+                BandProtocolVersion.V1_LEGACY
+            }
+            Log.i(TAG, "Band protocol: ${_protocol.value}")
             _connectionState.value = BleConnectionState.Connected
-            // Request a larger MTU FIRST. Notification subscription is deferred
-            // to onMtuChanged so the 24-byte sensor frame is never truncated by
-            // the default 23-byte ATT_MTU.
-            gatt.requestMtu(BleConstants.PREFERRED_MTU)
+
+            if (mtuAnswered) {
+                // Rediscovery after a cache refresh: the MTU is already settled.
+                subscribeAll(g)
+            } else {
+                g.requestMtu(BleConstants.PREFERRED_MTU)
+                mtuFallbackJob?.cancel()
+                mtuFallbackJob = scope.launch {
+                    delay(BleConstants.MTU_ANSWER_TIMEOUT_MS)
+                    Log.w(TAG, "No MTU answer - subscribing at the default MTU")
+                    subscribeAll(g)
+                }
+            }
         }
 
-        override fun onMtuChanged(gatt: BluetoothGatt, mtu: Int, status: Int) {
+        override fun onMtuChanged(g: BluetoothGatt, mtu: Int, status: Int) {
+            // Any status: v2 packets fit the default MTU, so a refused
+            // negotiation is logged and the subscription goes ahead regardless.
             Log.i(TAG, "MTU now $mtu (status=$status)")
-            // Now that the transport can carry the full frame, subscribe.
-            enableNotification(gatt, BIPSS_SERVICE_UUID, CHAR_SENSOR_FRAME)
-            // Battery lives in its own standard service, so the service UUID has
-            // to be a parameter - hardcoding the vendor service silently skipped it.
-            enableNotification(gatt, BATTERY_SERVICE, CHAR_BATTERY_LEVEL)
-            readCharacteristic(gatt, BATTERY_SERVICE, CHAR_BATTERY_LEVEL)
+            mtuAnswered = true
+            mtuFallbackJob?.cancel()
+            // Android 14+ exchanges the MTU on its own as soon as the link is
+            // up, which can land before discovery: there is nothing to
+            // subscribe to yet, and onServicesDiscovered will do it.
+            if (_protocol.value == null) return
+            subscribeAll(g)
+        }
+
+        override fun onDescriptorWrite(g: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
+            if (status != BluetoothGatt.GATT_SUCCESS) {
+                Log.w(TAG, "Subscribe to ${descriptor.characteristic.uuid} failed: $status")
+            }
+            opQueue.complete()
         }
 
         @Suppress("DEPRECATION")
         override fun onCharacteristicChanged(
-            gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, value: ByteArray
-        ) = handleCharacteristicData(characteristic.uuid, value)
+            g: BluetoothGatt, characteristic: BluetoothGattCharacteristic, value: ByteArray
+        ) = handleCharacteristicData(g, characteristic.uuid, value)
 
         @Deprecated("Used for API < 33")
-        override fun onCharacteristicChanged(
-            gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic
-        ) {
+        override fun onCharacteristicChanged(g: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
             if (Build.VERSION.SDK_INT < 33) {
                 @Suppress("DEPRECATION")
-                characteristic.value?.let { handleCharacteristicData(characteristic.uuid, it) }
+                characteristic.value?.let { handleCharacteristicData(g, characteristic.uuid, it.copyOf()) }
             }
         }
 
         @Suppress("DEPRECATION")
         override fun onCharacteristicRead(
-            gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic,
-            value: ByteArray, status: Int
+            g: BluetoothGatt, characteristic: BluetoothGattCharacteristic, value: ByteArray, status: Int
         ) {
-            if (status == BluetoothGatt.GATT_SUCCESS) handleCharacteristicData(characteristic.uuid, value)
+            if (status == BluetoothGatt.GATT_SUCCESS) handleCharacteristicData(g, characteristic.uuid, value)
+            opQueue.complete()
         }
 
         @Deprecated("Used for API < 33")
-        override fun onCharacteristicRead(
-            gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int
-        ) {
-            if (Build.VERSION.SDK_INT < 33 && status == BluetoothGatt.GATT_SUCCESS) {
+        override fun onCharacteristicRead(g: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
+            if (Build.VERSION.SDK_INT < 33) {
                 @Suppress("DEPRECATION")
-                characteristic.value?.let { handleCharacteristicData(characteristic.uuid, it) }
+                if (status == BluetoothGatt.GATT_SUCCESS) {
+                    characteristic.value?.let { handleCharacteristicData(g, characteristic.uuid, it.copyOf()) }
+                }
+                opQueue.complete()
             }
         }
     }
 
+    /** Queues every subscription, then relaxes the connection interval. Runs once per connection. */
+    private fun subscribeAll(g: BluetoothGatt) {
+        if (!subscribed.compareAndSet(false, true)) return
+        enqueueNotification(g, BIPSS_SERVICE_UUID, CHAR_STATUS)
+        if (_protocol.value == BandProtocolVersion.V2) enqueueNotification(g, BIPSS_SERVICE_UUID, CHAR_WAVEFORM)
+        // Battery lives in its own standard service, which the band may not have.
+        enqueueNotification(g, BATTERY_SERVICE, CHAR_BATTERY_LEVEL)
+        g.getService(BATTERY_SERVICE)?.getCharacteristic(CHAR_BATTERY_LEVEL)?.let { char ->
+            opQueue.enqueue(GattOpQueue.Op("read battery") { g.readCharacteristic(char) })
+        }
+        // 12.5 packets a second of 20 bytes needs nothing like HIGH priority;
+        // BALANCED roughly halves the radio's duty cycle on both ends.
+        opQueue.enqueue(GattOpQueue.Op("balanced priority", awaitsCallback = false) {
+            g.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_BALANCED)
+        })
+    }
+
+    private fun enqueueNotification(g: BluetoothGatt, serviceUuid: UUID, charUuid: UUID) {
+        val char = g.getService(serviceUuid)?.getCharacteristic(charUuid) ?: run {
+            Log.w(TAG, "Characteristic $charUuid not found"); return
+        }
+        opQueue.enqueue(GattOpQueue.Op("subscribe $charUuid") {
+            if (!g.setCharacteristicNotification(char, true)) return@Op false
+            val descriptor = char.getDescriptor(CCCD_UUID) ?: return@Op false
+            if (Build.VERSION.SDK_INT >= 33) {
+                g.writeDescriptor(descriptor, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE) ==
+                    BluetoothStatusCodes.SUCCESS
+            } else {
+                @Suppress("DEPRECATION")
+                descriptor.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+                @Suppress("DEPRECATION")
+                g.writeDescriptor(descriptor)
+            }
+        })
+    }
+
+    /**
+     * Android caches a bonded device's GATT table. After the band is reflashed
+     * from v1 to v2 the cache still shows the old table, so the new waveform
+     * characteristic "does not exist". BluetoothGatt.refresh() is hidden API,
+     * reached by reflection; it is tried once per connection, then the user is
+     * asked to re-pair, which always clears the cache.
+     */
+    private fun refreshServiceCache(g: BluetoothGatt): Boolean {
+        if (cacheRefreshTried) return false
+        cacheRefreshTried = true
+        val refreshed = runCatching {
+            g.javaClass.getMethod("refresh").invoke(g) as? Boolean ?: false
+        }.getOrDefault(false)
+        Log.i(TAG, "GATT cache refresh: $refreshed")
+        if (!refreshed) return false
+        opQueue.clear()
+        subscribed.set(false)
+        cacheRefreshInFlight = true
+        _protocol.value = null
+        scope.launch {
+            delay(600)  // the stack needs a moment before rediscovery sees the new table
+            g.discoverServices()
+        }
+        return true
+    }
+
     /** Exponential backoff, capped. Skipped when the user disconnected deliberately. */
     private fun scheduleReconnect() {
-        if (userInitiatedDisconnect) return
+        if (userInitiatedDisconnect || _isSimulated.value) return
         val mac = pairedMac ?: return
-        scope.launch {
+        reconnectJob?.cancel()
+        reconnectJob = scope.launch {
             val delayMs = minOf(1000L shl reconnectAttempts.coerceAtMost(6), BleConstants.MAX_RECONNECT_DELAY_MS)
             reconnectAttempts++
             _connectionState.value = BleConnectionState.Reconnecting(reconnectAttempts)
@@ -244,71 +433,152 @@ class BleGattManager(private val context: Context) {
         }
     }
 
-    private fun enableNotification(gatt: BluetoothGatt, serviceUuid: UUID, charUuid: UUID) {
-        val service = gatt.getService(serviceUuid) ?: run {
-            Log.w(TAG, "Service $serviceUuid not found"); return
-        }
-        val char = service.getCharacteristic(charUuid) ?: run {
-            Log.w(TAG, "Characteristic $charUuid not found"); return
-        }
-        gatt.setCharacteristicNotification(char, true)
-        val descriptor = char.getDescriptor(CCCD_UUID) ?: return
-        if (Build.VERSION.SDK_INT >= 33) {
-            gatt.writeDescriptor(descriptor, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
-        } else {
-            @Suppress("DEPRECATION")
-            descriptor.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
-            @Suppress("DEPRECATION")
-            gatt.writeDescriptor(descriptor)
-        }
-    }
+    // -- Packets ---------------------------------------------------------------
 
-    private fun readCharacteristic(gatt: BluetoothGatt, serviceUuid: UUID, charUuid: UUID) {
-        gatt.getService(serviceUuid)?.getCharacteristic(charUuid)?.let { gatt.readCharacteristic(it) }
-    }
-
-    private fun handleCharacteristicData(uuid: UUID, value: ByteArray) {
-        if (uuid == CHAR_BATTERY_LEVEL) {
-            if (value.isNotEmpty()) {
+    private fun handleCharacteristicData(g: BluetoothGatt?, uuid: UUID, value: ByteArray) {
+        val arrival = System.currentTimeMillis()
+        when (uuid) {
+            CHAR_BATTERY_LEVEL -> if (value.isNotEmpty()) {
+                // The standard battery service has no "unknown" value, but 0xFF
+                // is what a band without a readable battery pin sends here too.
                 _batteryPercent.value = (value[0].toInt() and 0xFF).takeIf { it in 0..100 }
             }
+            CHAR_WAVEFORM -> decodeWaveform(value)?.let { chunk ->
+                if (!_waveform.tryEmit(chunk)) Log.w(TAG, "Waveform consumer behind - chunk dropped")
+            }
+            CHAR_STATUS -> when {
+                _protocol.value == BandProtocolVersion.V2 -> decodeStatus(value, arrival)?.let { reading ->
+                    if (!_sensorReadings.tryEmit(reading)) Log.w(TAG, "Reading consumer behind - reading dropped")
+                }
+                // Mid-refresh the table is in flux; the next discovery decides.
+                cacheRefreshInFlight -> Unit
+                looksLikeV2Status(value) -> {
+                    // A v1 frame cut to 20 bytes starts with its sequence
+                    // number, which is 0x21 once every 256 frames. A reflashed
+                    // v2 band sends the header on every packet.
+                    if (++consecutiveV2Headers >= V2_HEADERS_BEFORE_STALE) onStaleCacheSuspected(g)
+                }
+                else -> {
+                    consecutiveV2Headers = 0
+                    handleLegacyFrame(value, arrival)
+                }
+            }
+        }
+    }
+
+    private companion object {
+        const val V2_HEADERS_BEFORE_STALE = 3
+    }
+
+    private fun looksLikeV2Status(value: ByteArray) =
+        value.size == BandProtocol.PACKET_SIZE && (value[0].toInt() and 0xFF) == BandProtocol.HEADER_STATUS
+
+    /** A v2 packet on a link whose GATT table says v1: the cached table is stale. */
+    private fun onStaleCacheSuspected(g: BluetoothGatt?) {
+        if (g == null || staleCacheReported) return
+        if (refreshServiceCache(g)) return
+        staleCacheReported = true
+        Log.w(TAG, "Band sends v2 packets but the cached GATT table is v1")
+        _connectionState.value = BleConnectionState.Error(
+            "Your band's firmware was updated. Unpair it in Android's Bluetooth settings, then pair it again in BIPSS."
+        )
+    }
+
+    private fun decodeStatus(bytes: ByteArray, arrivalMs: Long): SensorReading? {
+        val p = BandPacketParser.parseStatus(bytes) ?: run {
+            Log.w(TAG, "Unparseable status packet of ${bytes.size} bytes"); return null
+        }
+        val wall = synchronized(linkLock) {
+            clock.onStatus(p.bandUptimeMs, p.sampleIndex, arrivalMs) ?: run {
+                // Uptime ran backwards: the band rebooted. The clock has
+                // reset; this packet starts the new mapping.
+                assembler.reset()
+                clock.onStatus(p.bandUptimeMs, p.sampleIndex, arrivalMs)
+            }
+        } ?: return null
+        p.batteryPct?.let { _batteryPercent.value = it }
+        return SensorReading(
+            heartRate      = p.hr,
+            bandPrvRmssdMs = p.prvRmssdMs,
+            spO2           = p.spo2,
+            skinTempC      = p.skinTempC,
+            ambientTempC   = p.ambientTempC,
+            humidityPct    = p.humidityPct,
+            ensUba         = p.ensUba,
+            activityCount  = p.activityCount,
+            timestamp      = wall
+        )
+    }
+
+    private fun decodeWaveform(bytes: ByteArray): WaveformChunk? {
+        val p = BandPacketParser.parseWaveform(bytes) ?: return null
+        return synchronized(linkLock) { assembler.accept(p) }
+    }
+
+    private val sink = object : BandPacketSink {
+        // Once detached (e.g. "Forget" or "Delete my data"), a simulator that
+        // is still running is ignored rather than decoded and stored.
+        override suspend fun status(bytes: ByteArray, arrivalMs: Long) {
+            if (!_isSimulated.value) return
+            decodeStatus(bytes, arrivalMs)?.let { _sensorReadings.emit(it) }
+        }
+        override suspend fun waveform(bytes: ByteArray, arrivalMs: Long) {
+            if (!_isSimulated.value) return
+            decodeWaveform(bytes)?.let { _waveform.emit(it) }
+        }
+    }
+
+    private fun handleLegacyFrame(value: ByteArray, arrivalMs: Long) {
+        val frame = BandPacketParser.parseLegacy(value) ?: run {
+            Log.w(TAG, "Unparseable v1 frame of ${value.size} bytes")
+            if (value.size < BandProtocol.LEGACY_FRAME_SIZE) _legacyFramesTruncated.value = true
             return
         }
-        if (uuid != CHAR_SENSOR_FRAME) return
-
-        val frame = SensorFrameParser.parse(value) ?: run {
-            Log.w(TAG, "Unparseable frame of ${value.size} bytes")
-            return
-        }
-
-        if (clockOffsetMs == null) {
-            clockOffsetMs = System.currentTimeMillis() - frame.bandUptimeMs
-            Log.i(TAG, "Clock offset established: $clockOffsetMs")
-        }
-
+        _legacyFramesTruncated.value = false
+        val wall = synchronized(linkLock) {
+            clock.onUptimeOnly(frame.bandUptimeMs, arrivalMs) ?: clock.onUptimeOnly(frame.bandUptimeMs, arrivalMs)
+        } ?: return
         frame.batteryPct?.let { _batteryPercent.value = it }
-
         _sensorReadings.tryEmit(
             SensorReading(
-                heartRate    = frame.hr,
-                hrvRmssd     = frame.hrvRmssd,
-                spO2         = frame.spo2,
-                skinTempC    = frame.skinTempC,
-                ambientTempC = frame.ambTempC,
-                humidityPct  = frame.humidityPct,
-                aqiRaw       = frame.aqiRaw,
-                accelMagnitude = null,
-                timestamp    = trueTimestamp(frame)
+                heartRate      = frame.hr,
+                bandPrvRmssdMs = frame.prvRmssdMs,
+                spO2           = frame.spo2,
+                skinTempC      = frame.skinTempC,
+                ambientTempC   = frame.ambientTempC,
+                humidityPct    = frame.humidityPct,
+                ensUba         = frame.ensUba,
+                activityCount  = null,
+                timestamp      = wall
             )
         )
     }
 
+    // -- Debug simulator hook ----------------------------------------------------
+
     /**
-     * Wall-clock time of the sample, reconstructed from the band's own clock.
-     *
-     * Falls back to arrival time only before the offset has been established,
-     * which is the very first frame of a connection.
+     * Presents the debug simulator as a connected v2 band and returns the sink
+     * it feeds. Returns null in release builds, where the simulator does not
+     * exist. Any real connection is closed first so the two can never interleave.
      */
-    fun trueTimestamp(frame: SensorFrame): Long =
-        clockOffsetMs?.let { frame.bandUptimeMs + it } ?: System.currentTimeMillis()
+    fun attachSimulatedBand(): BandPacketSink? {
+        if (!BuildConfig.DEBUG) return null
+        userInitiatedDisconnect = true
+        reconnectJob?.cancel()
+        gatt?.disconnect()
+        closeGatt()
+        _isSimulated.value = true
+        _protocol.value = BandProtocolVersion.V2
+        _batteryPercent.value = null
+        _connectionState.value = BleConnectionState.Connected
+        return sink
+    }
+
+    fun detachSimulatedBand() {
+        if (!_isSimulated.value) return
+        _isSimulated.value = false
+        resetLinkState()
+        _batteryPercent.value = null
+        _connectionState.value = BleConnectionState.Disconnected
+    }
 }

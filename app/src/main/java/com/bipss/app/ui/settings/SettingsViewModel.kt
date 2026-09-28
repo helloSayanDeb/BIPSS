@@ -27,6 +27,10 @@ data class SettingsUiState(
     val bandName:        String? = null,
     val bandMac:         String? = null,
     val isBandConnected: Boolean = false,
+    /** Wire protocol of the connected band; null while none is connected. */
+    val bandProtocol: com.bipss.app.ble.BandProtocolVersion? = null,
+    val bandSimulated: Boolean = false,
+    val legacyFramesTruncated: Boolean = false,
 
     val modelVersion:    String? = null,
     val modelFilePath:   String? = null,
@@ -119,6 +123,15 @@ class SettingsViewModel(
                     )
                 }
             }
+        }
+
+        viewModelScope.launch {
+            combine(
+                bleGattManager.protocolVersion, bleGattManager.isSimulated, bleGattManager.legacyFramesTruncated
+            ) { v, sim, truncated -> Triple(v, sim, truncated) }
+                .collect { (v, sim, truncated) ->
+                    _uiState.update { it.copy(bandProtocol = v, bandSimulated = sim, legacyFramesTruncated = truncated) }
+                }
         }
 
         viewModelScope.launch {

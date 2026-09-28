@@ -3,12 +3,8 @@ package com.bipss.app.ble
 import java.util.UUID
 
 /**
- * GATT identifiers, frozen as the app/firmware data contract.
- *
- * These replace the previous placeholders, which used the standard Heart Rate
- * service 0x180D. Because the scan filters on the service UUID, a placeholder
- * meant no BIPSS band could ever be discovered - the scan would run forever and
- * find nothing.
+ * GATT identifiers - the app/firmware contract. The packet layouts are in
+ * docs/ble-protocol-v2.md and ble/protocol/BandPackets.kt.
  *
  * The band MUST advertise [BIPSS_SERVICE_UUID] in its advertisement packet, not
  * merely expose it after connecting, or the ScanFilter will not match. Any
@@ -16,11 +12,14 @@ import java.util.UUID
  */
 object BleConstants {
 
-    /** Nordic UART-style vendor service carrying the packed sensor frame. */
+    /** Nordic UART-style vendor service. */
     val BIPSS_SERVICE_UUID: UUID = UUID.fromString("6E400001-B5A3-F393-E0A9-E50E24DCCA9E")
 
-    /** 24-byte sensor frame, NOTIFY, 1 Hz. See SensorFrameParser for the layout. */
-    val CHAR_SENSOR_FRAME: UUID = UUID.fromString("6E400003-B5A3-F393-E0A9-E50E24DCCA9E")
+    /** NOTIFY, 1 Hz. v2: 20-byte status packet (header 0x21). v1: 24-byte legacy frame. */
+    val CHAR_STATUS: UUID = UUID.fromString("6E400003-B5A3-F393-E0A9-E50E24DCCA9E")
+
+    /** NOTIFY, 12.5 Hz, v2 only: 20-byte waveform packet (header 0x11). Its presence marks a v2 band. */
+    val CHAR_WAVEFORM: UUID = UUID.fromString("6E400004-B5A3-F393-E0A9-E50E24DCCA9E")
 
     /** WRITE. Reserved for future use (time sync, buffered-history request). */
     val CHAR_CONTROL: UUID = UUID.fromString("6E400002-B5A3-F393-E0A9-E50E24DCCA9E")
@@ -32,11 +31,15 @@ object BleConstants {
     /** Client Characteristic Configuration Descriptor - standard. */
     val CCCD_UUID: UUID = UUID.fromString("00002902-0000-1000-8000-00805F9B34FB")
 
-    const val GATT_CONNECT_TIMEOUT_MS = 10_000L
-    const val MAX_GATT_RETRIES = 3
-
-    /** Requested ATT MTU. 247 lets a 24-byte frame fit with room to spare. */
+    /**
+     * Requested ATT MTU. v2 packets fit the default MTU, so this is no longer
+     * required for correctness; a larger MTU only helps a v1 band, whose
+     * 24-byte frame does not fit in 20 bytes of payload.
+     */
     const val PREFERRED_MTU = 247
+
+    /** Subscribe anyway if the stack never answers the MTU request. */
+    const val MTU_ANSWER_TIMEOUT_MS = 3_000L
 
     /** Reconnect backoff ceiling. */
     const val MAX_RECONNECT_DELAY_MS = 60_000L

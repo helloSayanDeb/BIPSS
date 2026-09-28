@@ -31,6 +31,8 @@ class DataSharingWorker(
     override suspend fun doWork(): Result {
         // Never touch shared data while a one-time legacy repair is running.
         legacyCleanup.awaitReady()
+        // Simulated data is never shared.
+        if (com.bipss.app.SimulationMode.isActive(applicationContext)) return Result.success()
         val result = dataSharingRepo.uploadIfEnabled()
         return when (result) {
             is DataSharingRepository.UploadResult.Success -> {

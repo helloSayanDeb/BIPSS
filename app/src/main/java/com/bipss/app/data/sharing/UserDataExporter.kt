@@ -91,7 +91,7 @@ class UserDataExporter(
         val newAggs = aggDao.getRange("HR", lastAggMinute + 1, Long.MAX_VALUE) +
                       aggDao.getRange("SPO2", lastAggMinute + 1, Long.MAX_VALUE) +
                       aggDao.getRange("SKIN_TEMP", lastAggMinute + 1, Long.MAX_VALUE) +
-                      aggDao.getRange("HRV", lastAggMinute + 1, Long.MAX_VALUE) +
+                      aggDao.getRange("PRV", lastAggMinute + 1, Long.MAX_VALUE) +
                       aggDao.getRange("AMB_TEMP", lastAggMinute + 1, Long.MAX_VALUE) +
                       aggDao.getRange("HUMIDITY", lastAggMinute + 1, Long.MAX_VALUE) +
                       aggDao.getRange("AQI", lastAggMinute + 1, Long.MAX_VALUE) +

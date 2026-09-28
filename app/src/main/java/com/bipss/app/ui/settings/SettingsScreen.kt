@@ -130,7 +130,7 @@ private fun DeviceCard(state: SettingsUiState, vm: SettingsViewModel, navControl
             Spacer(Modifier.width(Space.m))
             Column(Modifier.weight(1f)) {
                 Text(
-                    state.bandName ?: "No device paired",
+                    if (state.bandSimulated) "Simulated band" else state.bandName ?: "No device paired",
                     style = MaterialTheme.typography.titleMedium,
                     color = colors.textPrimary
                 )
@@ -149,6 +149,19 @@ private fun DeviceCard(state: SettingsUiState, vm: SettingsViewModel, navControl
                     )
                 }
             }
+        }
+        if (state.isBandConnected && state.bandProtocol == com.bipss.app.ble.BandProtocolVersion.V1_LEGACY) {
+            Spacer(Modifier.height(Space.m))
+            InfoBanner(
+                text = if (state.legacyFramesTruncated)
+                    "This band runs firmware v1, and this phone cuts its readings short, so none can be decoded. " +
+                        "Updating the band to firmware v2 fixes this."
+                else
+                    "This band runs firmware v1, which sends no movement or pulse-waveform data. " +
+                        "Sleep detection and exertion-based strain need firmware v2.",
+                icon = Icons.Rounded.Info,
+                tint = colors.bandMonitor
+            )
         }
         Spacer(Modifier.height(Space.l))
         if (state.bandMac != null) {

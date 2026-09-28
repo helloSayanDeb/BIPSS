@@ -231,15 +231,15 @@ fun DashboardTodayScreen(
                     onClick = { navController.navigate(Routes.metricDetail(MetricTypes.SKIN_TEMP)) }
                 )
                 MetricTile(
-                    label = "Heart rate variability",
-                    value = state.hrvRmssd?.toString() ?: "—",
+                    label = "Pulse rate variability",
+                    value = state.prvRmssd?.toString() ?: "—",
                     unit = "ms",
                     icon = Icons.Rounded.MonitorHeart,
                     tint = colors.activity,
                     history = emptyList(),
-                    caption = if (state.hrvRmssd != null) "Tap for history" else "Waiting for readings",
+                    caption = if (state.prvRmssd != null) "Tap for history" else "Waiting for readings",
                     modifier = Modifier.weight(1f),
-                    onClick = { navController.navigate(Routes.metricDetail(MetricTypes.HRV)) }
+                    onClick = { navController.navigate(Routes.metricDetail(MetricTypes.PRV)) }
                 )
             }
 

@@ -19,7 +19,7 @@ class RecoveryDetailViewModel(
     data class UiState(
         val breakdown: RecoveryBreakdown? = null,
         val heartRate: Int? = null,
-        val hrvRmssd: Int? = null,
+        val prvRmssd: Int? = null,
         val isLoading: Boolean = true
     )
 
@@ -37,7 +37,7 @@ class RecoveryDetailViewModel(
                 _uiState.update {
                     it.copy(
                         heartRate = reading.heartRate ?: it.heartRate,
-                        hrvRmssd = reading.hrvRmssd ?: it.hrvRmssd
+                        prvRmssd = reading.bandPrvRmssdMs ?: it.prvRmssd
                     )
                 }
                 refresh()
@@ -54,7 +54,7 @@ class RecoveryDetailViewModel(
             val metrics = RecoveryMetrics(
                 restingHr = s.heartRate,
                 baselineHr = baseStats?.mean,
-                hrvRmssd = s.hrvRmssd,
+                prvRmssd = s.prvRmssd,
                 baselineDays = baselineDays
             )
             
