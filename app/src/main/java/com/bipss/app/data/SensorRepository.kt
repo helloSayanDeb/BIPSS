@@ -10,7 +10,6 @@ import com.bipss.app.ble.SensorReading
 import com.bipss.app.data.db.AppDatabase
 import com.bipss.app.data.db.entity.BaselineStatsEntity
 import com.bipss.app.data.db.entity.RawReadingEntity
-import com.bipss.app.demo.DemoReplayEngine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.*
@@ -65,35 +64,21 @@ class SensorRepository(
     private val bleGattManager: BleGattManager,
     private val db:             AppDatabase,
     private val prefsRepo:      UserPreferencesRepository,
-    private val appScope:       CoroutineScope,
-    private val demoEngine:     DemoReplayEngine
+    private val appScope:       CoroutineScope
 ) {
     val rawReadingDao       = db.rawReadingDao()
     val baselineStatsDao    = db.baselineStatsDao()
     val minuteAggregateDao  = db.minuteAggregateDao()
 
-    /**
-     * Battery percent: from demo engine when demo mode is running,
-     * otherwise from the real BLE manager.
-     */
-    val batteryPercent: StateFlow<Int?> = demoEngine.isRunning
-        .flatMapLatest { demoRunning ->
-            if (demoRunning) demoEngine.batteryPercent else bleGattManager.batteryPercent
-        }
-        .stateIn(appScope, SharingStarted.WhileSubscribed(5_000), null)
+    /** Band battery percent, straight from the BLE manager. Null until the band reports it. */
+    val batteryPercent: StateFlow<Int?> = bleGattManager.batteryPercent
 
     /** Latest band-sensor air quality index, or null when no band is streaming. */
     private val _bandSensorAqi = MutableStateFlow<Int?>(null)
     val bandSensorAqi: StateFlow<Int?> = _bandSensorAqi.asStateFlow()
 
-    /**
-     * The single flow consumed by the dashboard. When demo mode is active,
-     * readings come from [DemoReplayEngine]; otherwise from [BleGattManager].
-     */
-    val sensorEvents: SharedFlow<SensorReading> = demoEngine.isRunning
-        .flatMapLatest { demoRunning ->
-            if (demoRunning) demoEngine.sensorReadings else bleGattManager.sensorReadings
-        }
+    /** The single flow of band readings consumed by the dashboard. */
+    val sensorEvents: SharedFlow<SensorReading> = bleGattManager.sensorReadings
         .onEach { reading -> persistAndUpdateBaseline(reading) }
         .shareIn(appScope, SharingStarted.WhileSubscribed(5_000), replay = 1)
 

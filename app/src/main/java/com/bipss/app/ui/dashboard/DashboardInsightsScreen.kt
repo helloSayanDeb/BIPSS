@@ -19,7 +19,9 @@ import androidx.compose.material.icons.rounded.Park
 import androidx.compose.material.icons.rounded.ThumbDown
 import androidx.compose.material.icons.rounded.ThumbUp
 import androidx.compose.material.icons.rounded.Coronavirus
+import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.WarningAmber
+import com.bipss.app.domain.time.relativeAgeLabel
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -37,6 +39,7 @@ import com.bipss.app.domain.RiskScore
 import com.bipss.app.domain.environmental.AlertSeverity
 import com.bipss.app.domain.environmental.AqiSource
 import com.bipss.app.domain.environmental.EnvironmentContext
+import com.bipss.app.domain.environmental.EnvironmentalSnapshot
 import com.bipss.app.domain.environmental.RankedAlert
 import com.bipss.app.navigation.LocalScaffoldPadding
 import com.bipss.app.ui.components.*
@@ -234,78 +237,75 @@ fun DashboardInsightsScreen(
                 env.districtName?.let { HairlineDivider(); InfoRow("Location", it) }
 
                 Spacer(Modifier.height(Space.m))
+                val envNowMs = rememberNowMs()
+                val envAge = relativeAgeLabel(env.fetchedAtMs, envNowMs)
+                val envStale = env.fetchedAtMs > 0L && envNowMs - env.fetchedAtMs > EnvironmentalSnapshot.STALE_THRESHOLD_MS
                 InfoBanner(
                     text = when {
                         env.fetchedAtMs == 0L -> "No environment data yet. Values appear after the first sync."
-                        env.isStale           -> "Reading from ${env.dataAgeLabel.lowercase()}. " +
-                                                 "Values are not updating while offline."
-                        else                  -> "Live reading, updated ${env.dataAgeLabel.lowercase()}."
+                        envStale              -> "Reading from $envAge. Values are not updating."
+                        else                  -> "Updated $envAge."
                     },
-                    icon = if (env.isStale || env.fetchedAtMs == 0L) Icons.Rounded.CloudOff else Icons.Rounded.Air,
-                    tint = if (env.isStale || env.fetchedAtMs == 0L) colors.bandMonitor else colors.bandNormal
+                    icon = if (envStale || env.fetchedAtMs == 0L) Icons.Rounded.CloudOff else Icons.Rounded.Air,
+                    tint = if (envStale || env.fetchedAtMs == 0L) colors.bandMonitor else colors.bandNormal
                 )
             }
 
             // -- Alerts --------------------------------------------------------
+            // Rendered straight from the last real fetch. The only progress
+            // indicator is the refresh spinner, which is visible for exactly as
+            // long as the request actually runs.
             Spacer(Modifier.height(Space.xxl))
-            SectionLabel("Active alerts")
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                SectionLabel("Active alerts", Modifier.weight(1f))
+                if (state.isRefreshing) {
+                    androidx.compose.material3.CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        color = colors.textSecondary,
+                        strokeWidth = 2.dp
+                    )
+                } else if (state.isOnline) {
+                    GhostButton("Refresh", { vm.refreshEnvironment(force = true) })
+                }
+            }
             Spacer(Modifier.height(Space.m))
 
-            if (state.alertSyncState == com.bipss.app.ui.dashboard.AlertSyncState.IDLE) {
-                BipssCard {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconBadge(Icons.Rounded.WarningAmber, colors.bandMonitor)
-                        Spacer(Modifier.width(Space.m))
-                        Column(Modifier.weight(1f)) {
-                            Text("Disaster Alerts", style = MaterialTheme.typography.titleMedium, color = colors.textPrimary)
-                            Text(
-                                "Checks real-time feeds from IMD and NDMA for extreme weather or public emergencies in your area.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = colors.textSecondary
-                            )
-                        }
-                    }
+            val nowMs = rememberNowMs()
+            val checkedAge = relativeAgeLabel(env.alertsCheckedAtMs, nowMs)
+            val checkedSources = env.alertSourcesChecked.joinToString(" and ")
+
+            if (env.alertCheckFailed) {
+                // The latest attempt reached no feed. Whatever is listed below
+                // is from the last check that actually succeeded, and says so.
+                InfoBanner(
+                    text = if (env.alertsCheckedAtMs > 0L)
+                        "Couldn't reach the alert feeds just now. Showing the result of the last successful check ($checkedAge)."
+                    else "Couldn't reach the alert feeds, and no earlier check has succeeded.",
+                    icon = Icons.Rounded.CloudOff,
+                    tint = colors.bandMonitor
+                )
+                Spacer(Modifier.height(Space.m))
+            }
+
+            when {
+                state.rankedAlerts.isNotEmpty() -> state.rankedAlerts.forEach { ranked ->
+                    AlertCard(ranked)
                     Spacer(Modifier.height(Space.m))
-                    PrimaryButton(
-                        text = "Check for active alerts",
-                        onClick = { vm.syncAlerts() },
-                        modifier = Modifier.fillMaxWidth()
-                    )
                 }
-            } else if (state.alertSyncState != com.bipss.app.ui.dashboard.AlertSyncState.COMPLETE) {
-                val syncLabel = when (state.alertSyncState) {
-                    com.bipss.app.ui.dashboard.AlertSyncState.SYNCING_IMD -> "Querying IMD meteorology database..."
-                    com.bipss.app.ui.dashboard.AlertSyncState.SYNCING_NDMA -> "Checking NDMA Sachet emergency feeds..."
-                    com.bipss.app.ui.dashboard.AlertSyncState.SYNCING_WHO -> "Scanning WHO outbreak news..."
-                    else -> "Syncing..."
-                }
-                BipssCard {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        androidx.compose.material3.CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp),
-                            color = MaterialTheme.colorScheme.primary,
-                            strokeWidth = 2.dp
-                        )
-                        Spacer(Modifier.width(Space.m))
-                        Text(syncLabel, style = MaterialTheme.typography.bodyMedium, color = colors.textPrimary)
-                    }
-                }
-            } else {
-                if (state.rankedAlerts.isEmpty()) {
+                // "No alerts" is only ever claimed for a check that really happened.
+                env.alertsCheckedAtMs == 0L -> EmptyState(
+                    icon = Icons.Rounded.Schedule,
+                    title = "Alerts not checked yet",
+                    body = "Alerts appear after the first successful check of the NDMA and IMD feeds."
+                )
+                else -> EmptyState(
                     // A positive signal, not a blank space: an empty list here means the
                     // geo-filter is working, whereas five out-of-state cards meant it was not.
-                    EmptyState(
-                        icon = Icons.Rounded.CheckCircle,
-                        title = "No active alerts for your area",
-                        body = env.districtName?.let { "Monitoring IMD and NDMA feeds for $it." }
-                            ?: "Monitoring IMD and NDMA feeds."
-                    )
-                } else {
-                    state.rankedAlerts.forEach { ranked ->
-                        AlertCard(ranked)
-                        Spacer(Modifier.height(Space.m))
-                    }
-                }
+                    icon = Icons.Rounded.CheckCircle,
+                    title = "No active alerts for your area",
+                    body = env.districtName?.let { "Checked $checkedSources for $it, $checkedAge." }
+                        ?: "Checked $checkedSources, $checkedAge."
+                )
             }
 
             // -- Health advisories ---------------------------------------------

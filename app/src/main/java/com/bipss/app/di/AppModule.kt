@@ -22,7 +22,6 @@ import com.bipss.app.data.environmental.DisasterAlertRepository
 import com.bipss.app.data.environmental.ImdRssParser
 import com.bipss.app.data.environmental.OpenMeteoFetcher
 import com.bipss.app.data.environmental.HealthAdvisoryFetcher
-import com.bipss.app.data.environmental.OpenWeatherMapFetcher
 import com.bipss.app.data.environmental.SachetJsonFetcher
 import com.bipss.app.domain.RiskScoreCalculator
 import com.bipss.app.sos.LocationHelper
@@ -45,8 +44,6 @@ import org.koin.dsl.module
 import java.util.concurrent.TimeUnit
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
-import com.bipss.app.demo.DemoReplayDataStore
-import com.bipss.app.demo.DemoReplayEngine
 
 val appModule = module {
 
@@ -98,12 +95,9 @@ val appModule = module {
     // ── BLE ───────────────────────────────────────────────────────────────────
     single { BleGattManager(androidContext()) }
 
-    // ── Demo Replay ──────────────────────────────────────────────────────────
-    single { DemoReplayDataStore(androidContext()) }
-    single { DemoReplayEngine(get()) }
-
     // ── Sensor Pipeline ───────────────────────────────────────────────────────
-    single { SensorRepository(get(), get(), get(), get(), get()) }
+    single { SensorRepository(get(), get(), get(), get()) }
+    single { com.bipss.app.data.LegacyDataCleanup(get(), get()) }
 
     // ── Sleep ─────────────────────────────────────────────────────────────────
     single {
@@ -125,7 +119,6 @@ val appModule = module {
     single { HealthAdvisoryFetcher(get()) }
     single { CpcbAqiFetcher(get(), BuildConfig.CPCB_AQI_API_KEY) }
     single { OpenMeteoFetcher(get()) }
-    single { OpenWeatherMapFetcher(get(), BuildConfig.OWM_API_KEY) }
     single {
         DisasterAlertRepository(
             sachetFetcher   = get(),
@@ -133,7 +126,6 @@ val appModule = module {
             advisoryFetcher = get(),
             cpcbFetcher     = get(),
             openMeteo       = get(),
-            openWeatherMap  = get(),
             locationHelper  = get(),
             prefsRepo       = get()
         )
@@ -182,7 +174,7 @@ val appModule = module {
     }
 
     viewModel {
-        SettingsViewModel(get(), get(), get(), get(), get(), get(), get(), get())
+        SettingsViewModel(get(), get(), get(), get(), get(), get(), get())
     }
 
     viewModel {

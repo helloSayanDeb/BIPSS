@@ -31,24 +31,30 @@ private const val IMD_CAP_RSS_URL = "https://cap-sources.s3.amazonaws.com/in-imd
  */
 class ImdRssParser(private val okHttpClient: OkHttpClient) {
 
-    suspend fun fetchImdAlerts(): List<ImdAlert> = withContext(Dispatchers.IO) {
+    /**
+     * Current IMD items, or **null when the feed could not be read**. Empty
+     * means IMD was reached and lists nothing; null means unknown, and must not
+     * be presented as an all-clear.
+     */
+    suspend fun fetchImdAlerts(): List<ImdAlert>? = withContext(Dispatchers.IO) {
         try {
             val request = Request.Builder().url(IMD_CAP_RSS_URL).build()
             okHttpClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
                     Log.w(TAG, "RSS fetch failed: HTTP ${response.code}")
-                    return@withContext emptyList()
+                    return@withContext null
                 }
-                val xml = response.body?.string() ?: return@withContext emptyList()
+                val xml = response.body?.string() ?: return@withContext null
                 parseRss(xml)
             }
         } catch (e: Exception) {
             Log.e(TAG, "IMD fetch error: ${e.message}")
-            emptyList()
+            null
         }
     }
 
-    internal fun parseRss(xml: String): List<ImdAlert> {
+    /** Null when the document itself cannot be parsed (a failed read, not an empty feed). */
+    internal fun parseRss(xml: String): List<ImdAlert>? {
         val alerts = mutableListOf<ImdAlert>()
         try {
             val factory = XmlPullParserFactory.newInstance()
@@ -106,6 +112,7 @@ class ImdRssParser(private val okHttpClient: OkHttpClient) {
             }
         } catch (e: Exception) {
             Log.e(TAG, "RSS parse error: ${e.message}")
+            return null
         }
         return alerts.sortedByDescending { it.pubDateMs }
     }

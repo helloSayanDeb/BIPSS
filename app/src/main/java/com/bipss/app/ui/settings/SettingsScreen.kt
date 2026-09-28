@@ -30,8 +30,6 @@ import com.bipss.app.ui.theme.Space
 import com.bipss.app.ui.theme.ThemePreference
 import com.google.accompanist.permissions.*
 import org.koin.androidx.compose.koinViewModel
-import org.koin.compose.koinInject
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
@@ -402,35 +400,6 @@ private fun PrivacySection(state: SettingsUiState, vm: SettingsViewModel) {
     }
 
     Spacer(Modifier.height(Space.m))
-
-    // ── Demo mode ────────────────────────────────────────────────────────────
-    BipssCard {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text(
-                    "Demo Mode — Replay Captured Data",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = colors.textPrimary
-                )
-                Text(
-                    "Replays real bench-test data instead of connecting to a live BLE device.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colors.textSecondary
-                )
-            }
-            Spacer(Modifier.width(Space.m))
-            Switch(
-                checked = state.demoModeEnabled,
-                onCheckedChange = { vm.onDemoModeToggle(it) },
-                colors = SwitchDefaults.colors(
-                    checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
-                    checkedTrackColor = MaterialTheme.colorScheme.primary
-                )
-            )
-        }
-    }
-
-    Spacer(Modifier.height(Space.m))
     SecondaryButton(
         text = "Delete my data",
         leadingIcon = Icons.Rounded.DeleteForever,
@@ -438,41 +407,6 @@ private fun PrivacySection(state: SettingsUiState, vm: SettingsViewModel) {
         contentColor = colors.bandRisk,
         modifier = Modifier.fillMaxWidth()
     )
-    Spacer(Modifier.height(Space.m))
-    TestFirebaseButton()
-}
-
-@Composable
-private fun TestFirebaseButton() {
-    val db: com.bipss.app.data.db.AppDatabase = koinInject()
-    val repo: com.bipss.app.data.sharing.DataSharingRepository = koinInject()
-    val prefsRepo: com.bipss.app.data.UserPreferencesRepository = koinInject()
-    val scope = rememberCoroutineScope()
-    var resultText by remember { mutableStateOf("") }
-    val colors = BipssTheme.colors
-    
-    BipssCard {
-        PrimaryButton("Force Firebase Upload", onClick = {
-            scope.launch {
-                resultText = "Pushing data..."
-                prefsRepo.setDataSharingEnabled(true)
-                prefsRepo.getOrCreateSharingUsername()
-                val time = System.currentTimeMillis() / 60000
-                db.minuteAggregateDao().upsertAll(listOf(
-                    com.bipss.app.data.db.entity.MinuteAggregateEntity(
-                        metricType = "HR", minuteEpoch = time, avg = 100f, min = 80f, max = 120f, sampleCount = 60
-                    )
-                ))
-                val res = repo.uploadIfEnabled()
-                resultText = "Result: $res"
-            }
-        }, modifier = Modifier.fillMaxWidth())
-        
-        if (resultText.isNotEmpty()) {
-            Spacer(Modifier.height(Space.s))
-            Text(resultText, style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
-        }
-    }
 }
 
 // ── Emergency contacts ──────────────────────────────────────────────────────

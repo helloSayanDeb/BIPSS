@@ -14,7 +14,6 @@ import com.bipss.app.data.backup.DriveBackupManager
 import com.bipss.app.data.db.AppDatabase
 import com.bipss.app.data.db.dao.EmergencyContactDao
 import com.bipss.app.data.db.entity.EmergencyContactEntity
-import com.bipss.app.demo.DemoReplayEngine
 import com.bipss.app.ui.theme.ThemePreference
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -51,9 +50,7 @@ data class SettingsUiState(
     val sharingUsername:    String? = null,
 
     val showDeleteLocalDataDialog: Boolean = false,
-    val showForgetDeviceDialog:    Boolean = false,
-
-    val demoModeEnabled: Boolean = false
+    val showForgetDeviceDialog:    Boolean = false
 )
 
 class SettingsViewModel(
@@ -63,8 +60,7 @@ class SettingsViewModel(
     private val emergencyContactDao:  EmergencyContactDao,
     private val chatbotEngine:        ChatbotEngine,
     private val db:                   AppDatabase,
-    val driveBackupManager:           DriveBackupManager,
-    private val demoEngine:           DemoReplayEngine
+    val driveBackupManager:           DriveBackupManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -155,26 +151,6 @@ class SettingsViewModel(
                 _uiState.update {
                     it.copy(dataSharingEnabled = enabled, sharingUsername = username)
                 }
-            }
-        }
-
-        viewModelScope.launch {
-            prefsRepo.demoModeEnabled.collect { enabled ->
-                _uiState.update { it.copy(demoModeEnabled = enabled) }
-            }
-        }
-    }
-
-    // ── Demo mode ────────────────────────────────────────────────────────────
-    fun onDemoModeToggle(enabled: Boolean) {
-        viewModelScope.launch {
-            prefsRepo.setDemoModeEnabled(enabled)
-            if (enabled) {
-                // Disconnect real BLE so both don't feed data simultaneously.
-                bleGattManager.disconnect()
-                demoEngine.start()
-            } else {
-                demoEngine.stop()
             }
         }
     }

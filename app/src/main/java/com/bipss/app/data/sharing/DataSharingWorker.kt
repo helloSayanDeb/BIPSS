@@ -26,8 +26,11 @@ class DataSharingWorker(
 ) : CoroutineWorker(appContext, workerParams), KoinComponent {
 
     private val dataSharingRepo: DataSharingRepository by inject()
+    private val legacyCleanup: com.bipss.app.data.LegacyDataCleanup by inject()
 
     override suspend fun doWork(): Result {
+        // Never touch shared data while a one-time legacy repair is running.
+        legacyCleanup.awaitReady()
         val result = dataSharingRepo.uploadIfEnabled()
         return when (result) {
             is DataSharingRepository.UploadResult.Success -> {

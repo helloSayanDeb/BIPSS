@@ -31,8 +31,6 @@ android {
         // API keys injected via BuildConfig — never hardcoded in source
         buildConfigField("String", "CPCB_AQI_API_KEY",
             "\"${localProps.getProperty("CPCB_AQI_API_KEY", "")}\"")
-        buildConfigField("String", "OWM_API_KEY",
-            "\"${localProps.getProperty("OWM_API_KEY", "")}\"")
     }
 
     buildTypes {

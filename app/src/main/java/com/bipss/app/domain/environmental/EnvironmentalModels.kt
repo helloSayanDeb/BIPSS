@@ -39,6 +39,17 @@ data class EnvironmentalSnapshot(
     val advisories:        List<HealthAdvisory> = emptyList(),
     /** Highest severity among [activeAlerts]. Per-alert severity lives on the alert. */
     val alertSeverity:     AlertSeverity  = AlertSeverity.NONE,
+    /**
+     * When the alert feeds were last actually read successfully - 0 when never.
+     * Tracked apart from [fetchedAtMs] because weather can refresh while every
+     * alert feed is unreachable, and "no alerts" must only ever be claimed for a
+     * check that really happened.
+     */
+    val alertsCheckedAtMs: Long           = 0L,
+    /** The feeds that answered in that check, e.g. ["NDMA Sachet"] or ["NDMA Sachet", "IMD"]. */
+    val alertSourcesChecked: List<String> = emptyList(),
+    /** True when the most recent attempt reached no alert feed; [activeAlerts] are then from the last good check. */
+    val alertCheckFailed:  Boolean        = false,
 
     val districtName:      String?        = null,
     val stateName:         String?        = null,

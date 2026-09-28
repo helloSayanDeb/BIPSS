@@ -28,8 +28,6 @@ import kotlinx.coroutines.launch
 
 enum class HealthStatus { NORMAL, MONITOR, AT_RISK }
 
-enum class AlertSyncState { IDLE, SYNCING_IMD, SYNCING_NDMA, SYNCING_WHO, COMPLETE }
-
 data class DashboardUiState(
     /** Null means no reading. Never a substituted value. */
     val heartRate:        Int?                   = null,
@@ -59,9 +57,7 @@ data class DashboardUiState(
     val isOnline:         Boolean                = true,
     val isRefreshing:     Boolean                = false,
 
-    val locationPermissionSkipped: Boolean       = false,
-    
-    val alertSyncState:   AlertSyncState         = AlertSyncState.IDLE
+    val locationPermissionSkipped: Boolean       = false
 ) {
     val hasBand: Boolean get() = heartRate != null
 
@@ -184,43 +180,24 @@ class DashboardViewModel(
         }
     }
 
-    fun refreshEnvironment() {
+    /**
+     * Fetches fresh environmental data. [force] skips the repository's
+     * one-minute throttle - used by the explicit Refresh action. The only
+     * progress signal is [DashboardUiState.isRefreshing], which is true for
+     * exactly as long as the real request runs.
+     */
+    fun refreshEnvironment(force: Boolean = false) {
         viewModelScope.launch {
-            if (!_uiState.value.isOnline) return@launch
+            if (!_uiState.value.isOnline || _uiState.value.isRefreshing) return@launch
             _uiState.update { it.copy(isRefreshing = true) }
             try {
-                val fresh = envRepo.fetchAndCache()
+                val fresh = envRepo.fetchAndCache(force = force)
                 _uiState.update { it.copy(env = fresh) }
             } catch (e: Exception) {
                 // Cached data stays on screen with its age stamp - failing to
                 // refresh must never blank out a warning the user can still act on.
             } finally {
                 _uiState.update { it.copy(isRefreshing = false) }
-                recomputeRiskScores()
-            }
-        }
-    }
-    
-    fun syncAlerts() {
-        viewModelScope.launch {
-            if (!_uiState.value.isOnline) return@launch
-            
-            _uiState.update { it.copy(alertSyncState = AlertSyncState.SYNCING_IMD) }
-            kotlinx.coroutines.delay(10000)
-            
-            _uiState.update { it.copy(alertSyncState = AlertSyncState.SYNCING_NDMA) }
-            kotlinx.coroutines.delay(10000)
-            
-            _uiState.update { it.copy(alertSyncState = AlertSyncState.SYNCING_WHO) }
-            kotlinx.coroutines.delay(10000)
-            
-            try {
-                // Force a real fetch to get the actual alerts
-                val fresh = envRepo.fetchAndCache(force = true)
-                _uiState.update { it.copy(env = fresh, alertSyncState = AlertSyncState.COMPLETE) }
-            } catch (e: Exception) {
-                _uiState.update { it.copy(alertSyncState = AlertSyncState.COMPLETE) }
-            } finally {
                 recomputeRiskScores()
             }
         }

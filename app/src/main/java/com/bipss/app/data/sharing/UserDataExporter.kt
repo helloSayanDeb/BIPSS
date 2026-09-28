@@ -40,6 +40,46 @@ class UserDataExporter(
      * subcollections. Each type is synced independently; a failure in one
      * does not roll back the others.
      */
+    /**
+     * Removes shared documents known to hold data that was never a real
+     * measurement (see LegacyDataCleanup). Runs whether or not sharing is
+     * currently switched on - opting out must not leave fabricated data behind.
+     */
+    suspend fun runMaintenance(firebaseUid: String) {
+        val userRef = firestore.collection("users").document(firebaseUid)
+
+        val pendingDeletes = prefsRepo.pendingRemoteDocDeletes.first()
+        if (pendingDeletes.isNotEmpty()) {
+            pendingDeletes.chunked(BATCH_SIZE).forEach { chunk ->
+                val batch = firestore.batch()
+                chunk.forEach { path -> batch.delete(userRef.collection(path.substringBefore('/')).document(path.substringAfter('/'))) }
+                batch.commit().await()
+                prefsRepo.removePendingRemoteDocDeletes(chunk)
+            }
+            Log.i(TAG, "Deleted ${pendingDeletes.size} stale shared document(s)")
+        }
+
+        if (prefsRepo.fabricatedDocSweepPending.first()) {
+            // Equality-only filters, so no composite index is needed.
+            val found = userRef.collection("minute_aggregates")
+                .whereEqualTo("metricType", "HR")
+                .whereEqualTo("avg", 100.0)
+                .whereEqualTo("min", 80.0)
+                .whereEqualTo("max", 120.0)
+                .whereEqualTo("sampleCount", 60)
+                .get().await()
+            if (!found.isEmpty) {
+                val batch = firestore.batch()
+                found.documents.forEach { batch.delete(it.reference) }
+                batch.commit().await()
+                found.documents.mapNotNull { it.getLong("minuteEpoch") }.minOrNull()
+                    ?.let { com.bipss.app.data.rewindSharedAggWatermarkBefore(prefsRepo, it) }
+                Log.i(TAG, "Removed ${found.size()} fabricated shared document(s)")
+            }
+            prefsRepo.setFabricatedDocSweepPending(false)
+        }
+    }
+
     suspend fun exportAndUpload(firebaseUid: String) {
         val userRef = firestore.collection("users").document(firebaseUid)
 

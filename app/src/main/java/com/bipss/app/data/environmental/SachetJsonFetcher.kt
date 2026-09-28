@@ -80,27 +80,36 @@ private val JSON = Json { ignoreUnknownKeys = true }
  */
 class SachetJsonFetcher(private val okHttpClient: OkHttpClient) {
 
-    suspend fun fetchAll(): List<ImdAlert> = withContext(Dispatchers.IO) {
+    /**
+     * Every currently published alert, or **null when the feed could not be
+     * read** (HTTP error, timeout, unparseable payload). Null and empty are
+     * different answers: empty means NDMA was reached and has nothing active,
+     * null means we do not know - and the UI must never turn the second into
+     * an all-clear.
+     */
+    suspend fun fetchAll(): List<ImdAlert>? = withContext(Dispatchers.IO) {
         try {
-            val request  = Request.Builder().url(SACHET_ALL_ALERTS_URL).build()
-            val response = okHttpClient.newCall(request).execute()
-            if (!response.isSuccessful) {
-                Log.w(TAG, "Sachet bulk fetch failed: HTTP ${response.code}")
-                return@withContext emptyList()
+            val request = Request.Builder().url(SACHET_ALL_ALERTS_URL).build()
+            okHttpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    Log.w(TAG, "Sachet bulk fetch failed: HTTP ${response.code}")
+                    return@withContext null
+                }
+                val body = response.body?.string() ?: return@withContext null
+                parseAll(body)
             }
-            val body = response.body?.string() ?: return@withContext emptyList()
-            parseAll(body)
         } catch (e: Exception) {
             Log.e(TAG, "Sachet bulk fetch error: ${e.message}")
-            emptyList()
+            null
         }
     }
 
     /**
      * One malformed row out of roughly eighty must not cost us the other
-     * seventy-nine, so rows are mapped individually and dropped on failure.
+     * seventy-nine, so rows are mapped individually and dropped on failure. A
+     * payload that is not a JSON array at all is a failed read (null).
      */
-    private fun parseAll(json: String): List<ImdAlert> {
+    private fun parseAll(json: String): List<ImdAlert>? {
         return try {
             val rows   = JSON.parseToJsonElement(json).jsonArray
             val alerts = rows.mapNotNull { element -> (element as? JsonObject)?.let(::toAlert) }
@@ -110,7 +119,7 @@ class SachetJsonFetcher(private val okHttpClient: OkHttpClient) {
             alerts
         } catch (e: Exception) {
             Log.e(TAG, "Sachet parse error: ${e.message}")
-            emptyList()
+            null
         }
     }
 

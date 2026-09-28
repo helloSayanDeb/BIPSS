@@ -9,6 +9,10 @@ import kotlinx.coroutines.sync.withLock
 
 private const val TAG = "DisasterAlertRepo"
 
+/** Display names of the alert feeds, used verbatim in "Checked … " copy. */
+const val SOURCE_SACHET = "NDMA Sachet"
+const val SOURCE_IMD    = "IMD"
+
 /**
  * Assembles the environmental picture: disaster alerts, air quality, weather
  * and health advisories, with everything cached for offline use.
@@ -33,7 +37,6 @@ class DisasterAlertRepository(
     private val advisoryFetcher: HealthAdvisoryFetcher,
     private val cpcbFetcher:     CpcbAqiFetcher,
     private val openMeteo:       OpenMeteoFetcher,
-    private val openWeatherMap:  OpenWeatherMapFetcher,
     private val locationHelper:  LocationHelper,
     private val prefsRepo:       UserPreferencesRepository
 ) {
@@ -108,12 +111,29 @@ class DisasterAlertRepository(
         // Alerts: Sachet JSON is primary (it carries per-alert identifier,
         // severity, centroid and expiry). IMD RSS is the fallback - it has none
         // of those, so it is only used when Sachet returns nothing at all.
+        // A null from a fetcher means the feed could not be read, which is
+        // tracked separately from "read, and nothing active".
+        val previous = getCachedSnapshot()
         val sachetAlerts = sachetFetcher.fetchAll()
-        val rawAlerts = if (sachetAlerts.isNotEmpty()) sachetAlerts else {
+        var sourcesChecked = if (sachetAlerts != null) listOf(SOURCE_SACHET) else emptyList()
+        val rawAlerts: List<ImdAlert>? = if (!sachetAlerts.isNullOrEmpty()) sachetAlerts else {
             Log.w(TAG, "Sachet returned nothing - falling back to IMD RSS")
-            imdParser.fetchImdAlerts()
+            val imdAlerts = imdParser.fetchImdAlerts()
+            if (imdAlerts != null) sourcesChecked = sourcesChecked + SOURCE_IMD
+            imdAlerts ?: sachetAlerts
         }
-        val alerts = processAlerts(rawAlerts, district, state, lat, lon)
+        val alertCheckFailed = rawAlerts == null
+        val alerts = if (rawAlerts != null) {
+            processAlerts(rawAlerts, district, state, lat, lon)
+        } else {
+            // Every feed failed: keep what the last successful check found
+            // (still dropping anything that has since expired) instead of
+            // overwriting a live warning with an empty list.
+            Log.w(TAG, "No alert feed reachable - keeping alerts from the last good check")
+            previous?.activeAlerts?.filterNot { it.isExpiredAt(System.currentTimeMillis()) }.orEmpty()
+        }
+        val alertsCheckedAtMs = if (alertCheckFailed) previous?.alertsCheckedAtMs ?: 0L else System.currentTimeMillis()
+        if (alertCheckFailed) sourcesChecked = previous?.alertSourcesChecked.orEmpty()
         val severity = alerts.maxByOrNull { it.severity.rank }?.severity ?: AlertSeverity.NONE
 
         // Air quality. Regional station and band sensor are kept separate:
@@ -125,20 +145,18 @@ class DisasterAlertRepository(
         val blended = BlendedReading.of(sensor?.toFloat(), cpcb?.aqiValue?.toFloat())
         val aqiValue = blended.displayValue?.toInt()
 
-        // Weather. OpenWeatherMap when configured (it adds pressure and wind),
-        // otherwise Open-Meteo, which needs no key.
-        val owm = if (lat != null && lon != null) openWeatherMap.fetchCurrent(lat, lon) else null
-        val meteo = if (owm == null && lat != null && lon != null) openMeteo.fetchCurrent(lat, lon) else null
+        // Weather: Open-Meteo is the only source (no key needed).
+        val meteo = if (lat != null && lon != null) openMeteo.fetchCurrent(lat, lon) else null
 
         val advisories = advisoryFetcher.fetchAdvisories()
 
         val now = System.currentTimeMillis()
         val snapshot = EnvironmentalSnapshot(
-            ambientTempC      = owm?.tempC        ?: meteo?.tempC,
-            humidityPercent   = owm?.humidity     ?: meteo?.humidity,
-            uvIndex           = owm?.uvIndex      ?: meteo?.uvIndex,
-            pressureHpa       = owm?.pressureHpa  ?: meteo?.pressureHpa,
-            windSpeedKph      = owm?.windSpeedKph ?: meteo?.windSpeedKph,
+            ambientTempC      = meteo?.tempC,
+            humidityPercent   = meteo?.humidity,
+            uvIndex           = meteo?.uvIndex,
+            pressureHpa       = meteo?.pressureHpa,
+            windSpeedKph      = meteo?.windSpeedKph,
             aqiValue          = aqiValue,
             aqiRiskLevel      = aqiValue?.let { AqiRiskLevel.fromAqi(it) },
             aqiSource         = blended.source,
@@ -149,6 +167,9 @@ class DisasterAlertRepository(
             activeAlerts      = alerts,
             advisories        = advisories,
             alertSeverity     = severity,
+            alertsCheckedAtMs = alertsCheckedAtMs,
+            alertSourcesChecked = sourcesChecked,
+            alertCheckFailed  = alertCheckFailed,
             districtName      = district,
             stateName         = state,
             latitude          = lat,
@@ -174,6 +195,9 @@ class DisasterAlertRepository(
                 pm10             = snapshot.pm10,
                 alertSeverity    = severity.name,
                 alerts           = alerts,
+                alertsCheckedAtMs = alertsCheckedAtMs,
+                alertSourcesChecked = sourcesChecked,
+                alertCheckFailed = alertCheckFailed,
                 advisories       = advisories,
                 districtName     = district,
                 stateName        = state,
@@ -275,6 +299,9 @@ class DisasterAlertRepository(
             advisories        = cached.advisories,
             alertSeverity     = runCatching { AlertSeverity.valueOf(cached.alertSeverity) }
                                     .getOrDefault(AlertSeverity.NONE),
+            alertsCheckedAtMs = cached.alertsCheckedAtMs,
+            alertSourcesChecked = cached.alertSourcesChecked,
+            alertCheckFailed  = cached.alertCheckFailed,
             districtName      = cached.districtName,
             stateName         = cached.stateName,
             latitude          = cached.latitude,

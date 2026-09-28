@@ -39,7 +39,9 @@ class DataSharingRepository(
      * - [UploadResult.Failed] — something went wrong (auth, network, Firestore)
      */
     suspend fun uploadIfEnabled(): UploadResult {
-        // Short-circuit: if user hasn't opted in, don't touch anything
+        runMaintenanceIfSignedIn()
+
+        // Short-circuit: if user hasn't opted in, nothing new is sent.
         if (!prefsRepo.dataSharingEnabled.first()) {
             return UploadResult.UserOptedOut
         }
@@ -55,6 +57,17 @@ class DataSharingRepository(
             Log.e(TAG, "Upload failed", e)
             UploadResult.Failed(e.message ?: "unknown")
         }
+    }
+
+    /**
+     * Clean-up of previously shared data. Uses the existing anonymous identity
+     * only - it never signs in (and so never creates an identity) on its own.
+     */
+    private suspend fun runMaintenanceIfSignedIn() {
+        val cachedUid = prefsRepo.sharingFirebaseUid.first() ?: return
+        if (auth.currentUser?.uid != cachedUid) return
+        runCatching { exporter.runMaintenance(cachedUid) }
+            .onFailure { Log.w(TAG, "Shared-data maintenance failed; will retry", it) }
     }
 
     /**

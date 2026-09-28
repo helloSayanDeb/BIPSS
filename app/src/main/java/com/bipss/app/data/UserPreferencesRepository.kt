@@ -199,13 +199,86 @@ class UserPreferencesRepository(private val context: Context) {
         dataStore.edit { it[KEY_LOCATION_PERMISSION_SKIPPED] = skipped }
     }
 
-    // ── Demo mode ────────────────────────────────────────────────────────────
-    private val KEY_DEMO_MODE_ENABLED = booleanPreferencesKey("demo_mode_enabled")
+    // ── Legacy clean-up markers ──────────────────────────────────────────────
+    // Demo Mode (removed) replayed bench-test data straight into the real
+    // history tables with no source column, so on any install where it was
+    // ever switched on, that history cannot be trusted. The mere presence of
+    // its old key is the signal - the one-time wipe consumes it.
+    private val KEY_LEGACY_DEMO_MODE      = booleanPreferencesKey("demo_mode_enabled")
+    private val KEY_LEGACY_CLEANUP_V1     = booleanPreferencesKey("legacy_cleanup_v1_done")
+    private val KEY_PENDING_REMOTE_DELETES = stringSetPreferencesKey("pending_remote_doc_deletes")
 
-    val demoModeEnabled: Flow<Boolean> = dataStore.data.map { it[KEY_DEMO_MODE_ENABLED] ?: false }
+    /** True if Demo Mode was ever enabled on this install (the old key still exists). */
+    suspend fun hasLegacyDemoMarker(): Boolean =
+        dataStore.data.map { it.contains(KEY_LEGACY_DEMO_MODE) }.first()
 
-    suspend fun setDemoModeEnabled(enabled: Boolean) {
-        dataStore.edit { it[KEY_DEMO_MODE_ENABLED] = enabled }
+    /**
+     * Removes the Demo Mode marker and records when its data was wiped, so a
+     * Drive backup taken before that moment is not allowed to restore the
+     * Demo-derived baselines. Called only after the wipe has succeeded.
+     */
+    suspend fun completeLegacyDemoWipe(atMs: Long) {
+        dataStore.edit {
+            it.remove(KEY_LEGACY_DEMO_MODE)
+            it[KEY_LEGACY_DEMO_WIPE_AT] = atMs
+        }
+    }
+
+    private val KEY_LEGACY_DEMO_WIPE_AT = longPreferencesKey("legacy_demo_wipe_at_ms")
+
+    /** When Demo-contaminated history was wiped, or null if it never needed to be. */
+    val legacyDemoWipeAtMs: Flow<Long?> = dataStore.data.map { it[KEY_LEGACY_DEMO_WIPE_AT] }
+
+    // Set when the removed test button may have left a fabricated document in
+    // the sharing store that no local row points to any more.
+    private val KEY_FABRICATED_DOC_SWEEP = booleanPreferencesKey("fabricated_doc_sweep_pending")
+
+    val fabricatedDocSweepPending: Flow<Boolean> = dataStore.data.map { it[KEY_FABRICATED_DOC_SWEEP] ?: false }
+
+    suspend fun setFabricatedDocSweepPending(pending: Boolean) {
+        dataStore.edit { if (pending) it[KEY_FABRICATED_DOC_SWEEP] = true else it.remove(KEY_FABRICATED_DOC_SWEEP) }
+    }
+
+    suspend fun isLegacyCleanupV1Done(): Boolean =
+        dataStore.data.map { it[KEY_LEGACY_CLEANUP_V1] ?: false }.first()
+
+    suspend fun markLegacyCleanupV1Done() {
+        dataStore.edit { it[KEY_LEGACY_CLEANUP_V1] = true }
+    }
+
+    /**
+     * Firestore document paths (relative to users/{uid}) that must be deleted
+     * on the next sharing run - e.g. the fabricated row the removed "Force
+     * Firebase Upload" test button used to push.
+     */
+    val pendingRemoteDocDeletes: Flow<Set<String>> =
+        dataStore.data.map { it[KEY_PENDING_REMOTE_DELETES] ?: emptySet() }
+
+    suspend fun addPendingRemoteDocDeletes(paths: Collection<String>) {
+        if (paths.isEmpty()) return
+        dataStore.edit { it[KEY_PENDING_REMOTE_DELETES] = (it[KEY_PENDING_REMOTE_DELETES] ?: emptySet()) + paths }
+    }
+
+    suspend fun removePendingRemoteDocDeletes(paths: Collection<String>) {
+        dataStore.edit { it[KEY_PENDING_REMOTE_DELETES] = (it[KEY_PENDING_REMOTE_DELETES] ?: emptySet()) - paths.toSet() }
+    }
+
+    suspend fun clearFirstReadingMs() {
+        dataStore.edit { it.remove(KEY_FIRST_READING_MS) }
+    }
+
+    // Set when data already shared to the cloud is known to be contaminated
+    // (e.g. uploaded while Demo Mode was on); the cloud-deletion worker consumes it.
+    private val KEY_REMOTE_PURGE_REQUESTED = booleanPreferencesKey("remote_purge_requested")
+
+    val remotePurgeRequested: Flow<Boolean> = dataStore.data.map { it[KEY_REMOTE_PURGE_REQUESTED] ?: false }
+
+    suspend fun requestRemotePurge() {
+        dataStore.edit { it[KEY_REMOTE_PURGE_REQUESTED] = true }
+    }
+
+    suspend fun clearRemotePurgeRequest() {
+        dataStore.edit { it.remove(KEY_REMOTE_PURGE_REQUESTED) }
     }
 
     // ── Last known location ──────────────────────────────────────────────────
@@ -265,6 +338,11 @@ class UserPreferencesRepository(private val context: Context) {
         val pm10:              Float?  = null,
         val alertSeverity:     String  = "NONE",
         val alerts:            List<ImdAlert>       = emptyList(),
+        // Caches written before these fields existed decode to "never checked",
+        // so an old cache can never be read back as a verified all-clear.
+        val alertsCheckedAtMs: Long    = 0L,
+        val alertSourcesChecked: List<String> = emptyList(),
+        val alertCheckFailed:  Boolean = false,
         val advisories:        List<HealthAdvisory> = emptyList(),
         val districtName:      String? = null,
         val stateName:         String? = null,

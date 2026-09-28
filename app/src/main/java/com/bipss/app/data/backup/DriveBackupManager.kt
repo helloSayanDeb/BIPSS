@@ -72,7 +72,7 @@ sealed class BackupResult {
  * Cloud Console (Drive API enabled, OAuth consent screen configured, client
  * tied to this app's package name + signing certificate SHA-1) before
  * Google's servers will actually grant the drive.appdata scope — same
- * "external credential required" pattern as CPCB_AQI_API_KEY/OWM_API_KEY in
+ * "external credential required" pattern as CPCB_AQI_API_KEY in
  * local.properties and MODEL_MANIFEST_URL. Until that's configured, sign-in
  * itself will work but scope consent will fail; backupNow()/restoreLatest()
  * surface that as [BackupResult.Failure] rather than crashing.
@@ -189,8 +189,13 @@ class DriveBackupManager(
         payload.emergencyContacts.forEach {
             emergencyContactDao.insert(EmergencyContactEntity(name = it.name, phoneNumber = it.phoneNumber, addedAtMs = it.addedAtMs))
         }
-        payload.baselineStats.forEach {
-            baselineStatsDao.upsert(BaselineStatsEntity(it.metricType, it.mean, it.m2, it.count, it.stdDev))
+        // A backup taken before Demo-contaminated history was wiped would bring
+        // the bench-test baselines straight back, so its baselines are skipped.
+        val demoWipeAt = prefsRepo.legacyDemoWipeAtMs.first()
+        if (demoWipeAt == null || payload.backedUpAtMs >= demoWipeAt) {
+            payload.baselineStats.forEach {
+                baselineStatsDao.upsert(BaselineStatsEntity(it.metricType, it.mean, it.m2, it.count, it.stdDev))
+            }
         }
     }
 

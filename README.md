@@ -21,16 +21,17 @@ Create `local.properties` in the project root (it is gitignored — never commit
 ```properties
 sdk.dir=/path/to/your/Android/Sdk
 
-# Optional. Each degrades gracefully when absent.
+# Optional. Degrades gracefully when absent.
 CPCB_AQI_API_KEY=your_key_here
-OWM_API_KEY=your_key_here
 ```
 
 - **CPCB_AQI_API_KEY** — register at [data.gov.in](https://data.gov.in) for real-time
-  AQI/PM2.5/PM10. Without it the app falls back to Open-Meteo.
-- **OWM_API_KEY** — OpenWeatherMap. The One Call 3.0 endpoint needs the
-  "One Call by Call" product enabled on your account, not just a key.
-  Without it, Open-Meteo supplies temperature/humidity/UV (no pressure/wind).
+  CPCB station AQI. Without it there is no regional station reading: the air
+  quality row shows only the band's own reading when one is streaming, otherwise
+  "—". Nothing is substituted.
+
+Weather (temperature, humidity, UV, pressure, wind) comes from Open-Meteo, which
+needs no key. There is no other weather provider.
 
 Then:
 

@@ -14,6 +14,7 @@ import org.koin.android.ext.koin.androidLogger
 import org.koin.androidx.workmanager.koin.workManagerFactory
 import com.bipss.app.ble.BleForegroundService
 import com.bipss.app.ble.BleGattManager
+import com.bipss.app.data.LegacyDataCleanup
 import com.bipss.app.data.UserPreferencesRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -46,19 +47,22 @@ class BipssApplication : Application(), Configuration.Provider, KoinComponent {
         SleepAnalysisWorker.schedule(this)
         DataSharingWorker.schedule(this)
 
-        reconnectPairedBand()
+        startUp()
     }
 
     /**
-     * Reconnects to a previously paired band at launch.
+     * Repairs data left by removed code, then reconnects a previously paired
+     * band. Ordered so no new band reading lands before a pending wipe runs;
+     * the background workers that touch the same tables wait on
+     * [LegacyDataCleanup.awaitReady] for the same reason.
      *
-     * Without this the app only ever connects during onboarding, so a phone
-     * restart silently ends data collection until the user notices and
-     * re-pairs - which on a demo morning is exactly the failure you cannot
-     * afford.
+     * Without the reconnect the app only ever connects during onboarding, so a
+     * phone restart would silently end data collection until the user noticed
+     * and re-paired.
      */
-    private fun reconnectPairedBand() {
+    private fun startUp() {
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            runCatching { getKoin().get<LegacyDataCleanup>().run() }
             runCatching {
                 val prefs: UserPreferencesRepository = getKoin().get()
                 val mac = prefs.pairedBandMac.first() ?: return@launch

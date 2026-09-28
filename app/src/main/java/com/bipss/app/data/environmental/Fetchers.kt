@@ -173,53 +173,8 @@ class CpcbAqiFetcher(
     }
 }
 
-/** Weather from OpenWeatherMap One Call 3.0. Every field nullable - nothing is defaulted. */
-class OpenWeatherMapFetcher(
-    private val okHttpClient: OkHttpClient,
-    private val apiKey:       String
-) {
-    data class OwmSnapshot(
-        val tempC:        Float?,
-        val humidity:     Float?,
-        val pressureHpa:  Float?,
-        val windSpeedKph: Float?,
-        val uvIndex:      Float?
-    )
-
-    val isConfigured: Boolean
-        get() = apiKey.isNotBlank() && apiKey != "your_key_here" && apiKey != "YOUR_KEY"
-
-    suspend fun fetchCurrent(lat: Double, lon: Double): OwmSnapshot? = withContext(Dispatchers.IO) {
-        if (!isConfigured) return@withContext null
-        try {
-            val url = "https://api.openweathermap.org/data/3.0/onecall" +
-                "?lat=$lat&lon=$lon&exclude=minutely,hourly,daily,alerts&units=metric&appid=$apiKey"
-            val resp = okHttpClient.newCall(Request.Builder().url(url).build()).execute()
-            resp.use {
-                if (!it.isSuccessful) {
-                    Log.w(TAG, "OpenWeatherMap fetch failed: HTTP ${it.code}")
-                    return@withContext null
-                }
-                val current = lenientJson.parseToJsonElement(it.body?.string() ?: return@withContext null)
-                    .jsonObject["current"]?.jsonObject ?: return@withContext null
-                OwmSnapshot(
-                    tempC        = current.float("temp"),
-                    humidity     = current.float("humidity"),
-                    pressureHpa  = current.float("pressure"),
-                    // One Call reports m/s under units=metric.
-                    windSpeedKph = current.float("wind_speed")?.times(3.6f),
-                    uvIndex      = current.float("uvi")
-                )
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "OpenWeatherMap fetch error: ${e.message}")
-            null
-        }
-    }
-}
-
 /**
- * Weather from Open-Meteo. No API key, and the default source.
+ * Weather from Open-Meteo - the app's only weather source. No API key.
  *
  * Two fixes here matter. The coordinates are now the user's, not a hardcoded
  * Delhi pair - a Kolkata demo was previously reporting Delhi's weather. And
@@ -243,7 +198,9 @@ class OpenMeteoFetcher(private val okHttpClient: OkHttpClient) {
         try {
             val url = "https://api.open-meteo.com/v1/forecast" +
                 "?latitude=$lat&longitude=$lon" +
-                "&current=temperature_2m,relative_humidity_2m,uv_index,surface_pressure,wind_speed_10m" +
+                // pressure_msl (sea level), not surface_pressure: the station-level
+                // value drops with altitude and is not what a weather report quotes.
+                "&current=temperature_2m,relative_humidity_2m,uv_index,pressure_msl,wind_speed_10m" +
                 "&timezone=auto&forecast_days=1"
             val resp = okHttpClient.newCall(Request.Builder().url(url).build()).execute()
             resp.use {
@@ -257,7 +214,7 @@ class OpenMeteoFetcher(private val okHttpClient: OkHttpClient) {
                     tempC        = current.float("temperature_2m"),
                     humidity     = current.float("relative_humidity_2m"),
                     uvIndex      = current.float("uv_index"),
-                    pressureHpa  = current.float("surface_pressure"),
+                    pressureHpa  = current.float("pressure_msl"),
                     // Open-Meteo reports wind in km/h by default.
                     windSpeedKph = current.float("wind_speed_10m")
                 )
