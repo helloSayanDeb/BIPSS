@@ -125,6 +125,10 @@ fun NavGraph(
                 com.bipss.app.ui.sleep.SleepDetailScreen(navController = navController)
             }
 
+            composable(Routes.CYCLE_DETAIL) {
+                com.bipss.app.ui.cycle.CycleDetailScreen(navController = navController)
+            }
+
             composable(Routes.RECOVERY_DETAIL) {
                 com.bipss.app.ui.recovery.RecoveryDetailScreen(navController = navController)
             }

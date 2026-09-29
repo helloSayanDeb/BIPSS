@@ -29,6 +29,9 @@ object Routes {
     /** Sleep and the overnight breathing screening. */
     const val SLEEP_DETAIL = "sleep_detail"
     
+    /** Period tracking (Female profiles). */
+    const val CYCLE_DETAIL = "cycle_detail"
+
     /** Recovery detail. */
     const val RECOVERY_DETAIL = "recovery_detail"
     

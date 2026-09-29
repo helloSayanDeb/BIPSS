@@ -84,7 +84,7 @@ val appModule = module {
             .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
                 com.bipss.app.data.db.migration.MIGRATION_6_7, com.bipss.app.data.db.migration.MIGRATION_7_8,
                 com.bipss.app.data.db.migration.MIGRATION_8_9, com.bipss.app.data.db.migration.MIGRATION_9_10,
-                com.bipss.app.data.db.migration.MIGRATION_10_11)
+                com.bipss.app.data.db.migration.MIGRATION_10_11, com.bipss.app.data.db.migration.MIGRATION_11_12)
             .build()
     }
 
@@ -101,6 +101,8 @@ val appModule = module {
     single { get<AppDatabase>().signalEpochDao() }
     single { get<AppDatabase>().envSnapshotDao() }
     single { get<AppDatabase>().aqiContextSampleDao() }
+    single { get<AppDatabase>().cycleDao() }
+    single { com.bipss.app.data.CycleRepository(get()) }
     single { com.bipss.app.data.environmental.LocationContextSampler(androidContext()) }
     single { com.bipss.app.data.environmental.AqiContextRepository(get(), get(), get(), get(), get()) }
 
@@ -166,6 +168,7 @@ val appModule = module {
     }
 
     viewModel { com.bipss.app.ui.recovery.RecoveryDetailViewModel(get()) }
+    viewModel { com.bipss.app.ui.cycle.CycleViewModel(get(), get(), get()) }
     viewModel { com.bipss.app.ui.strain.StrainDetailViewModel(get()) }
 
     viewModel {

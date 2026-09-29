@@ -243,3 +243,24 @@ data class AqiContextSampleEntity(
     val displacementM:      Double?,
     val activityMgSPerMin:  Double?
 )
+
+/**
+ * A logged period, as local calendar days (LocalDay epoch days). Kept on
+ * this phone only - never exported to the shared-data service; included in
+ * the user's own Drive backup when that is on.
+ */
+@Entity(tableName = "cycle_periods", indices = [Index(value = ["startEpochDay"], unique = true)])
+data class CyclePeriodEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val startEpochDay: Long,
+    /** Inclusive; null while the period is ongoing. */
+    val endEpochDay:   Long?
+)
+
+/** A free-text note for one day of the cycle (mood, symptoms, energy - unstructured). */
+@Entity(tableName = "cycle_day_notes")
+data class CycleDayNoteEntity(
+    @PrimaryKey val epochDay: Long,
+    val note:        String,
+    val updatedAtMs: Long
+)

@@ -246,3 +246,20 @@ val MIGRATION_10_11 = object : Migration(10, 11) {
         )
     }
 }
+
+/** v11 -> v12: cycle_periods and cycle_day_notes (period tracking, spec 7). */
+val MIGRATION_11_12 = object : Migration(11, 12) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL(
+            "CREATE TABLE IF NOT EXISTS `cycle_periods` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "`startEpochDay` INTEGER NOT NULL, `endEpochDay` INTEGER)"
+        )
+        database.execSQL(
+            "CREATE UNIQUE INDEX IF NOT EXISTS `index_cycle_periods_startEpochDay` ON `cycle_periods` (`startEpochDay`)"
+        )
+        database.execSQL(
+            "CREATE TABLE IF NOT EXISTS `cycle_day_notes` (`epochDay` INTEGER NOT NULL, `note` TEXT NOT NULL, " +
+                "`updatedAtMs` INTEGER NOT NULL, PRIMARY KEY(`epochDay`))"
+        )
+    }
+}

@@ -369,3 +369,33 @@ interface AqiContextSampleDao {
     @Query("DELETE FROM aqi_context_samples WHERE takenAtMs < :beforeMs")
     suspend fun deleteBefore(beforeMs: Long)
 }
+
+@Dao
+interface CycleDao {
+    @Query("SELECT * FROM cycle_periods ORDER BY startEpochDay ASC")
+    fun periods(): Flow<List<CyclePeriodEntity>>
+
+    @Query("SELECT * FROM cycle_periods ORDER BY startEpochDay ASC")
+    suspend fun periodsNow(): List<CyclePeriodEntity>
+
+    @Insert
+    suspend fun insertPeriod(period: CyclePeriodEntity): Long
+
+    @Update
+    suspend fun updatePeriod(period: CyclePeriodEntity)
+
+    @Query("DELETE FROM cycle_periods WHERE id = :id")
+    suspend fun deletePeriod(id: Long)
+
+    @Query("SELECT * FROM cycle_day_notes WHERE epochDay BETWEEN :fromDay AND :toDay")
+    fun notesBetween(fromDay: Long, toDay: Long): Flow<List<CycleDayNoteEntity>>
+
+    @Query("SELECT * FROM cycle_day_notes WHERE epochDay = :day")
+    suspend fun note(day: Long): CycleDayNoteEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertNote(note: CycleDayNoteEntity)
+
+    @Query("DELETE FROM cycle_day_notes WHERE epochDay = :day")
+    suspend fun deleteNote(day: Long)
+}

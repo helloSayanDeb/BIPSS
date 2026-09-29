@@ -170,6 +170,9 @@ fun DashboardTodayScreen(
                 onLogWater = { amount -> vm.logWaterIntake(amount) }
             )
 
+            // -- Cycle (Female profiles only; the card hides itself otherwise) --
+            com.bipss.app.ui.cycle.CycleQuickCard(onOpen = { navController.navigate(Routes.CYCLE_DETAIL) })
+
             // -- Vitals ------------------------------------------------------
             Spacer(Modifier.height(Space.xxl))
             SectionHeader("Vitals")
@@ -467,36 +470,21 @@ private fun WaterLogCard(
         }
     }
 
-    BipssCard {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            IconBadge(Icons.Rounded.WaterDrop, colors.spo2)
-            Spacer(Modifier.width(Space.m))
-            Column(Modifier.weight(1f)) {
-                Text("Hydration", style = MaterialTheme.typography.titleSmall, color = colors.textPrimary)
-                Text(
-                    if (totalMlToday > 0) "Last water: $label  ·  ${totalMlToday}mL today" else "Last water: $label",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colors.textSecondary
-                )
-            }
+    QuickLogCard(
+        icon = Icons.Rounded.WaterDrop,
+        tint = colors.spo2,
+        title = "Hydration",
+        subtitle = if (totalMlToday > 0) "Last water: $label  ·  ${totalMlToday}mL today" else "Last water: $label",
+        footnote = if (lastLogMs == null)
+            "Hydration is left out of your Heat Stress score until you log a drink - " +
+                "not having logged one isn't evidence of dehydration."
+        else null
+    ) {
+        FilledTonalButton(onClick = { onLogWater(250) }, modifier = Modifier.weight(1f)) {
+            Text("+ 250mL")
         }
-        Spacer(Modifier.height(Space.m))
-        Row(horizontalArrangement = Arrangement.spacedBy(Space.s), modifier = Modifier.fillMaxWidth()) {
-            FilledTonalButton(onClick = { onLogWater(250) }, modifier = Modifier.weight(1f)) {
-                Text("+ 250mL")
-            }
-            FilledTonalButton(onClick = { onLogWater(500) }, modifier = Modifier.weight(1f)) {
-                Text("+ 500mL")
-            }
-        }
-        if (lastLogMs == null) {
-            Spacer(Modifier.height(Space.s))
-            Text(
-                "Hydration is left out of your Heat Stress score until you log a drink - " +
-                    "not having logged one isn't evidence of dehydration.",
-                style = MaterialTheme.typography.bodySmall,
-                color = colors.textTertiary
-            )
+        FilledTonalButton(onClick = { onLogWater(500) }, modifier = Modifier.weight(1f)) {
+            Text("+ 500mL")
         }
     }
 }
