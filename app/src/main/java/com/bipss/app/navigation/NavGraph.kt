@@ -13,6 +13,14 @@ import com.bipss.app.ui.dashboard.*
 import com.bipss.app.ui.onboarding.*
 import com.bipss.app.ui.settings.SettingsScreen
 
+private fun catchUpArg() = navArgument("catchUp") {
+    type         = NavType.BoolType
+    defaultValue = false
+}
+
+private fun androidx.navigation.NavBackStackEntry.catchUp(): Boolean =
+    arguments?.getBoolean("catchUp") ?: false
+
 /** Provides scaffold innerPadding to all screens without threading it through every composable */
 val LocalScaffoldPadding = staticCompositionLocalOf { PaddingValues() }
 
@@ -60,6 +68,37 @@ fun NavGraph(
                 OnboardingDownloadModelScreen(navController = navController)
             }
 
+            composable(Routes.ONBOARDING_NOTIFICATIONS) {
+                OnboardingNotificationsScreen(navController = navController)
+            }
+
+            composable(Routes.ONBOARDING_GENDER) {
+                OnboardingGenderScreen(navController = navController)
+            }
+
+            // Location, SMS and contacts are shared with the catch-up flow,
+            // which passes catchUp=true (no step counter; different next step).
+            composable(
+                route     = "${Routes.ONBOARDING_LOCATION}?catchUp={catchUp}",
+                arguments = listOf(catchUpArg())
+            ) { entry ->
+                OnboardingLocationScreen(navController = navController, catchUp = entry.catchUp())
+            }
+
+            composable(
+                route     = "${Routes.ONBOARDING_SMS}?catchUp={catchUp}",
+                arguments = listOf(catchUpArg())
+            ) { entry ->
+                OnboardingSmsScreen(navController = navController, catchUp = entry.catchUp())
+            }
+
+            composable(
+                route     = "${Routes.ONBOARDING_CONTACTS}?catchUp={catchUp}",
+                arguments = listOf(catchUpArg())
+            ) { entry ->
+                OnboardingContactsScreen(navController = navController, catchUp = entry.catchUp())
+            }
+
             // ── Dashboard ─────────────────────────────────────────────────────────
 
             composable(Routes.DASHBOARD_TODAY) {
@@ -105,8 +144,18 @@ fun NavGraph(
 
             // ── Settings ──────────────────────────────────────────────────────────
 
-            composable(Routes.SETTINGS) {
-                SettingsScreen(navController = navController)
+            composable(
+                route     = "${Routes.SETTINGS}?section={section}",
+                arguments = listOf(navArgument("section") {
+                    type     = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                })
+            ) { entry ->
+                SettingsScreen(
+                    navController = navController,
+                    openAtEmergency = entry.arguments?.getString("section") == "emergency"
+                )
             }
 
             composable(Routes.SETTINGS_CONTACT_PICKER) {

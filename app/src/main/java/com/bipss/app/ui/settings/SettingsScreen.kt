@@ -5,6 +5,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -35,6 +36,7 @@ import org.koin.androidx.compose.koinViewModel
 @Composable
 fun SettingsScreen(
     navController: NavController,
+    openAtEmergency: Boolean = false,
     vm: SettingsViewModel = koinViewModel()
 ) {
     val state by vm.uiState.collectAsStateWithLifecycle()
@@ -73,7 +75,12 @@ fun SettingsScreen(
             Group("AI model") { AiModelCard(state, vm) }
             Group("Appearance") { ThemeSelector(state.themePreference, vm::onThemePreferenceSelected) }
             Group("Privacy & data") { PrivacySection(state, vm) }
-            Group("Emergency contacts") { EmergencyContacts(state, vm, navController) }
+            // Opened from the Home SOS warning: land on the section that fixes it.
+            val emergency = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
+            LaunchedEffect(openAtEmergency) { if (openAtEmergency) emergency.bringIntoView() }
+            Box(Modifier.bringIntoViewRequester(emergency)) {
+                Column { Group("Emergency contacts") { EmergencyContacts(state, vm, navController) } }
+            }
             Group("About") { AboutCard() }
             Spacer(Modifier.height(Space.huge))
         }
@@ -102,6 +109,8 @@ private fun ProfileCard(state: SettingsUiState, navController: NavController) {
             InfoRow("Height", "${state.userHeightCm.toInt()} cm")
             HairlineDivider()
             InfoRow("Weight", "${state.userWeightKg} kg")
+            HairlineDivider()
+            InfoRow("Gender", state.userGender?.label ?: "Not set")
         } else {
             Text(
                 "No profile set up yet.",
@@ -227,9 +236,15 @@ private fun AiModelCard(state: SettingsUiState, vm: SettingsViewModel) {
                     )
                 }
             }
+        } else if (!com.bipss.app.ai.isModelDownloadConfigured) {
+            Text(
+                "No on-device model is available for this version of BIPSS yet. The Coach tab uses rule-based replies, and every other feature works normally.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.textSecondary
+            )
         } else {
             Text(
-                "The on-device model isn't installed. Chat falls back to rule-based replies, and every other feature works normally.",
+                "The on-device model isn't installed. The Coach tab uses rule-based replies, and every other feature works normally.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = colors.textSecondary
             )
@@ -260,7 +275,22 @@ private fun AiModelCard(state: SettingsUiState, vm: SettingsViewModel) {
                     Spacer(Modifier.height(Space.s))
                     Text("Verifying checksum…", style = MaterialTheme.typography.bodySmall, color = colors.textTertiary)
                 }
-                else -> PrimaryButton("Download AI model", { vm.onDownloadModelTap() })
+                is DownloadProgress.Initializing -> {
+                    LinearProgressIndicator(
+                        modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = colors.raised
+                    )
+                    Spacer(Modifier.height(Space.s))
+                    Text("Checking the model server…", style = MaterialTheme.typography.bodySmall, color = colors.textTertiary)
+                }
+                else -> {
+                    if (p is DownloadProgress.Failure) {
+                        Text(p.reason, style = MaterialTheme.typography.bodySmall, color = colors.bandRisk)
+                        Spacer(Modifier.height(Space.s))
+                    }
+                    PrimaryButton(if (p is DownloadProgress.Failure) "Try again" else "Download AI model", { vm.onDownloadModelTap() })
+                }
             }
         }
     }
@@ -444,7 +474,7 @@ private fun EmergencyContacts(
     val locPerm = rememberLocationPermission()
 
     Text(
-        "Contacts here receive an SMS with your location when SOS fires. Stored on this device only.",
+        "Contacts here receive an SMS when SOS fires, with your location if BIPSS can get it. Stored on this phone, and in your Drive backup if it's on.",
         style = MaterialTheme.typography.bodySmall,
         color = colors.textSecondary
     )

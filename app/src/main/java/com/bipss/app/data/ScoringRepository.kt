@@ -113,7 +113,8 @@ class ScoringRepository(
     // -- Strain --------------------------------------------------------------------
 
     suspend fun strainForDay(dayMs: Long = System.currentTimeMillis()): StrainOutcome {
-        val age = prefs.userProfile.first()?.age?.takeIf { it in 10..110 }
+        val profile = prefs.userProfile.first()
+        val age = profile?.age?.takeIf { it in 10..110 }
             ?: return StrainOutcome.Unavailable(
                 "Add your age in Settings - strain is scaled to your maximum heart rate.",
                 "Add your age in Settings", RiskScoreCalculator.MissingKind.INPUT
@@ -154,7 +155,12 @@ class ScoringRepository(
                 activityMgS = a.avgValue?.let { it.toDouble() * a.sampleCount }
             )
         }
-        val sex = TrimpSex.UNSPECIFIED   // until the profile records it
+        val sex = when (profile?.gender) {
+            com.bipss.app.data.Gender.MALE   -> TrimpSex.MALE
+            com.bipss.app.data.Gender.FEMALE -> TrimpSex.FEMALE
+            // Non-binary, prefer not to say, or not asked yet: the documented mean.
+            else                             -> TrimpSex.UNSPECIFIED
+        }
         return StrainOutcome.Available(Trimp.compute(minutes, hrRest, hrMax, sex), restIsEstimate = sleepRest == null)
     }
 

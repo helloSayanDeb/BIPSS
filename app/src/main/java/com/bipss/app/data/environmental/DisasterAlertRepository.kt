@@ -4,6 +4,8 @@ import android.util.Log
 import com.bipss.app.data.UserPreferencesRepository
 import com.bipss.app.domain.environmental.*
 import com.bipss.app.sos.LocationHelper
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.withLock
 
@@ -120,20 +122,22 @@ class DisasterAlertRepository(
         state    = resolved.second ?: state
         if (live != null) prefsRepo.cacheLocation(lat, lon, district, state, live.timeMs)
 
-        // Alerts: Sachet JSON is primary (it carries per-alert identifier,
-        // severity, centroid and expiry). IMD RSS is the fallback - it has none
-        // of those, so it is only used when Sachet returns nothing at all.
-        // A null from a fetcher means the feed could not be read, which is
-        // tracked separately from "read, and nothing active".
         val previous = getCachedSnapshot()
-        val sachetAlerts = sachetFetcher.fetchAll()
-        var sourcesChecked = if (sachetAlerts != null) listOf(SOURCE_SACHET) else emptyList()
-        val rawAlerts: List<ImdAlert>? = if (!sachetAlerts.isNullOrEmpty()) sachetAlerts else {
-            Log.w(TAG, "Sachet returned nothing - falling back to IMD RSS")
-            val imdAlerts = imdParser.fetchImdAlerts()
-            if (imdAlerts != null) sourcesChecked = sourcesChecked + SOURCE_IMD
-            imdAlerts ?: sachetAlerts
+
+        // The sources are independent, so they are fetched side by side. In
+        // sequence, one unreachable feed added its whole timeout to every sync
+        // (four DNS failures took about 48 s) and held up the sources that
+        // were answering.
+        val (feeds, cpcb, meteo, advisories) = coroutineScope {
+            val alertsJob   = async { fetchAlertFeeds() }
+            val cpcbJob     = async { cpcbFetcher.fetchAqi(state, lat, lon) }
+            val meteoJob    = async { openMeteo.fetchCurrent(lat, lon) }
+            val advisoryJob = async { advisoryFetcher.fetchAdvisories() }
+            Fetched(alertsJob.await(), cpcbJob.await(), meteoJob.await(), advisoryJob.await())
         }
+
+        val rawAlerts = feeds.alerts
+        var sourcesChecked = feeds.sourcesChecked
         val alertCheckFailed = rawAlerts == null
         val alerts = if (rawAlerts != null) {
             processAlerts(rawAlerts, district, state, lat, lon)
@@ -151,14 +155,8 @@ class DisasterAlertRepository(
         // Air quality: the regional station only. The band's ENS160 reports
         // UBA 1-5, not a 0-500 AQI, so it is never shown in place of the
         // station value; relating the two scales needs indoor/outdoor context.
-        val cpcb = cpcbFetcher.fetchAqi(state, lat, lon)
         val blended = BlendedReading.of(null, cpcb?.aqiValue?.toFloat())
         val aqiValue = blended.displayValue?.toInt()
-
-        // Weather: Open-Meteo is the only source (no key needed).
-        val meteo = if (lat != null && lon != null) openMeteo.fetchCurrent(lat, lon) else null
-
-        val advisories = advisoryFetcher.fetchAdvisories()
 
         val now = System.currentTimeMillis()
         val snapshot = EnvironmentalSnapshot(
@@ -219,6 +217,32 @@ class DisasterAlertRepository(
             )
         )
         return snapshot
+    }
+
+    /** What one sync fetched; see [doFetch]. */
+    private data class Fetched(
+        val feeds:      AlertFeeds,
+        val cpcb:       AqiSnapshot?,
+        val meteo:      OpenMeteoFetcher.OpenMeteoSnapshot?,
+        val advisories: List<HealthAdvisory>
+    )
+
+    /** Null [alerts] means no feed could be read - distinct from "read, and nothing active". */
+    private data class AlertFeeds(val alerts: List<ImdAlert>?, val sourcesChecked: List<String>)
+
+    /**
+     * Alerts: Sachet JSON is primary (it carries per-alert identifier,
+     * severity, centroid and expiry). IMD RSS is the fallback - it has none
+     * of those, so it is only used when Sachet returns nothing at all.
+     */
+    private suspend fun fetchAlertFeeds(): AlertFeeds {
+        val sachetAlerts = sachetFetcher.fetchAll()
+        var sourcesChecked = if (sachetAlerts != null) listOf(SOURCE_SACHET) else emptyList()
+        if (!sachetAlerts.isNullOrEmpty()) return AlertFeeds(sachetAlerts, sourcesChecked)
+        Log.w(TAG, "Sachet returned nothing - falling back to IMD RSS")
+        val imdAlerts = imdParser.fetchImdAlerts()
+        if (imdAlerts != null) sourcesChecked = sourcesChecked + SOURCE_IMD
+        return AlertFeeds(imdAlerts ?: sachetAlerts, sourcesChecked)
     }
 
     /**

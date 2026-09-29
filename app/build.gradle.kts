@@ -29,6 +29,10 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // API keys injected via BuildConfig — never hardcoded in source
+        // Where the optional on-device model's manifest lives. Empty means no
+        // model is offered: onboarding says so and makes no network request.
+        buildConfigField("String", "MODEL_MANIFEST_URL",
+            "\"${localProps.getProperty("MODEL_MANIFEST_URL", "")}\"")
         buildConfigField("String", "CPCB_AQI_API_KEY",
             "\"${localProps.getProperty("CPCB_AQI_API_KEY", "")}\"")
     }

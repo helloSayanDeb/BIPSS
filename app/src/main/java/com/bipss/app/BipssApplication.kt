@@ -119,7 +119,8 @@ class BipssApplication : Application(), Configuration.Provider, KoinComponent {
         if (!SimulationMode.wantsSeededProfile(this)) return
         val prefs: UserPreferencesRepository = getKoin().get()
         if (prefs.hasCompletedOnboarding.first()) return
-        prefs.saveUserProfile(com.bipss.app.data.UserProfile(name = "Simulated user", age = 30, heightCm = 170f, weightKg = 65f))
+        prefs.saveUserProfile(com.bipss.app.data.UserProfile(name = "Simulated user", age = 30, heightCm = 170f, weightKg = 65f,
+            gender = com.bipss.app.data.Gender.UNSPECIFIED))
         prefs.setOnboardingComplete()
     }
 

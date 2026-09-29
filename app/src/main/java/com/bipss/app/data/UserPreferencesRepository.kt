@@ -33,7 +33,20 @@ class UserPreferencesRepository(
         dataStore.data.map { it[KEY_ONBOARDING_DONE] ?: false }
 
     suspend fun setOnboardingComplete() {
-        dataStore.edit { it[KEY_ONBOARDING_DONE] = true }
+        dataStore.edit {
+            it[KEY_ONBOARDING_DONE] = true
+            it[KEY_ONBOARDING_VERSION] = CURRENT_ONBOARDING_VERSION
+        }
+    }
+
+    // Which onboarding a completed user went through. Version 2 added
+    // gender, location, SMS and contacts; an earlier user is shown just those.
+    private val KEY_ONBOARDING_VERSION = intPreferencesKey("onboarding_version")
+
+    val onboardingVersion: Flow<Int> = dataStore.data.map { it[KEY_ONBOARDING_VERSION] ?: 1 }
+
+    suspend fun setGender(gender: Gender) {
+        dataStore.edit { it[KEY_PROFILE_GENDER] = gender.name }
     }
 
     // ── Plan 2: User Profile ──────────────────────────────────────────────────
@@ -41,6 +54,7 @@ class UserPreferencesRepository(
     private val KEY_PROFILE_AGE       = intPreferencesKey("profile_age")
     private val KEY_PROFILE_HEIGHT_CM = floatPreferencesKey("profile_height_cm")
     private val KEY_PROFILE_WEIGHT_KG = floatPreferencesKey("profile_weight_kg")
+    private val KEY_PROFILE_GENDER    = stringPreferencesKey("profile_gender")
 
     val userProfile: Flow<UserProfile?> = dataStore.data.map { prefs ->
         val name = prefs[KEY_PROFILE_NAME] ?: return@map null
@@ -48,7 +62,8 @@ class UserPreferencesRepository(
             name     = name,
             age      = prefs[KEY_PROFILE_AGE]       ?: 0,
             heightCm = prefs[KEY_PROFILE_HEIGHT_CM] ?: 0f,
-            weightKg = prefs[KEY_PROFILE_WEIGHT_KG] ?: 0f
+            weightKg = prefs[KEY_PROFILE_WEIGHT_KG] ?: 0f,
+            gender   = Gender.fromKey(prefs[KEY_PROFILE_GENDER])
         )
     }
 
@@ -58,6 +73,7 @@ class UserPreferencesRepository(
             it[KEY_PROFILE_AGE]       = profile.age
             it[KEY_PROFILE_HEIGHT_CM] = profile.heightCm
             it[KEY_PROFILE_WEIGHT_KG] = profile.weightKg
+            if (profile.gender != null) it[KEY_PROFILE_GENDER] = profile.gender.name
         }
     }
 
@@ -165,15 +181,6 @@ class UserPreferencesRepository(
             // Bounded so the set cannot grow without limit across a long install.
             prefs[KEY_NOTIFIED_ALERT_IDS] = (current + identifier).toList().takeLast(300).toSet()
         }
-    }
-
-    // ── Permission State ─────────────────────────────────────────────────────
-    private val KEY_LOCATION_PERMISSION_SKIPPED = booleanPreferencesKey("location_permission_skipped")
-
-    val locationPermissionSkipped: Flow<Boolean> = dataStore.data.map { it[KEY_LOCATION_PERMISSION_SKIPPED] ?: false }
-
-    suspend fun setLocationPermissionSkipped(skipped: Boolean) {
-        dataStore.edit { it[KEY_LOCATION_PERMISSION_SKIPPED] = skipped }
     }
 
     // ── Legacy clean-up markers ──────────────────────────────────────────────
@@ -550,5 +557,25 @@ data class UserProfile(
     val name:     String,
     val age:      Int,
     val heightCm: Float,
-    val weightKg: Float
+    val weightKg: Float,
+    /** Null for profiles created before the question was asked. */
+    val gender:   Gender? = null
 )
+
+/**
+ * As the user describes themself. Used for the sex-specific weighting of the
+ * strain (TRIMP) formula and for showing cycle tracking; nothing else.
+ */
+enum class Gender(val label: String) {
+    MALE("Male"),
+    FEMALE("Female"),
+    NON_BINARY("Non-binary"),
+    UNSPECIFIED("Prefer not to say");
+
+    companion object {
+        fun fromKey(key: String?): Gender? = entries.firstOrNull { it.name == key }
+    }
+}
+
+/** The onboarding a new install goes through; see UserPreferencesRepository.onboardingVersion. */
+const val CURRENT_ONBOARDING_VERSION = 2

@@ -5,6 +5,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
 import com.bipss.app.R
@@ -245,3 +246,47 @@ fun ScanPulse(
         }
     }
 }
+
+/**
+ * One radio row per [com.bipss.app.data.Gender]. It adjusts the strain
+ * formula's weighting and whether cycle tracking is offered - nothing else -
+ * and says so.
+ */
+@Composable
+fun GenderSelector(
+    selected: com.bipss.app.data.Gender?,
+    onSelect: (com.bipss.app.data.Gender) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = BipssTheme.colors
+    BipssCard(modifier = modifier, contentPadding = PaddingValues(vertical = Space.xs)) {
+        com.bipss.app.data.Gender.entries.forEachIndexed { i, g ->
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clickable { onSelect(g) }
+                    .padding(horizontal = Space.l, vertical = Space.m),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    g.label,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = colors.textPrimary,
+                    modifier = Modifier.weight(1f)
+                )
+                androidx.compose.material3.RadioButton(
+                    selected = g == selected,
+                    onClick = { onSelect(g) },
+                    colors = androidx.compose.material3.RadioButtonDefaults.colors(
+                        selectedColor = MaterialTheme.colorScheme.primary,
+                        unselectedColor = colors.borderStrong
+                    )
+                )
+            }
+            if (i < com.bipss.app.data.Gender.entries.lastIndex) {
+                Box(Modifier.padding(horizontal = Space.l)) { HairlineDivider() }
+            }
+        }
+    }
+}
+

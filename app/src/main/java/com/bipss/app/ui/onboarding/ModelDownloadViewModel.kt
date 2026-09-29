@@ -5,17 +5,27 @@ import androidx.lifecycle.viewModelScope
 import com.bipss.app.ai.ChatbotEngine
 import com.bipss.app.ai.DownloadProgress
 import com.bipss.app.ai.ModelDownloadManager
+import com.bipss.app.ai.isModelDownloadConfigured
 import com.bipss.app.data.UserPreferencesRepository
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 data class ModelDownloadUiState(
+    /** False in a build with no model manifest configured: there is nothing to download. */
+    val configured: Boolean = isModelDownloadConfigured,
     val progress: DownloadProgress = DownloadProgress.Idle,
-    /** Fetched from the real manifest, not a guess. Null while unknown/unreachable. */
+    val checking: Boolean = false,
+    /** From the real manifest, fetched only after the user asked. Null until then. */
     val manifestSizeMb: Int? = null,
     val manifestCheckFailed: Boolean = false,
 )
 
+/**
+ * Step 4. Nothing touches the network until the user taps: the first tap
+ * reads the manifest so the real download size can be shown, the second
+ * starts the download.
+ */
 class ModelDownloadViewModel(
     private val modelDownloadManager: ModelDownloadManager,
     private val chatbotEngine:        ChatbotEngine,
@@ -25,28 +35,35 @@ class ModelDownloadViewModel(
     private val _uiState = MutableStateFlow(ModelDownloadUiState())
     val uiState: StateFlow<ModelDownloadUiState> = _uiState.asStateFlow()
 
+    private var downloadJob: Job? = null
+
     init {
         viewModelScope.launch {
-            val installed = prefsRepo.installedModelVersion.first()
-            if (installed != null) {
+            // Local only: a model installed earlier (e.g. before a catch-up) is just shown as ready.
+            if (prefsRepo.installedModelVersion.first() != null) {
                 _uiState.update { it.copy(progress = DownloadProgress.AlreadyUpToDate) }
-            } else {
-                // Ask the manifest what it actually weighs before showing any
-                // number — no placeholder size is shown if this fails (e.g.
-                // MODEL_MANIFEST_URL not yet pointed at a real file).
-                val manifest = modelDownloadManager.fetchManifestPublic()
-                _uiState.update {
-                    it.copy(
-                        manifestSizeMb = manifest?.let { m -> (m.sizeBytes / 1_048_576L).toInt() },
-                        manifestCheckFailed = manifest == null
-                    )
-                }
+            }
+        }
+    }
+
+    fun checkSize() {
+        if (_uiState.value.checking) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(checking = true, manifestCheckFailed = false) }
+            val manifest = modelDownloadManager.fetchManifestPublic()
+            _uiState.update {
+                it.copy(
+                    checking = false,
+                    manifestSizeMb = manifest?.let { m -> (m.sizeBytes / 1_048_576L).toInt() },
+                    manifestCheckFailed = manifest == null
+                )
             }
         }
     }
 
     fun startDownload() {
-        viewModelScope.launch {
+        if (downloadJob?.isActive == true) return
+        downloadJob = viewModelScope.launch {
             modelDownloadManager.downloadModelIfNeeded().collect { progress ->
                 _uiState.update { it.copy(progress = progress) }
                 if (progress is DownloadProgress.Success) {
@@ -57,10 +74,13 @@ class ModelDownloadViewModel(
         }
     }
 
-    fun completeOnboarding(navigate: () -> Unit) {
-        viewModelScope.launch {
-            prefsRepo.setOnboardingComplete()
-            navigate()
-        }
+    /**
+     * Stops a download in progress. The partial file is kept, and a later
+     * download from Settings resumes from it.
+     */
+    fun stopDownload() {
+        downloadJob?.cancel()
+        downloadJob = null
+        _uiState.update { it.copy(progress = DownloadProgress.Idle) }
     }
 }

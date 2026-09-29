@@ -3,12 +3,14 @@ package com.bipss.app.ui.onboarding
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Cake
 import androidx.compose.material.icons.rounded.CalendarToday
+import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.Height
 import androidx.compose.material.icons.rounded.MonitorWeight
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Shield
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -17,15 +19,21 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
-import com.bipss.app.navigation.Routes
 import com.bipss.app.ui.components.BipssTextField
+import com.bipss.app.ui.components.GenderSelector
 import com.bipss.app.ui.components.InfoBanner
 import com.bipss.app.ui.components.OnboardingScaffold
 import com.bipss.app.ui.components.PrimaryButton
+import com.bipss.app.ui.components.SecondaryButton
 import com.bipss.app.ui.theme.BipssTheme
 import com.bipss.app.ui.theme.Space
 import org.koin.androidx.compose.koinViewModel
 
+/**
+ * Step 2: the profile. Also opened from Settings in edit mode, which is where
+ * Health Connect is offered - it is an opt-in, not a dialog raised on the way
+ * through setup.
+ */
 @Composable
 fun OnboardingProfileScreen(
     navController: NavController,
@@ -35,27 +43,17 @@ fun OnboardingProfileScreen(
     val state by vm.uiState.collectAsStateWithLifecycle()
     val colors = BipssTheme.colors
 
-    // Ask for Health Connect write access up front so the profile save can
-    // actually land there — no-ops harmlessly if Health Connect isn't present.
     val healthConnectPermissionLauncher = rememberLauncherForActivityResult(
         contract = vm.healthConnectPermissionContract()
-    ) { /* granted or not — writeProfile() re-checks and degrades gracefully */ }
+    ) { vm.refreshHealthConnect() }
 
     LaunchedEffect(isEditMode) { if (isEditMode) vm.loadExistingProfile() }
-    LaunchedEffect(Unit) {
-        if (!isEditMode && vm.healthConnectAvailable) {
-            healthConnectPermissionLauncher.launch(vm.healthConnectPermissions)
-        }
-    }
 
     OnboardingScaffold(
-        step = if (isEditMode) null else 0,
-        totalSteps = 3,
+        step = if (isEditMode) null else OnboardingStep.indexOf(OnboardingStep.PROFILE, catchUp = false),
+        totalSteps = OnboardingStep.TOTAL,
         title = if (isEditMode) "Edit profile" else "About you",
-        subtitle = if (isEditMode)
-            "Update the details your baselines are calculated from."
-        else
-            "These four numbers anchor every baseline BIPSS builds for you.",
+        subtitle = "Your age sets the heart-rate range your strain is measured against.",
         onBack = if (isEditMode || navController.previousBackStackEntry != null) {
             { navController.popBackStack() }
         } else null,
@@ -65,8 +63,8 @@ fun OnboardingProfileScreen(
                 enabled = state.isFormValid,
                 loading = state.isSaving,
                 onClick = {
-                    if (isEditMode) vm.onSaveEdited { navController.popBackStack() }
-                    else vm.onContinue { navController.navigate(Routes.ONBOARDING_CONNECT_BAND) }
+                    if (isEditMode) vm.onSave { navController.popBackStack() }
+                    else vm.onSave { navController.goToNextOnboardingStep(OnboardingStep.PROFILE, catchUp = false) }
                 }
             )
         }
@@ -121,10 +119,41 @@ fun OnboardingProfileScreen(
         }
 
         Spacer(Modifier.height(Space.xxl))
+        Text(
+            "How do you describe yourself?",
+            style = MaterialTheme.typography.titleMedium,
+            color = colors.textPrimary
+        )
+        Spacer(Modifier.height(Space.m))
+        GenderSelector(selected = state.gender, onSelect = vm::onGenderChange)
+        Spacer(Modifier.height(Space.m))
+        GenderNote()
+
+        Spacer(Modifier.height(Space.xxl))
         InfoBanner(
-            text = "Saved to Health Connect and to this device. Your vitals never leave the phone unless you turn on sharing.",
+            text = "Kept on this phone. Height and weight aren't used in any score" +
+                if (isEditMode && vm.healthConnectAvailable) " - they're saved to Health Connect if you allow it below."
+                else ".",
             icon = Icons.Rounded.Shield,
             tint = colors.bandNormal,
         )
+
+        if (isEditMode && vm.healthConnectAvailable) {
+            Spacer(Modifier.height(Space.l))
+            if (state.healthConnectGranted) {
+                Text(
+                    "Health Connect is allowed: saving also updates your height and weight there.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.textSecondary
+                )
+            } else {
+                SecondaryButton(
+                    text = "Also save to Health Connect",
+                    leadingIcon = Icons.Rounded.Favorite,
+                    onClick = { healthConnectPermissionLauncher.launch(vm.healthConnectPermissions) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
     }
 }

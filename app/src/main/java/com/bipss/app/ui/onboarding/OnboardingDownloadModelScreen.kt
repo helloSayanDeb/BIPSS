@@ -1,7 +1,5 @@
 package com.bipss.app.ui.onboarding
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -23,13 +21,16 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.bipss.app.ai.DownloadProgress
-import com.bipss.app.navigation.Routes
 import com.bipss.app.ui.components.*
 import com.bipss.app.ui.theme.BipssTheme
 import com.bipss.app.ui.theme.MetricValue
 import com.bipss.app.ui.theme.Space
 import org.koin.androidx.compose.koinViewModel
 
+/**
+ * Step 4: the optional on-device model. In a build without a model to offer
+ * it says so and moves on; otherwise nothing is fetched until the user taps.
+ */
 @Composable
 fun OnboardingDownloadModelScreen(
     navController: NavController,
@@ -44,46 +45,53 @@ fun OnboardingDownloadModelScreen(
                  progress is DownloadProgress.Downloading ||
                  progress is DownloadProgress.Verifying
 
-    val finish: () -> Unit = {
-        vm.completeOnboarding {
-            navController.navigate(Routes.DASHBOARD_TODAY) {
-                popUpTo(Routes.ONBOARDING_WELCOME) { inclusive = true }
-            }
-        }
-    }
-
-    val sizeSuffix = state.manifestSizeMb?.let { " (${it} MB)" } ?: ""
+    val next: () -> Unit = { navController.goToNextOnboardingStep(OnboardingStep.MODEL, catchUp = false) }
 
     OnboardingScaffold(
-        step = 2,
-        totalSteps = 3,
-        title = "Add on-device intelligence",
-        subtitle = "An optional language model$sizeSuffix that runs entirely on your phone — nothing is sent to a server.",
+        step = OnboardingStep.indexOf(OnboardingStep.MODEL, catchUp = false),
+        totalSteps = OnboardingStep.TOTAL,
+        title = "On-device AI model",
+        subtitle = if (state.configured)
+            "Optional. A language model that runs entirely on your phone, so your questions aren't sent to a server."
+        else
+            "Optional, and not available yet.",
         onBack = { navController.popBackStack() },
         footer = {
-            PrimaryButton(
-                text = when {
-                    isDone -> "Finish setup"
-                    isBusy -> "Downloading…"
-                    state.manifestSizeMb != null -> "Download  ·  ${state.manifestSizeMb} MB"
-                    else -> "Download"
-                },
-                loading = isBusy,
-                enabled = !state.manifestCheckFailed || isDone,
-                onClick = { if (isDone) finish() else vm.startDownload() }
-            )
-            AnimatedVisibility(visible = !isDone) {
-                Column {
+            when {
+                !state.configured || isDone -> PrimaryButton("Continue", onClick = next)
+                isBusy -> {
+                    PrimaryButton("Downloading…", onClick = {}, loading = true)
                     Spacer(Modifier.height(Space.s))
-                    GhostButton(
-                        text = "Maybe later",
-                        onClick = finish,
-                        modifier = Modifier.fillMaxWidth()
+                    GhostButton("Stop and continue", onClick = { vm.stopDownload(); next() },
+                                modifier = Modifier.fillMaxWidth())
+                }
+                state.manifestSizeMb != null -> {
+                    PrimaryButton("Download  ·  ${state.manifestSizeMb} MB", onClick = vm::startDownload)
+                    Spacer(Modifier.height(Space.s))
+                    GhostButton("Not now", onClick = next, modifier = Modifier.fillMaxWidth())
+                }
+                else -> {
+                    PrimaryButton(
+                        text = if (state.manifestCheckFailed) "Try again" else "Check download size",
+                        onClick = vm::checkSize,
+                        loading = state.checking
                     )
+                    Spacer(Modifier.height(Space.s))
+                    GhostButton("Not now", onClick = next, modifier = Modifier.fillMaxWidth())
                 }
             }
         }
     ) {
+        if (!state.configured) {
+            InfoBanner(
+                text = "No on-device model is available for this version of BIPSS yet. The Coach tab uses " +
+                    "rule-based replies instead, and everything else works fully without a model.",
+                icon = Icons.Rounded.Info,
+                tint = colors.bandMonitor,
+            )
+            return@OnboardingScaffold
+        }
+
         SectionLabel("What the model adds")
         Spacer(Modifier.height(Space.m))
         BipssCard {
@@ -104,34 +112,30 @@ fun OnboardingDownloadModelScreen(
             FeatureRow(
                 icon = Icons.Rounded.TipsAndUpdates,
                 tint = colors.bandMonitor,
-                title = "Personalised action plan",
-                body = "Turns the current risk picture into concrete next steps."
+                title = "Suggested next steps",
+                body = "Turns the current picture into concrete things you can do."
             )
         }
 
         Spacer(Modifier.height(Space.l))
         InfoBanner(
-            text = "Metrics, risk scores, alerts and offline forecasts all work fully without this. You can add it any time from Settings.",
+            text = "Metrics, scores and alerts all work fully without it. You can add it any time from Settings.",
             icon = Icons.Rounded.Info,
             tint = colors.bandNormal,
         )
 
-        AnimatedVisibility(visible = state.manifestCheckFailed && !isDone) {
-            Column {
-                Spacer(Modifier.height(Space.m))
-                InfoBanner(
-                    text = "No model is published yet — the download link hasn't been configured for this build. Skip for now.",
-                    icon = Icons.Rounded.Info,
-                    tint = colors.bandMonitor,
-                )
-            }
+        if (state.manifestCheckFailed && !isBusy && !isDone) {
+            Spacer(Modifier.height(Space.m))
+            InfoBanner(
+                text = "Couldn't reach the model server. Check your connection, or skip this for now.",
+                icon = Icons.Rounded.Info,
+                tint = colors.bandMonitor,
+            )
         }
 
-        AnimatedVisibility(visible = isBusy || isDone || progress is DownloadProgress.Failure) {
-            Column {
-                Spacer(Modifier.height(Space.xl))
-                DownloadStatusCard(progress)
-            }
+        if (isBusy || isDone || progress is DownloadProgress.Failure) {
+            Spacer(Modifier.height(Space.xl))
+            DownloadStatusCard(progress)
         }
     }
 }
@@ -182,7 +186,8 @@ private fun DownloadStatusCard(progress: DownloadProgress) {
                 )
                 Spacer(Modifier.height(Space.s))
                 Text(
-                    "About ${progress.estimatedSecondsRemaining}s remaining · keep the app open",
+                    (if (progress.estimatedSecondsRemaining > 0) "About ${progress.estimatedSecondsRemaining}s remaining · " else "") +
+                        "keep BIPSS open while it downloads",
                     style = MaterialTheme.typography.bodySmall,
                     color = colors.textTertiary
                 )
@@ -202,7 +207,7 @@ private fun DownloadStatusCard(progress: DownloadProgress) {
                             color = colors.textPrimary
                         )
                         Text(
-                            "Chat and AI insights are unlocked.",
+                            "The Coach tab now answers with the on-device model.",
                             style = MaterialTheme.typography.bodySmall,
                             color = colors.textSecondary
                         )

@@ -56,7 +56,7 @@ class HealthConnectRepository(private val context: Context) {
 
     /** Writes height/weight. No-ops silently if Health Connect isn't available or permission was denied. */
     suspend fun writeProfile(heightCm: Float, weightKg: Float) {
-        if (!isAvailable()) return
+        if (!isAvailable() || !hasAllPermissions()) return
         try {
             val client = HealthConnectClient.getOrCreate(context)
             val now = ZonedDateTime.now()

@@ -100,6 +100,12 @@ class CpcbAqiFetcher(
      * [MAX_STATION_KM]. Returns null without coordinates (there is then no basis
      * for calling any station "yours") and when no station is close enough.
      */
+    /** Why the last [fetchAqi] returned what it did - lets setup say "no station here" rather than "failed". */
+    enum class Outcome { NOT_RUN, OK, NOT_CONFIGURED, NO_LOCATION, FAILED, NO_STATION_NEARBY }
+
+    @Volatile var lastOutcome: Outcome = Outcome.NOT_RUN
+        private set
+
     suspend fun fetchAqi(
         state: String?,
         lat:   Double?,
@@ -107,12 +113,15 @@ class CpcbAqiFetcher(
     ): AqiSnapshot? = withContext(Dispatchers.IO) {
         if (!isConfigured) {
             Log.w(TAG, "CPCB API key not configured - AQI will read as unavailable")
+            lastOutcome = Outcome.NOT_CONFIGURED
             return@withContext null
         }
         if (lat == null || lon == null) {
             Log.w(TAG, "No location available - not querying CPCB")
+            lastOutcome = Outcome.NO_LOCATION
             return@withContext null
         }
+        lastOutcome = Outcome.FAILED
         try {
             val url = CpcbUrlBuilder.build(apiKey, state, LIMIT)
             val resp = okHttpClient.newCall(Request.Builder().url(url).build()).execute()
@@ -151,9 +160,11 @@ class CpcbAqiFetcher(
                 nearest == null -> null
                 nearest.third > MAX_STATION_KM -> {
                     Log.w(TAG, "Nearest CPCB station is ${nearest.third.toInt()} km away - not using it")
+                    lastOutcome = Outcome.NO_STATION_NEARBY
                     null
                 }
                 else -> toSnapshot(nearest.first, nearest.second, nearest.third)
+                    ?.also { lastOutcome = Outcome.OK }
             }
         }
     } catch (e: Exception) {

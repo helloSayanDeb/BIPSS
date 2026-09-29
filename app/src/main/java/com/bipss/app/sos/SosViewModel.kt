@@ -81,6 +81,24 @@ class SosViewModel(
     private val _state = MutableStateFlow<SosUiState>(SosUiState.Idle)
     val state: StateFlow<SosUiState> = _state.asStateFlow()
 
+    private val _readiness = MutableStateFlow<Set<SosBlocker>>(emptySet())
+    /**
+     * What would stop an SOS right now, for the persistent Home warning.
+     * Contacts are observed; SMS permission cannot be, so the screen calls
+     * [refreshReadiness] when it resumes.
+     */
+    val readiness: StateFlow<Set<SosBlocker>> = _readiness.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            emergencyContactDao.all().collect { refreshReadiness() }
+        }
+    }
+
+    fun refreshReadiness() {
+        viewModelScope.launch { _readiness.value = checkBlockers().first }
+    }
+
     private var countdownJob: Job? = null
     private var locationJob: Deferred<LocationFix?>? = null
     private var triggerStartMs: Long = 0L

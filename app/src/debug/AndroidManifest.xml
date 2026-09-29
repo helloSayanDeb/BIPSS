@@ -14,6 +14,7 @@
                 <action android:name="com.bipss.app.debug.SIM_START" />
                 <action android:name="com.bipss.app.debug.SIM_STOP" />
                 <action android:name="com.bipss.app.debug.ANALYSE_SLEEP" />
+                <action android:name="com.bipss.app.debug.ONBOARDING_VERSION" />
             </intent-filter>
         </receiver>
     </application>

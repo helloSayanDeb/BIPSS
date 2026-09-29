@@ -2,6 +2,7 @@ package com.bipss.app.ui.onboarding
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.bipss.app.data.Gender
 import com.bipss.app.data.UserPreferencesRepository
 import com.bipss.app.data.UserProfile
 import com.bipss.app.data.repository.HealthConnectRepository
@@ -17,16 +18,19 @@ data class OnboardingProfileUiState(
     val age:         String  = "",
     val height:      String  = "",
     val weight:      String  = "",
+    val gender:      Gender? = null,
     val nameError:   String? = null,
     val ageError:    String? = null,
     val heightError: String? = null,
     val weightError: String? = null,
-    val isSaving:    Boolean = false
+    val isSaving:    Boolean = false,
+    val healthConnectGranted: Boolean = false
 ) {
     val isFormValid: Boolean
         get() = name.isNotBlank() && nameError == null &&
                 ageError == null && heightError == null && weightError == null &&
-                age.isNotBlank() && height.isNotBlank() && weight.isNotBlank()
+                age.isNotBlank() && height.isNotBlank() && weight.isNotBlank() &&
+                gender != null
 }
 
 class OnboardingProfileViewModel(
@@ -34,7 +38,7 @@ class OnboardingProfileViewModel(
     private val healthConnectRepo:  HealthConnectRepository
 ) : ViewModel() {
 
-    /** Whether the Health Connect permission request should be launched (see the screen). */
+    /** Whether Health Connect is on this phone at all (the edit screen offers it only then). */
     val healthConnectAvailable: Boolean get() = healthConnectRepo.isAvailable()
     fun healthConnectPermissionContract() = healthConnectRepo.permissionRequestContract()
     val healthConnectPermissions: Set<String> get() = HealthConnectRepository.PERMISSIONS
@@ -44,16 +48,25 @@ class OnboardingProfileViewModel(
 
     fun loadExistingProfile() {
         viewModelScope.launch {
+            refreshHealthConnectNow()
             val profile = repository.userProfile.first() ?: return@launch
             _uiState.update {
                 it.copy(
                     name   = profile.name,
                     age    = profile.age.toString(),
                     height = profile.heightCm.toInt().toString(),
-                    weight = profile.weightKg.toString()
+                    weight = profile.weightKg.toString(),
+                    gender = profile.gender
                 )
             }
         }
+    }
+
+    fun refreshHealthConnect() { viewModelScope.launch { refreshHealthConnectNow() } }
+
+    private suspend fun refreshHealthConnectNow() {
+        val granted = healthConnectAvailable && runCatching { healthConnectRepo.hasAllPermissions() }.getOrDefault(false)
+        _uiState.update { it.copy(healthConnectGranted = granted) }
     }
 
     fun onNameChange(v: String) {
@@ -107,7 +120,11 @@ class OnboardingProfileViewModel(
         }
     }
 
-    fun onContinue(onSuccess: () -> Unit) {
+    fun onGenderChange(g: Gender) { _uiState.update { it.copy(gender = g) } }
+
+    /** Saves the profile, then [onSuccess] navigates (onward in setup, or back in edit mode). */
+    fun onSave(onSuccess: () -> Unit) {
+        if (_uiState.value.isSaving) return
         viewModelScope.launch {
             _uiState.update { it.copy(isSaving = true) }
             val state = _uiState.value
@@ -115,16 +132,14 @@ class OnboardingProfileViewModel(
                 name     = state.name.trim(),
                 age      = state.age.toInt(),
                 heightCm = state.height.toFloat(),
-                weightKg = state.weight.toFloat()
+                weightKg = state.weight.toFloat(),
+                gender   = state.gender
             )
             repository.saveUserProfile(profile)
+            // No-op unless the user allowed Health Connect (from the edit screen).
             healthConnectRepo.writeProfile(profile.heightCm, profile.weightKg)
             _uiState.update { it.copy(isSaving = false) }
             onSuccess()
         }
-    }
-
-    fun onSaveEdited(onSuccess: () -> Unit) {
-        onContinue(onSuccess)  // same logic; navigation target differs (handled in screen)
     }
 }

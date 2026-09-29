@@ -2,11 +2,14 @@ package com.bipss.app
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.bipss.app.data.CURRENT_ONBOARDING_VERSION
 import com.bipss.app.data.UserPreferencesRepository
 import com.bipss.app.navigation.Routes
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -44,14 +47,18 @@ class MainViewModel(
             if (userPreferencesRepository.onboardingResetPending.first()) {
                 userPreferencesRepository.resetOnboarding()
             }
-            userPreferencesRepository.hasCompletedOnboarding.collect { done ->
-                _uiState.update {
-                    it.copy(
-                        isLoading        = false,
-                        startDestination = if (done) Routes.DASHBOARD_TODAY
-                                           else      Routes.ONBOARDING_WELCOME
-                    )
+            combine(
+                userPreferencesRepository.hasCompletedOnboarding,
+                userPreferencesRepository.onboardingVersion
+            ) { done, version ->
+                when {
+                    !done -> Routes.ONBOARDING_WELCOME
+                    // Finished an earlier onboarding: show only what it never asked.
+                    version < CURRENT_ONBOARDING_VERSION -> Routes.ONBOARDING_GENDER
+                    else -> Routes.DASHBOARD_TODAY
                 }
+            }.distinctUntilChanged().collect { start ->
+                _uiState.update { it.copy(isLoading = false, startDestination = start) }
             }
         }
     }

@@ -1,5 +1,7 @@
 package com.bipss.app.sos
 
+import kotlinx.coroutines.channels.awaitClose
+
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.PendingIntent
@@ -85,6 +87,41 @@ class LocationHelper(private val context: Context) {
             null
         }
     }
+
+    /**
+     * High-accuracy fixes as they arrive, for the setup screen's calibration
+     * window: the caller shows each fix's accuracy and stops when it is good
+     * enough or time runs out. Nothing without permission.
+     */
+    @SuppressLint("MissingPermission")
+    fun calibrationFixes(intervalMs: Long = 500L): kotlinx.coroutines.flow.Flow<LocationFix> =
+        kotlinx.coroutines.flow.callbackFlow {
+            if (!hasAnyPermission()) { close(); return@callbackFlow }
+            val approximate = !hasFinePermission()
+            val request = com.google.android.gms.location.LocationRequest.Builder(
+                if (approximate) Priority.PRIORITY_BALANCED_POWER_ACCURACY else Priority.PRIORITY_HIGH_ACCURACY,
+                intervalMs
+            ).setMinUpdateIntervalMillis(intervalMs).build()
+            val callback = object : com.google.android.gms.location.LocationCallback() {
+                override fun onLocationResult(result: com.google.android.gms.location.LocationResult) {
+                    result.lastLocation?.let {
+                        trySend(LocationFix(it.latitude, it.longitude,
+                            if (it.hasAccuracy()) it.accuracy else null, it.time, approximate))
+                    }
+                }
+            }
+            // A provider that refuses (or a permission revoked a moment ago)
+            // just ends calibration with no fixes; it is not an error the
+            // caller has to survive.
+            try {
+                fusedLocationClient.requestLocationUpdates(request, callback, android.os.Looper.getMainLooper())
+                    .addOnFailureListener { e -> Log.w("LocationHelper", "Location updates refused: ${e.message}"); close() }
+            } catch (e: SecurityException) {
+                Log.w("LocationHelper", "Location permission gone before calibration: ${e.message}")
+                close()
+            }
+            awaitClose { fusedLocationClient.removeLocationUpdates(callback) }
+        }
 
     /**
      * Reverse-geocodes the current position into an Indian district and state.

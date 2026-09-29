@@ -78,15 +78,15 @@ fun OnboardingWelcomeScreen(navController: NavController) {
             FeatureRow(
                 icon = Icons.Rounded.Sensors,
                 tint = colors.air,
-                title = "Works without a signal",
-                body = "Heat, air-quality and disaster risk keep updating from cached data and live band sensors."
+                title = "Works offline",
+                body = "Your band's readings and scores work without a connection. Weather, air quality and alerts refresh when you're back online."
             )
             Spacer(Modifier.height(Space.xl))
             FeatureRow(
                 icon = Icons.Rounded.Shield,
                 tint = colors.bandNormal,
                 title = "Private by default",
-                body = "Analysis runs on your device. Nothing is shared unless you switch it on."
+                body = "Analysis runs on your phone. Your health data leaves it only if you switch on sharing or backup."
             )
 
             Spacer(Modifier.weight(1f))
@@ -94,11 +94,11 @@ fun OnboardingWelcomeScreen(navController: NavController) {
 
             PrimaryButton(
                 text = "Get started",
-                onClick = { navController.navigate(Routes.ONBOARDING_PROFILE) }
+                onClick = { navController.navigate(Routes.ONBOARDING_NOTIFICATIONS) }
             )
             Spacer(Modifier.height(Space.m))
             Text(
-                "Takes about a minute. You can skip the band and AI model for now.",
+                "Seven short steps. Anything optional can be skipped and set up later.",
                 style = MaterialTheme.typography.bodySmall,
                 color = colors.textTertiary,
                 textAlign = TextAlign.Center,

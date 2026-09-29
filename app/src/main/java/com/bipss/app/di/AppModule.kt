@@ -186,6 +186,9 @@ val appModule = module {
         ModelDownloadViewModel(get(), get(), get())
     }
 
+    viewModel { com.bipss.app.ui.onboarding.OnboardingLocationViewModel(get(), get(), get(), get()) }
+    viewModel { com.bipss.app.ui.onboarding.OnboardingContactsViewModel(get(), get(), get()) }
+
     viewModel {
         SettingsViewModel(get(), get(), get(), get(), get(), get(), get(), androidContext())
     }

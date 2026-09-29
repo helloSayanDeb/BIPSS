@@ -23,6 +23,7 @@ data class SettingsUiState(
     val userAge:        Int     = 0,
     val userHeightCm:   Float   = 0f,
     val userWeightKg:   Float   = 0f,
+    val userGender:     com.bipss.app.data.Gender? = null,
 
     val bandName:        String? = null,
     val bandMac:         String? = null,
@@ -116,6 +117,7 @@ class SettingsViewModel(
                         userAge         = profile?.age  ?: 0,
                         userHeightCm    = profile?.heightCm ?: 0f,
                         userWeightKg    = profile?.weightKg ?: 0f,
+                        userGender      = profile?.gender,
                         bandMac         = mac,
                         bandName        = bandName,
                         isBandConnected = connState is BleConnectionState.Connected,

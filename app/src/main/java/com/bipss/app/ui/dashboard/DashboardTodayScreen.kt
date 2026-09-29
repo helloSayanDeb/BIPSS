@@ -78,51 +78,12 @@ fun DashboardTodayScreen(
         SosUiState.Idle          -> Unit
     }
 
-    if (!locPermState.isGranted && !state.locationPermissionSkipped) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background)
-                .padding(LocalScaffoldPadding.current)
-                .padding(Space.xl),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(
-                    imageVector = Icons.Rounded.LocalHospital,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(64.dp)
-                )
-                Spacer(Modifier.height(Space.xl))
-                Text(
-                    "Location Permission",
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = colors.textPrimary
-                )
-                Spacer(Modifier.height(Space.m))
-                Text(
-                    "We need your location to find nearby hospitals for SOS and get accurate weather/AQI for the risk engine.",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = colors.textSecondary,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                )
-                Spacer(Modifier.height(Space.xxl))
-                androidx.compose.material3.Button(
-                    onClick = { locPermState.request() },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Grant Permission")
-                }
-                Spacer(Modifier.height(Space.m))
-                androidx.compose.material3.TextButton(
-                    onClick = { vm.skipLocationPermission() }
-                ) {
-                    Text("Continue without location", color = colors.textTertiary)
-                }
-            }
-        }
-        return
+    // What would stop an SOS right now. SMS permission can't be observed, so
+    // it is re-checked whenever Home comes back to the foreground.
+    val sosReadiness by sosVm.readiness.collectAsStateWithLifecycle()
+    androidx.lifecycle.compose.LifecycleResumeEffect(Unit) {
+        sosVm.refreshReadiness()
+        onPauseOrDispose { }
     }
 
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
@@ -153,6 +114,26 @@ fun DashboardTodayScreen(
                     )
                 }
                 DataModeChip(state.dataMode)
+            }
+
+            // Stays until fixed: an SOS that can't text anyone is worse than
+            // one that was never set up, because the user thinks it will.
+            // A phone that can't send SMS was told so during setup; contacts or a
+            // permission would not change that, so there is nothing to fix here.
+            val fixable = if (SosBlocker.NO_TELEPHONY in sosReadiness) emptySet() else sosReadiness
+            if (fixable.isNotEmpty()) {
+                Spacer(Modifier.height(Space.l))
+                InfoBanner(
+                    text = "SOS can't text anyone yet: " + buildList {
+                        if (SosBlocker.NO_SMS_PERMISSION in fixable) add("SMS permission is off")
+                        if (SosBlocker.NO_CONTACTS in fixable) add("no emergency contacts are saved")
+                    }.joinToString(" and ") + ".",
+                    icon = Icons.Rounded.LocalHospital,
+                    tint = colors.bandRisk,
+                    action = {
+                        GhostButton("Fix", onClick = { navController.navigate(Routes.SETTINGS_EMERGENCY) }, color = colors.bandRisk)
+                    }
+                )
             }
 
             Spacer(Modifier.height(Space.xl))

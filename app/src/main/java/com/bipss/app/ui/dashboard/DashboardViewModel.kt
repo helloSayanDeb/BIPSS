@@ -65,7 +65,6 @@ data class DashboardUiState(
     val isOnline:         Boolean                = true,
     val isRefreshing:     Boolean                = false,
 
-    val locationPermissionSkipped: Boolean       = false,
     /** A band is connected, whether or not it has a measured heart rate right now. */
     val bandConnected:    Boolean                = false
 ) {
@@ -130,7 +129,6 @@ class DashboardViewModel(
         observeRestingPrv()
         observeScoringInputs()
         observeBandConnection()
-        observePermissionState()
         loadCachedEnv()
     }
 
@@ -182,20 +180,6 @@ class DashboardViewModel(
     private fun observeBandConnection() {
         viewModelScope.launch {
             sensorRepo.bandConnected.collect { c -> _uiState.update { it.copy(bandConnected = c) } }
-        }
-    }
-
-    private fun observePermissionState() {
-        viewModelScope.launch {
-            prefsRepo.locationPermissionSkipped.collect { skipped ->
-                _uiState.update { it.copy(locationPermissionSkipped = skipped) }
-            }
-        }
-    }
-
-    fun skipLocationPermission() {
-        viewModelScope.launch {
-            prefsRepo.setLocationPermissionSkipped(true)
         }
     }
 
