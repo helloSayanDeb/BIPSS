@@ -7,6 +7,9 @@ import com.bipss.app.domain.environmental.ImdAlert
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
+import com.bipss.app.data.net.fetchText
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.w3c.dom.Element
@@ -239,14 +242,18 @@ object Geo {
  * Enrichment is cached by the alert's identifier (a CAP document never
  * changes once published), and at most [MAX_NEW_FETCHES_PER_SYNC] documents
  * are fetched per sync, so a long feed cannot turn one sync into dozens of
- * requests. An item not yet enriched is kept, as an advisory, and is
- * enriched on a later sync.
+ * requests. An item not yet enriched (over that cap, or out of the sync's
+ * time) is kept, as an advisory, and is enriched on a later sync.
  */
 class ImdCapEnricher(
     private val okHttpClient: OkHttpClient,
     private val prefs:        UserPreferencesRepository
 ) {
-    suspend fun enrich(items: List<ImdAlert>, nowMs: Long = System.currentTimeMillis()): List<ImdAlert> {
+    suspend fun enrich(
+        items:      List<ImdAlert>,
+        nowMs:      Long = System.currentTimeMillis(),
+        deadlineMs: Long = Long.MAX_VALUE
+    ): List<ImdAlert> {
         if (items.isEmpty()) return items
         val cache = prefs.capEnrichmentCache().toMutableMap()
         var fetched = 0
@@ -254,8 +261,10 @@ class ImdCapEnricher(
             cache[item.identifier]?.let { return@map it.applyTo(item) }
             val url = item.capXmlUrl ?: return@map item
             if (fetched >= MAX_NEW_FETCHES_PER_SYNC) return@map item
+            val timeLeftMs = deadlineMs - System.currentTimeMillis()
+            if (timeLeftMs <= 0) return@map item
             fetched++
-            val enrichment = fetchCap(url, nowMs)
+            val enrichment = withTimeoutOrNull(timeLeftMs) { fetchCap(url, nowMs) }
             if (enrichment == null) item else {
                 cache[item.identifier] = enrichment
                 enrichment.applyTo(item)
@@ -267,14 +276,15 @@ class ImdCapEnricher(
 
     private suspend fun fetchCap(url: String, nowMs: Long): CapEnrichment? = withContext(Dispatchers.IO) {
         try {
-            okHttpClient.newCall(Request.Builder().url(url).build()).execute().use { response ->
-                if (!response.isSuccessful) {
-                    Log.w(TAG, "CAP fetch failed: HTTP ${response.code}")
-                    return@withContext null
-                }
-                response.body?.string()?.let { CapAlertParser.parse(it, nowMs) }
-                    .also { if (it == null) Log.w(TAG, "CAP document unreadable: $url") }
+            val response = okHttpClient.fetchText(Request.Builder().url(url).build())
+            if (!response.isSuccessful) {
+                Log.w(TAG, "CAP fetch failed: HTTP ${response.code}")
+                return@withContext null
             }
+            response.body?.let { CapAlertParser.parse(it, nowMs) }
+                .also { if (it == null) Log.w(TAG, "CAP document unreadable: $url") }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.w(TAG, "CAP fetch error: ${e.message}")
             null

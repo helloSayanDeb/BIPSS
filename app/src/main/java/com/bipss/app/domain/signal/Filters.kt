@@ -100,7 +100,7 @@ class NlmsFilter(
     private val history = DoubleArray(channels * taps)   // [channel][tap], newest at tap 0
     private var refPowerAvg = 0.0
 
-    /** Last prediction of the artefact, for diagnostics and quality. */
+    /** Last prediction of the artefact, for debugging and quality. */
     var lastArtefact = 0.0
         private set
 

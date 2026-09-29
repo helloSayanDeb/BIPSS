@@ -15,6 +15,7 @@ import android.telephony.SubscriptionManager
 import android.util.Log
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.withTimeoutOrNull
+import android.location.Address
 import android.location.Geocoder
 import android.location.Location
 import android.Manifest
@@ -27,6 +28,7 @@ import com.google.android.gms.location.CurrentLocationRequest
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeout
@@ -54,9 +56,6 @@ class LocationHelper(private val context: Context) {
     fun hasAnyPermission(): Boolean = hasFinePermission() || ContextCompat.checkSelfPermission(
         context, Manifest.permission.ACCESS_COARSE_LOCATION
     ) == PackageManager.PERMISSION_GRANTED
-
-    suspend fun getCurrentLocation(): Pair<Double, Double>? =
-        getCurrentFix()?.let { it.lat to it.lon }
 
     /** A fresh fix, or null without permission, on failure, or after [timeoutMs]. */
     @SuppressLint("MissingPermission")
@@ -131,33 +130,55 @@ class LocationHelper(private val context: Context) {
      * warnings. Returns nulls rather than a guess when the geocoder is
      * unavailable (it needs network on most devices); the caller then falls
      * back to coordinate distance against the alert centroid, which works
-     * offline.
+     * offline. Gives up after [GEOCODE_TIMEOUT_MS].
      */
-    suspend fun getDistrictAndState(): Pair<String?, String?> = withContext(Dispatchers.IO) {
-        val loc = getCurrentLocation() ?: return@withContext null to null
-        resolveDistrictAndState(loc.first, loc.second)
-    }
-
     suspend fun resolveDistrictAndState(
         lat: Double,
         lon: Double
-    ): Pair<String?, String?> = withContext(Dispatchers.IO) {
-        try {
-            val geocoder = Geocoder(context, Locale("en", "IN"))
+    ): Pair<String?, String?> {
+        val address = withTimeoutOrNull(GEOCODE_TIMEOUT_MS) { geocode(lat, lon) } ?: return null to null
+        // subAdminArea is the district in Indian addresses; locality is the
+        // city, which is the usable fallback for metros where the district
+        // and city names coincide.
+        val district = address.subAdminArea?.takeIf { it.isNotBlank() }
+            ?: address.locality?.takeIf { it.isNotBlank() }
+        val state = address.adminArea?.takeIf { it.isNotBlank() }
+        return district to state
+    }
+
+    /**
+     * The first address for a position, or null. From API 33 the lookup is a
+     * callback, which a time limit can abandon; before that it is a blocking
+     * call that cannot be cut short.
+     */
+    private suspend fun geocode(lat: Double, lon: Double): Address? = try {
+        val geocoder = Geocoder(context, Locale("en", "IN"))
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            suspendCancellableCoroutine { cont ->
+                geocoder.getFromLocation(lat, lon, 1, object : Geocoder.GeocodeListener {
+                    override fun onGeocode(addresses: MutableList<Address>) {
+                        if (cont.isActive) cont.resume(addresses.firstOrNull())
+                    }
+
+                    override fun onError(errorMessage: String?) {
+                        Log.w("LocationHelper", "Reverse geocode failed: $errorMessage")
+                        if (cont.isActive) cont.resume(null)
+                    }
+                })
+            }
+        } else withContext(Dispatchers.IO) {
             @Suppress("DEPRECATION")
-            val address = geocoder.getFromLocation(lat, lon, 1)?.firstOrNull()
-                ?: return@withContext null to null
-            // subAdminArea is the district in Indian addresses; locality is the
-            // city, which is the usable fallback for metros where the district
-            // and city names coincide.
-            val district = address.subAdminArea?.takeIf { it.isNotBlank() }
-                ?: address.locality?.takeIf { it.isNotBlank() }
-            val state = address.adminArea?.takeIf { it.isNotBlank() }
-            district to state
-        } catch (e: Exception) {
-            android.util.Log.w("LocationHelper", "Reverse geocode failed: ${e.message}")
-            null to null
+            geocoder.getFromLocation(lat, lon, 1)?.firstOrNull()
         }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Log.w("LocationHelper", "Reverse geocode failed: ${e.message}")
+        null
+    }
+
+    private companion object {
+        const val GEOCODE_TIMEOUT_MS = 5_000L
     }
 }
 

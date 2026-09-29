@@ -99,7 +99,7 @@ class SignalPipeline(
     private var epochStartMs = 0L
     private val epoch = EpochAccumulator()
 
-    /** Wall times of recent beats (bounded), for diagnostics and tests. */
+    /** Wall times of recent beats (bounded), for debugging and tests. */
     val beatLog = ArrayDeque<Long>()
 
     /** Most recent quality verdict and its evidence, for the UI and tests. */

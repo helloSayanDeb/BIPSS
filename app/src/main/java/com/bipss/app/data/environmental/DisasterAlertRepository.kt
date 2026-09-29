@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
 
 private const val TAG = "DisasterAlertRepo"
 
@@ -53,6 +54,12 @@ class DisasterAlertRepository(
 
     /** A remembered position older than this is not "where the user is". */
     private val MAX_CACHED_LOCATION_AGE_MS = 24 * 3_600_000L
+
+    /**
+     * How long the sources of one sync have, together. Location setup allows
+     * the whole fetch 20 s, and the position fix and place lookup come first.
+     */
+    private val SOURCE_DEADLINE_MS = 12_000L
 
     /**
      * Assumed coverage radius for an alert that publishes no area.
@@ -133,12 +140,17 @@ class DisasterAlertRepository(
         // The sources are independent, so they are fetched side by side. In
         // sequence, one unreachable feed added its whole timeout to every sync
         // (four DNS failures took about 48 s) and held up the sources that
-        // were answering.
+        // were answering. They also share a deadline: a source that has not
+        // answered by then is cancelled and counts as unreachable, and the
+        // ones that did answer keep their results. Without it, stalled servers
+        // held the whole sync, and the setup screen waiting on it, for about
+        // two minutes (data.gov.in alone took 61 s to time out, 29 Sep 2026).
+        val deadline = System.currentTimeMillis() + SOURCE_DEADLINE_MS
         val (feeds, cpcb, meteo, advisories) = coroutineScope {
-            val alertsJob   = async { fetchAlertFeeds() }
-            val cpcbJob     = async { cpcbFetcher.fetchAqi(state, lat, lon) }
-            val meteoJob    = async { openMeteo.fetchCurrent(lat, lon) }
-            val advisoryJob = async { advisoryFetcher.fetchAdvisories() }
+            val alertsJob   = async { fetchAlertFeeds(deadline) }
+            val cpcbJob     = async { beforeDeadline("CPCB", deadline) { cpcbFetcher.fetchAqi(state, lat, lon) } }
+            val meteoJob    = async { beforeDeadline("Open-Meteo", deadline) { openMeteo.fetchCurrent(lat, lon) } }
+            val advisoryJob = async { beforeDeadline("WHO", deadline) { advisoryFetcher.fetchAdvisories() }.orEmpty() }
             Fetched(alertsJob.await(), cpcbJob.await(), meteoJob.await(), advisoryJob.await())
         }
 
@@ -224,6 +236,19 @@ class DisasterAlertRepository(
         return snapshot
     }
 
+    /** A finished result, so "finished with null" and "ran out of time" stay distinct. */
+    private class Finished<T>(val value: T)
+
+    /**
+     * [block]'s result, or null when it has not finished by [deadlineMs]. It is
+     * then cancelled, and with it the HTTP call it is waiting on.
+     */
+    private suspend fun <T> beforeDeadline(source: String, deadlineMs: Long, block: suspend () -> T): T? {
+        val finished = withTimeoutOrNull((deadlineMs - System.currentTimeMillis()).coerceAtLeast(0L)) { Finished(block()) }
+        if (finished == null) Log.w(TAG, "$source: no answer in time - cancelled")
+        return finished?.value
+    }
+
     /** What one sync fetched; see [doFetch]. */
     private data class Fetched(
         val feeds:      AlertFeeds,
@@ -240,13 +265,14 @@ class DisasterAlertRepository(
      * expiry, instruction, polygon). NDMA Sachet only when IMD cannot be read
      * or has nothing current.
      */
-    private suspend fun fetchAlertFeeds(): AlertFeeds {
+    private suspend fun fetchAlertFeeds(deadlineMs: Long): AlertFeeds {
         val now = System.currentTimeMillis()
-        val imd = imdParser.fetchImdAlerts()?.let { capEnricher.enrich(it, now) }
+        val imd = beforeDeadline("IMD", deadlineMs) { imdParser.fetchImdAlerts() }
+            ?.let { capEnricher.enrich(it, now, deadlineMs) }
         if (imd != null && imd.any { !it.isExpiredAt(now) }) return AlertFeeds(imd, listOf(SOURCE_IMD))
 
         Log.i(TAG, if (imd == null) "IMD unreachable - trying Sachet" else "Nothing current from IMD - trying Sachet")
-        val sachet = sachetFetcher.fetchAll()
+        val sachet = beforeDeadline("Sachet", deadlineMs) { sachetFetcher.fetchAll() }
         val checked = listOfNotNull(SOURCE_IMD.takeIf { imd != null }, SOURCE_SACHET.takeIf { sachet != null })
         // Null only when neither feed could be read.
         return AlertFeeds(if (sachet == null && imd == null) null else imd.orEmpty() + sachet.orEmpty(), checked)

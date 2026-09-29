@@ -564,7 +564,7 @@ val contextJson = """{"heartRate":72,"spO2":98,"skinTempC":36.5,
 val prompt = "Context: $contextJson\nUser: $question\nAssistant:"
 ```
 
-The model never sees raw sensor streams — only current values plus the rule engine's verdicts. **However, none of the plan's safety guardrails are implemented:** there is no system prompt, no "never contradict the rule engine's band" instruction, no non-diagnostic language constraint, no output length cap, and critically **no post-generation validation** that the model's answer agrees with `RiskAssessment.band`. A 270M model will drift; nothing currently stops it from talking a user down from AT_RISK. Gap `G-11`.
+The model never sees raw sensor streams — only current values plus the rule engine's verdicts. **However, none of the plan's safety guardrails are implemented:** there is no system prompt, no "never contradict the rule engine's band" instruction, no constraint keeping replies to plain, non-clinical language, no output length cap, and critically **no post-generation validation** that the model's answer agrees with `RiskAssessment.band`. A 270M model will drift; nothing currently stops it from talking a user down from AT_RISK. Gap `G-11`.
 
 ### 6.3 Runtime — GPU vs CPU
 
@@ -667,7 +667,7 @@ Whether data survives on the **board** is a firmware question and depends entire
 
 You described the pipeline as: sensors give waveform data → CircuitPython on the board converts it to values → sends to phone → app processes locally. That split is correct, and here is how I'd tighten it.
 
-**1. Never stream raw waveforms.** A 25 Hz 3-axis accelerometer at int16 is 150 B/s; a raw PPG waveform at 100 Hz is worse. Over BLE with a 23-byte MTU that is constant radio airtime and it will dominate the band's power budget. Keep doing the DSP on-board and send **features**: heart rate, HRV RMSSD, SpO₂, skin temp, and *activity counts* (band-passed accel magnitude summed per 30 s epoch) rather than raw axes. The one exception: keep raw accel available on demand for a short window if you later want fall-detection model input.
+**1. Never stream raw waveforms.** A 25 Hz 3-axis accelerometer at int16 is 150 B/s; a raw PPG waveform at 100 Hz is worse. Over BLE with a 23-byte MTU that is constant radio airtime and it will dominate the band's power budget. Keep doing the DSP on-board and send **features**: heart rate, pulse-rate variability (PRV, RMSSD), SpO₂, skin temp, and *activity counts* (band-passed accel magnitude summed per 30 s epoch) rather than raw axes. The one exception: keep raw accel available on demand for a short window if you later want fall-detection model input.
 
 **2. Add a sequence number and a band uptime counter to every frame.**
 

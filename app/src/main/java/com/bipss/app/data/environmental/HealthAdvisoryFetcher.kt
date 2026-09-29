@@ -3,6 +3,8 @@ package com.bipss.app.data.environmental
 import android.util.Log
 import com.bipss.app.domain.environmental.AdvisoryScope
 import com.bipss.app.domain.environmental.HealthAdvisory
+import com.bipss.app.data.net.fetchText
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -83,15 +85,14 @@ class HealthAdvisoryFetcher(private val okHttpClient: OkHttpClient) {
                 .url(DON_URL)
                 .header("Accept", "application/json")
                 .build()
-            val resp = okHttpClient.newCall(request).execute()
-            resp.use {
-                if (!it.isSuccessful) {
-                    Log.w(TAG, "WHO DON fetch failed: HTTP ${it.code}")
-                    return@withContext emptyList()
-                }
-                val body = it.body?.string() ?: return@withContext emptyList()
-                parseResponse(body, System.currentTimeMillis())
+            val resp = okHttpClient.fetchText(request)
+            if (!resp.isSuccessful) {
+                Log.w(TAG, "WHO DON fetch failed: HTTP ${resp.code}")
+                return@withContext emptyList()
             }
+            parseResponse(resp.body ?: return@withContext emptyList(), System.currentTimeMillis())
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "WHO DON fetch error: ${e.message}")
             emptyList()

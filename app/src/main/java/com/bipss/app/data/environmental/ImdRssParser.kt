@@ -3,6 +3,8 @@ package com.bipss.app.data.environmental
 import android.util.Log
 import com.bipss.app.domain.environmental.AlertSeverity
 import com.bipss.app.domain.environmental.ImdAlert
+import com.bipss.app.data.net.fetchText
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -36,15 +38,14 @@ class ImdRssParser(private val okHttpClient: OkHttpClient) {
      */
     suspend fun fetchImdAlerts(): List<ImdAlert>? = withContext(Dispatchers.IO) {
         try {
-            val request = Request.Builder().url(IMD_CAP_RSS_URL).build()
-            okHttpClient.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    Log.w(TAG, "RSS fetch failed: HTTP ${response.code}")
-                    return@withContext null
-                }
-                val xml = response.body?.string() ?: return@withContext null
-                parseRss(xml)
+            val response = okHttpClient.fetchText(Request.Builder().url(IMD_CAP_RSS_URL).build())
+            if (!response.isSuccessful) {
+                Log.w(TAG, "RSS fetch failed: HTTP ${response.code}")
+                return@withContext null
             }
+            parseRss(response.body ?: return@withContext null)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "IMD fetch error: ${e.message}")
             null

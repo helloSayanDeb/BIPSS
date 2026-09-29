@@ -3,6 +3,8 @@ package com.bipss.app.data.environmental
 import android.util.Log
 import com.bipss.app.domain.environmental.AlertSeverity
 import com.bipss.app.domain.environmental.ImdAlert
+import com.bipss.app.data.net.fetchText
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -92,15 +94,14 @@ class SachetJsonFetcher(private val okHttpClient: OkHttpClient) {
      */
     suspend fun fetchAll(): List<ImdAlert>? = withContext(Dispatchers.IO) {
         try {
-            val request = Request.Builder().url(SACHET_ALL_ALERTS_URL).build()
-            okHttpClient.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    Log.w(TAG, "Sachet bulk fetch failed: HTTP ${response.code}")
-                    return@withContext null
-                }
-                val body = response.body?.string() ?: return@withContext null
-                parseAll(body)
+            val response = okHttpClient.fetchText(Request.Builder().url(SACHET_ALL_ALERTS_URL).build())
+            if (!response.isSuccessful) {
+                Log.w(TAG, "Sachet bulk fetch failed: HTTP ${response.code}")
+                return@withContext null
             }
+            parseAll(response.body ?: return@withContext null)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "Sachet bulk fetch error: ${e.message}")
             null

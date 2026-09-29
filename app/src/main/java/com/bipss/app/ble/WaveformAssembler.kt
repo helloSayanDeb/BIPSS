@@ -34,7 +34,7 @@ class WaveformAssembler(private val clock: BandClock) {
     private var expectedIndex: Long? = null
     private var lastCounter: Int? = null
 
-    /** Number of chunks flagged with [WaveformChunk.gapBefore] since the last reset (diagnostics). */
+    /** Number of chunks flagged with [WaveformChunk.gapBefore] since the last reset (for debugging). */
     var gapCount: Int = 0
         private set
 

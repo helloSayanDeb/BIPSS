@@ -4,6 +4,8 @@ import android.util.Log
 import com.bipss.app.domain.environmental.AqiIndex
 import com.bipss.app.domain.environmental.AqiSnapshot
 import com.bipss.app.domain.environmental.haversineKm
+import com.bipss.app.data.net.fetchText
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -95,17 +97,18 @@ class CpcbAqiFetcher(
     val isConfigured: Boolean
         get() = apiKey.isNotBlank() && apiKey != "your_key_here" && apiKey != "YOUR_KEY"
 
-    /**
-     * Fetches every station in [state] and returns the nearest one within
-     * [MAX_STATION_KM]. Returns null without coordinates (there is then no basis
-     * for calling any station "yours") and when no station is close enough.
-     */
     /** Why the last [fetchAqi] returned what it did - lets setup say "no station here" rather than "failed". */
     enum class Outcome { NOT_RUN, OK, NOT_CONFIGURED, NO_LOCATION, FAILED, NO_STATION_NEARBY }
 
     @Volatile var lastOutcome: Outcome = Outcome.NOT_RUN
         private set
 
+    /**
+     * Fetches every station in [state] and returns the nearest one within
+     * [MAX_STATION_KM]. Returns null without coordinates (there is then no basis
+     * for calling any station "yours") and when no station is close enough.
+     * A fetch cut short by the caller leaves [lastOutcome] at FAILED.
+     */
     suspend fun fetchAqi(
         state: String?,
         lat:   Double?,
@@ -124,15 +127,14 @@ class CpcbAqiFetcher(
         lastOutcome = Outcome.FAILED
         try {
             val url = CpcbUrlBuilder.build(apiKey, state, LIMIT)
-            val resp = okHttpClient.newCall(Request.Builder().url(url).build()).execute()
-            resp.use {
-                if (!it.isSuccessful) {
-                    Log.w(TAG, "CPCB fetch failed: HTTP ${it.code}")
-                    return@withContext null
-                }
-                val body = it.body?.string() ?: return@withContext null
-                parseNearestStation(body, lat, lon)
+            val resp = okHttpClient.fetchText(Request.Builder().url(url).build())
+            if (!resp.isSuccessful) {
+                Log.w(TAG, "CPCB fetch failed: HTTP ${resp.code}")
+                return@withContext null
             }
+            parseNearestStation(resp.body ?: return@withContext null, lat, lon)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "CPCB fetch error: ${e.message}")
             null
@@ -226,24 +228,24 @@ class OpenMeteoFetcher(private val okHttpClient: OkHttpClient) {
                 // value drops with altitude and is not what a weather report quotes.
                 "&current=temperature_2m,relative_humidity_2m,uv_index,pressure_msl,wind_speed_10m" +
                 "&timezone=auto&forecast_days=1"
-            val resp = okHttpClient.newCall(Request.Builder().url(url).build()).execute()
-            resp.use {
-                if (!it.isSuccessful) {
-                    Log.w(TAG, "Open-Meteo fetch failed: HTTP ${it.code}")
-                    return@withContext null
-                }
-                val current = lenientJson.parseToJsonElement(it.body?.string() ?: return@withContext null)
-                    .jsonObject["current"]?.jsonObject
-                    ?: return@withContext null.also { Log.w(TAG, "Open-Meteo answer had no current block") }
-                OpenMeteoSnapshot(
-                    tempC        = current.float("temperature_2m"),
-                    humidity     = current.float("relative_humidity_2m"),
-                    uvIndex      = current.float("uv_index"),
-                    pressureHpa  = current.float("pressure_msl"),
-                    // Open-Meteo reports wind in km/h by default.
-                    windSpeedKph = current.float("wind_speed_10m")
-                )
+            val resp = okHttpClient.fetchText(Request.Builder().url(url).build())
+            if (!resp.isSuccessful) {
+                Log.w(TAG, "Open-Meteo fetch failed: HTTP ${resp.code}")
+                return@withContext null
             }
+            val current = lenientJson.parseToJsonElement(resp.body ?: return@withContext null)
+                .jsonObject["current"]?.jsonObject
+                ?: return@withContext null.also { Log.w(TAG, "Open-Meteo answer had no current block") }
+            OpenMeteoSnapshot(
+                tempC        = current.float("temperature_2m"),
+                humidity     = current.float("relative_humidity_2m"),
+                uvIndex      = current.float("uv_index"),
+                pressureHpa  = current.float("pressure_msl"),
+                // Open-Meteo reports wind in km/h by default.
+                windSpeedKph = current.float("wind_speed_10m")
+            )
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "Open-Meteo fetch error: ${e.message}")
             null
