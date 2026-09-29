@@ -59,9 +59,14 @@ data class RiskScore(
             ?: "Partial data"
         ScoreAvailability.NEEDS_BAND         -> "Needs band data" +
             missingInputs.takeIf { it.isNotEmpty() }?.joinToString(", ", " (", ")") .orEmpty()
-        ScoreAvailability.NEEDS_MORE_HISTORY -> missingInputs.firstOrNull() ?: "Building baseline"
-        ScoreAvailability.NEEDS_INPUT        -> missingInputs.firstOrNull() ?: "Needs your input"
+        // A missing thing ("a night's sleep with the band") gets its verb here;
+        // a full sentence ("Still calibrating · Day 3 of 14") is shown as it is.
+        ScoreAvailability.NEEDS_MORE_HISTORY -> missingInputs.firstOrNull()?.let(::needs) ?: "Building baseline"
+        ScoreAvailability.NEEDS_INPUT        -> missingInputs.firstOrNull()?.let(::needs) ?: "Needs your input"
     }
+
+    private fun needs(what: String): String =
+        if (what.firstOrNull()?.isLowerCase() == true) "Needs $what" else what
 
     /** The word beside the value: the domain's own (Strain "Moderate") or the concern level. */
     val levelWord: String get() = levelLabel ?: when (level) {

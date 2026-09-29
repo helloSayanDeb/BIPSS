@@ -214,6 +214,7 @@ private fun AiModelCard(state: SettingsUiState, vm: SettingsViewModel) {
                         style = MaterialTheme.typography.titleMedium,
                         color = colors.textPrimary
                     )
+                    Spacer(Modifier.height(Space.xs))
                     Text(
                         "Version ${state.modelVersion}" + (state.modelSizeMb?.let { " · $it MB" } ?: ""),
                         style = MaterialTheme.typography.bodySmall,
@@ -360,6 +361,7 @@ private fun PrivacySection(state: SettingsUiState, vm: SettingsViewModel) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Cloud backup", style = MaterialTheme.typography.titleMedium, color = colors.textPrimary)
+                Spacer(Modifier.height(Space.xs))
                 Text(
                     "Your own copy in your Google Drive (a private app folder only BIPSS can read): profile, " +
                         "settings, emergency contacts, baselines, water log and cycle log. Raw sensor readings stay " +
@@ -437,6 +439,7 @@ private fun PrivacySection(state: SettingsUiState, vm: SettingsViewModel) {
                     style = MaterialTheme.typography.titleMedium,
                     color = colors.textPrimary
                 )
+                Spacer(Modifier.height(Space.xs))
                 Text(
                     "Optional, to help improve BIPSS: shares minute averages of your band readings and your " +
                         "sleep summaries, under an anonymous ID, every hour. Not a backup - nothing is ever " +
@@ -567,6 +570,7 @@ private fun ContactRow(contact: EmergencyContactEntity, onDelete: () -> Unit) {
             Spacer(Modifier.width(Space.m))
             Column(Modifier.weight(1f)) {
                 Text(contact.name, style = MaterialTheme.typography.titleSmall, color = colors.textPrimary)
+                Spacer(Modifier.height(Space.xs))
                 Text(contact.phoneNumber, style = MaterialTheme.typography.bodySmall, color = colors.textTertiary)
             }
             IconButton(onClick = onDelete) {
@@ -660,6 +664,7 @@ private fun DeletionResultDialog(result: DeletionResult, state: SettingsUiState,
                     else "Deleting data on this phone…",
                     color = colors.textPrimary
                 )
+                Spacer(Modifier.height(Space.xs))
                 Text(
                     if (!result.hadSharedData) "You never shared data with BIPSS, so there was nothing in the cloud to delete."
                     else cloudDeletionLine(state) ?: "Deleting your shared data is queued.",

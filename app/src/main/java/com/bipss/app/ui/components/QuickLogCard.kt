@@ -46,6 +46,7 @@ fun QuickLogCard(
             Spacer(Modifier.width(Space.m))
             Column(Modifier.weight(1f)) {
                 Text(title, style = MaterialTheme.typography.titleSmall, color = colors.textPrimary)
+                Spacer(Modifier.height(Space.xs))
                 Text(subtitle, style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
             }
             if (onOpen != null) {

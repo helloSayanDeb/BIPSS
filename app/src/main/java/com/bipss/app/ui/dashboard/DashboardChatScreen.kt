@@ -74,6 +74,7 @@ fun DashboardChatScreen(
             Spacer(Modifier.width(Space.m))
             Column(Modifier.weight(1f)) {
                 Text("Coach", style = MaterialTheme.typography.headlineMedium, color = colors.textPrimary)
+                Spacer(Modifier.height(6.dp))
                 Text(
                     "Grounded in your live readings",
                     style = MaterialTheme.typography.bodySmall,

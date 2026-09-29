@@ -307,6 +307,7 @@ fun RiskRow(
             Spacer(Modifier.width(Space.l))
             Column(Modifier.weight(1f)) {
                 Text(domain, style = MaterialTheme.typography.titleMedium, color = colors.textPrimary)
+                Spacer(Modifier.height(Space.xs))
                 Text(bandLabel, style = MaterialTheme.typography.bodySmall, color = color)
             }
         }

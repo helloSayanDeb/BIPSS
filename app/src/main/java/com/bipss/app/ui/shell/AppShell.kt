@@ -95,6 +95,17 @@ fun AppShell(
                 innerPadding     = innerPadding
             )
         }
+        // The tabs scroll edge to edge, so their content slid under the
+        // transparent status bar and ran into the clock. The strip is the
+        // status bar's own height (zero where a banner already covers it).
+        if (isDashboard) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .windowInsetsTopHeight(WindowInsets.statusBars)
+                    .background(MaterialTheme.colorScheme.background)
+            )
+        }
     }
 }
 

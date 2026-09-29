@@ -142,6 +142,7 @@ fun OnboardingContactsScreen(
                         Spacer(Modifier.width(Space.m))
                         Column {
                             Text(c.name, style = MaterialTheme.typography.titleSmall, color = colors.textPrimary)
+                            Spacer(Modifier.height(Space.xs))
                             Text(c.phoneNumber, style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
                         }
                     }

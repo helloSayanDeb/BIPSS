@@ -58,6 +58,7 @@ fun DashboardProfileScreen(
                         style = MaterialTheme.typography.titleMedium,
                         color = colors.textPrimary
                     )
+                    Spacer(Modifier.height(Space.xs))
                     Text(
                         "Profile, device, AI model, privacy and emergency contacts",
                         style = MaterialTheme.typography.bodySmall,

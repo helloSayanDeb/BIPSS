@@ -168,6 +168,7 @@ private fun SummaryCard(ui: CycleUi) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Day ${t.cycleDay} of your cycle", style = MaterialTheme.typography.titleLarge, color = colors.textPrimary)
+                Spacer(Modifier.height(Space.xs))
                 Text(t.phase.label, style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary)
             }
         }

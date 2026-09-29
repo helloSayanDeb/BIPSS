@@ -183,6 +183,7 @@ private fun SourceRow(s: OnboardingLocationViewModel.SourceResult) {
         Spacer(Modifier.width(Space.m))
         Column {
             Text(s.name, style = MaterialTheme.typography.titleSmall, color = colors.textPrimary)
+            Spacer(Modifier.height(Space.xs))
             Text(s.detail, style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
         }
     }

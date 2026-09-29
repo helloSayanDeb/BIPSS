@@ -13,6 +13,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.bipss.app.ui.theme.Space
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -186,6 +187,7 @@ private fun DeviceContactRow(
         }
         Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
             Text(contact.name, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(Space.xs))
             Text(
                 contact.phoneNumber,
                 style = MaterialTheme.typography.labelSmall,

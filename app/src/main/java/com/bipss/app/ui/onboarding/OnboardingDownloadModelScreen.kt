@@ -206,6 +206,7 @@ private fun DownloadStatusCard(progress: DownloadProgress) {
                             style = MaterialTheme.typography.titleMedium,
                             color = colors.textPrimary
                         )
+                        Spacer(Modifier.height(Space.xs))
                         Text(
                             "The Coach tab now answers with the on-device model.",
                             style = MaterialTheme.typography.bodySmall,
@@ -225,6 +226,7 @@ private fun DownloadStatusCard(progress: DownloadProgress) {
                             style = MaterialTheme.typography.titleMedium,
                             color = colors.textPrimary
                         )
+                        Spacer(Modifier.height(Space.xs))
                         Text(
                             progress.reason,
                             style = MaterialTheme.typography.bodySmall,

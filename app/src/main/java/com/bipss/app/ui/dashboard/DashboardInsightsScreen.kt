@@ -86,6 +86,7 @@ fun DashboardInsightsScreen(
     ) {
         Spacer(Modifier.height(Space.l))
         Text("Insights", style = MaterialTheme.typography.headlineLarge, color = colors.textPrimary)
+        Spacer(Modifier.height(6.dp))
         Text(
             "Every score below is computed on-device from your own baselines.",
             style = MaterialTheme.typography.bodyMedium,
@@ -577,6 +578,7 @@ private fun AlertCard(ranked: RankedAlert) {
             Spacer(Modifier.width(Space.m))
             Column(Modifier.weight(1f)) {
                 Text(alert.title, style = MaterialTheme.typography.titleSmall, color = colors.textPrimary)
+                Spacer(Modifier.height(Space.xs))
                 Text(
                     "${alert.severity.label}  ·  ${alert.areaLabel}",
                     style = MaterialTheme.typography.bodySmall,

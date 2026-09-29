@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -144,7 +145,8 @@ fun ScoreReasonLine(score: RiskScore, modifier: Modifier = Modifier) {
         reason,
         style = MaterialTheme.typography.bodySmall,
         color = BipssTheme.colors.textTertiary,
-        modifier = modifier
+        // Its own gap: it always sits under a title or a row of pills.
+        modifier = modifier.padding(top = 6.dp)
     )
 }
 

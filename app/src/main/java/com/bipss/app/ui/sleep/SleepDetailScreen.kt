@@ -262,6 +262,7 @@ private fun NightPill(
                     style = MaterialTheme.typography.titleSmall,
                     color = colors.textPrimary
                 )
+                Spacer(Modifier.height(Space.xs))
                 Text(
                     "${dateFmt.format(Date(night.sessionStartMs))} · " +
                         "${timeFmt.format(Date(night.sessionStartMs))}–" +
@@ -269,6 +270,7 @@ private fun NightPill(
                     style = MaterialTheme.typography.bodySmall,
                     color = colors.textSecondary
                 )
+                Spacer(Modifier.height(Space.xs))
                 Text(
                     DesaturationScreening.odiDescription(night.odi),
                     style = MaterialTheme.typography.labelSmall,

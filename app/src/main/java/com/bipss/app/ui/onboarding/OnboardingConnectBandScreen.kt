@@ -199,6 +199,7 @@ fun OnboardingConnectBandScreen(
                                     style = MaterialTheme.typography.titleMedium,
                                     color = colors.textPrimary
                                 )
+                                Spacer(Modifier.height(Space.xs))
                                 Text(
                                     "${s.address}  ·  ${s.rssi} dBm",
                                     style = MaterialTheme.typography.bodySmall,
@@ -227,6 +228,7 @@ fun OnboardingConnectBandScreen(
                                     style = MaterialTheme.typography.titleMedium,
                                     color = colors.textPrimary
                                 )
+                                Spacer(Modifier.height(Space.xs))
                                 Text(
                                     "Paired and streaming",
                                     style = MaterialTheme.typography.bodySmall,

@@ -106,6 +106,7 @@ fun DashboardTodayScreen(
                         style = MaterialTheme.typography.headlineLarge,
                         color = colors.textPrimary
                     )
+                    Spacer(Modifier.height(6.dp))
                     Text(
                         if (state.env.fetchedAtMs == 0L) "Environment not synced yet"
                         else "Environment synced ${state.env.dataAgeLabel.lowercase()}",
@@ -498,6 +499,7 @@ private fun EnvStat(
         Icon(icon, null, tint = tint, modifier = Modifier.size(20.dp))
         Spacer(Modifier.height(Space.s))
         Text(value, style = MaterialTheme.typography.titleLarge, color = colors.textPrimary)
+        Spacer(Modifier.height(Space.xs))
         Text(label, style = MaterialTheme.typography.bodySmall, color = colors.textTertiary)
     }
 }
