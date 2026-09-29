@@ -81,6 +81,10 @@ interface RawReadingDao {
     @Query("SELECT MIN(timestampMs) FROM raw_readings")
     suspend fun earliestTimestamp(): Long?
 
+    /** Mean of one metric over [startMs, endMs], anomalies excluded; null without data. */
+    @Query("SELECT AVG(value) FROM raw_readings WHERE metricType = :type AND timestampMs BETWEEN :startMs AND :endMs AND isAnomalous = 0")
+    suspend fun averageBetween(type: String, startMs: Long, endMs: Long): Double?
+
     @Query("SELECT COUNT(*) FROM raw_readings WHERE metricType = :type")
     suspend fun countFor(type: String): Int
 
@@ -276,6 +280,45 @@ interface SignalEpochDao {
     )
     suspend fun restingPrvEpochs(fromMs: Long, maxMotion: Double, limit: Int): List<SignalEpochEntity>
 
+    /** Good-quality epochs with motion below [maxMotion]: the still, clean signal scoring relies on. */
+    @Query(
+        "SELECT * FROM signal_epochs WHERE startMs >= :fromMs AND startMs < :toMs " +
+            "AND quality = 'GOOD' AND motionEnergy < :maxMotion ORDER BY startMs"
+    )
+    suspend fun stillGood(fromMs: Long, toMs: Long, maxMotion: Double): List<SignalEpochEntity>
+
     @Query("DELETE FROM signal_epochs WHERE startMs < :olderThanMs")
     suspend fun pruneOlderThan(olderThanMs: Long)
+}
+
+@Dao
+interface DataDayDao {
+    // Two statements rather than an UPSERT: SQLite only has ON CONFLICT DO
+    // UPDATE from 3.24, and API 26-29 ship older versions.
+    @Query("INSERT OR IGNORE INTO data_days (epochDay, validMinutes) VALUES (:epochDay, 0)")
+    suspend fun ensure(epochDay: Long)
+
+    @Query("UPDATE data_days SET validMinutes = validMinutes + 1 WHERE epochDay = :epochDay")
+    suspend fun increment(epochDay: Long)
+
+    @Query("SELECT COUNT(*) FROM data_days WHERE validMinutes >= :minMinutes")
+    suspend fun qualifyingDays(minMinutes: Int): Int
+
+    @Query("SELECT COUNT(*) FROM data_days WHERE validMinutes >= :minMinutes")
+    fun qualifyingDaysFlow(minMinutes: Int): Flow<Int>
+}
+
+@Dao
+interface EwmaBaselineDao {
+    @Query("SELECT * FROM ewma_baselines")
+    suspend fun all(): List<EwmaBaselineEntity>
+
+    @Query("SELECT * FROM ewma_baselines WHERE `key` = :key")
+    suspend fun get(key: String): EwmaBaselineEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(rows: List<EwmaBaselineEntity>)
+
+    @Query("DELETE FROM ewma_baselines WHERE `key` LIKE :prefix || '%'")
+    suspend fun deleteWithPrefix(prefix: String)
 }

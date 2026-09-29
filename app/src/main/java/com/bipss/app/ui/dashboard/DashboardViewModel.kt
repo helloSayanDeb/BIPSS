@@ -55,7 +55,8 @@ data class DashboardUiState(
     val env:              EnvironmentalSnapshot  = EnvironmentalSnapshot.EMPTY,
 
     val dataMode:         DataMode               = DataMode.CACHED,
-    val baselineDays:     Int                    = 0,
+    /** Null until the first scoring load; never a placeholder zero. */
+    val baselineDays:     Int?                   = null,
     val lastWaterLogMs:   Long?                  = null,
     val waterLogTotalMlToday: Int                = 0,
     /** Set once the user has answered the indoor/outdoor question this session. */
@@ -64,9 +65,11 @@ data class DashboardUiState(
     val isOnline:         Boolean                = true,
     val isRefreshing:     Boolean                = false,
 
-    val locationPermissionSkipped: Boolean       = false
+    val locationPermissionSkipped: Boolean       = false,
+    /** A band is connected, whether or not it has a measured heart rate right now. */
+    val bandConnected:    Boolean                = false
 ) {
-    val hasBand: Boolean get() = heartRate != null
+    val hasBand: Boolean get() = bandConnected
 
     /**
      * The headline score.
@@ -81,7 +84,7 @@ data class DashboardUiState(
     val heroScore: RiskScore?
         get() = riskScores.firstOrNull { it.type == RiskScoreType.READINESS && it.hasNumber }
             ?: riskScores
-                .filter { !it.type.isWellness && it.type != RiskScoreType.FLOOD && it.hasNumber }
+                .filter { it.type.isHazard && it.type != RiskScoreType.FLOOD && it.hasNumber }
                 .maxByOrNull { it.score }
             ?: riskScores.firstOrNull { it.type == RiskScoreType.READINESS }
 
@@ -89,7 +92,11 @@ data class DashboardUiState(
         get() = riskScores.filter { it.type.isWellness && it.type != RiskScoreType.READINESS }
 
     val hazardDomains: List<RiskScore>
-        get() = riskScores.filter { !it.type.isWellness }
+        get() = riskScores.filter { it.type.isHazard }
+
+    /** Experimental indicators: shown apart from the hazards, never ranked with them. */
+    val experimentalScores: List<RiskScore>
+        get() = riskScores.filter { it.type.category == com.bipss.app.domain.ScoreCategory.EXPERIMENTAL }
 }
 
 class DashboardViewModel(
@@ -101,11 +108,19 @@ class DashboardViewModel(
     private val feedbackDao: ContextFeedbackDao,
     private val calculator: RiskScoreCalculator,
     private val signalEpochDao: com.bipss.app.data.db.dao.SignalEpochDao,
+    private val scoring:    com.bipss.app.data.ScoringRepository,
     private val context:    Context
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DashboardUiState())
     val uiState: StateFlow<DashboardUiState> = _uiState.asStateFlow()
+
+    // Declared before init: init starts collectors that can call
+    // recomputeRiskScores() immediately (a replayed reading), and Kotlin runs
+    // property initialisers in declaration order.
+    // Null until the first load completes: until then the scores are simply
+    // not shown, rather than computed from placeholder "day 0, no night" inputs.
+    @Volatile private var scoringInputs: com.bipss.app.data.ScoringRepository.Snapshot? = null
 
     init {
         observeSensorData()
@@ -113,6 +128,8 @@ class DashboardViewModel(
         observeBattery()
         observeWaterLog()
         observeRestingPrv()
+        observeScoringInputs()
+        observeBandConnection()
         observePermissionState()
         loadCachedEnv()
     }
@@ -141,6 +158,30 @@ class DashboardViewModel(
                 _uiState.update { it.copy(restingPrv = summary) }
                 kotlinx.coroutines.delay(60_000L)
             }
+        }
+    }
+
+    /**
+     * Strain, recovery, the Autonomic Load Indicator and the baseline day are
+     * database work, so they are refreshed once a minute and cached here -
+     * not recomputed on every 1 Hz reading.
+     */
+    private fun observeScoringInputs() {
+        viewModelScope.launch {
+            while (true) {
+                runCatching { scoringInputs = loadScoringInputs() }
+                    .onFailure { android.util.Log.w("DashboardViewModel", "Scoring inputs failed", it) }
+                recomputeRiskScores()
+                kotlinx.coroutines.delay(60_000L)
+            }
+        }
+    }
+
+    private suspend fun loadScoringInputs() = scoring.snapshot()
+
+    private fun observeBandConnection() {
+        viewModelScope.launch {
+            sensorRepo.bandConnected.collect { c -> _uiState.update { it.copy(bandConnected = c) } }
         }
     }
 
@@ -265,8 +306,8 @@ class DashboardViewModel(
     private suspend fun recomputeRiskScores() {
         val s = _uiState.value
 
-        val baseStats    = sensorRepo.baselineStatsDao.getByType(MetricTypes.HR)
-        val baselineDays = prefsRepo.daysOfData()
+        val inputs = scoringInputs ?: return
+        val baselineDays = inputs.personal.dayN
         val hoursSinceWater = waterRepo.hoursSinceLastLog()   // null when never logged
 
         val dataMode = when {
@@ -282,18 +323,13 @@ class DashboardViewModel(
             hr              = s.heartRate,
             spo2            = s.spO2,
             skinTempC       = s.skinTempC,
-            prvRmssd        = s.prvRmssd,
-            baselineHR      = baseStats?.mean,
-            baselineHRStd   = baseStats?.stdDev,
-            baselineDays    = baselineDays,
+            personal        = inputs.personal,
             env             = env,
             hoursSinceWater = hoursSinceWater,
-            // Null means the pillar reports "needs data" rather than zero.
-            // Recovery is derived inside the calculator from PRV and resting
-            // HR; strain awaits the activity pipeline and stays honest until then.
             sleepScore      = sleepRepo.lastNightScore(),
-            recoveryScore   = null,
-            strainScore     = null,
+            recovery        = inputs.recovery,
+            strain          = inputs.strain,
+            ali             = inputs.ali,
             dataMode        = dataMode
         )
 
@@ -317,9 +353,10 @@ class DashboardViewModel(
             apiTempC    = s.env.ambientTempC
         )
 
-        // Status reflects hazards only - a low Readiness is not a health alarm.
+        // Status reflects hazards only - a low Readiness is not a health
+        // alarm, and the experimental Autonomic Load Indicator never drives it.
         val worstHazard = scores
-            .filter { !it.type.isWellness && it.availability == ScoreAvailability.AVAILABLE }
+            .filter { it.type.isHazard && it.availability == ScoreAvailability.AVAILABLE }
             .maxByOrNull { it.score }
         val status = when (worstHazard?.level) {
             RiskLevel.HIGH   -> HealthStatus.AT_RISK
@@ -365,7 +402,7 @@ class DashboardViewModel(
         }
     }
 
-    fun baselineStageLabel(): String = BaselineSchedule.stageLabel(_uiState.value.baselineDays)
+    fun baselineStageLabel(): String = _uiState.value.baselineDays?.let { BaselineSchedule.stageLabel(it) } ?: ""
 }
 
 /** Four epochs = two minutes of clean, still signal. */

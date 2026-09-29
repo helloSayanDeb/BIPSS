@@ -112,7 +112,7 @@ object MorningDose {
     /** Only fires on a domain the app could actually compute. */
     private fun watchOutCard(scores: List<RiskScore>): CoachCard? {
         val worst = scores
-            .filter { !it.type.isWellness && it.availability == ScoreAvailability.AVAILABLE }
+            .filter { it.type.isHazard && it.availability == ScoreAvailability.AVAILABLE }
             .maxByOrNull { it.score }
             ?.takeIf { it.score > 50 }
             ?: return null

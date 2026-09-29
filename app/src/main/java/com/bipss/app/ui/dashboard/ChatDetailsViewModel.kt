@@ -65,7 +65,8 @@ class ChatDetailsViewModel(
     private val sensorRepo:    SensorRepository,
     private val envRepo:       DisasterAlertRepository,
     private val calculator:    RiskScoreCalculator,
-    private val waterRepo:     com.bipss.app.data.WaterRepository
+    private val waterRepo:     com.bipss.app.data.WaterRepository,
+    private val scoring:       com.bipss.app.data.ScoringRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ChatDetailsUiState())
@@ -100,20 +101,19 @@ class ChatDetailsViewModel(
             val profile = prefsRepo.userProfile.first()
             val greeting = com.bipss.app.ai.GreetingHelper.getGreeting(profile?.name)
 
-            val baseStats = sensorRepo.baselineStatsDao.getByType(MetricTypes.HR)
+            // The same inputs the dashboard uses, so the two never disagree.
+            val inputs = scoring.snapshot()
             val scores = calculator.computeAll(
                 hr              = s.heartRate,
                 spo2            = s.spO2,
                 skinTempC       = s.skinTempC,
-                prvRmssd        = null,
-                baselineHR      = baseStats?.mean,
-                baselineHRStd   = baseStats?.stdDev,
-                baselineDays    = prefsRepo.daysOfData(),
+                personal        = inputs.personal,
                 env             = env.takeIf { it.fetchedAtMs > 0L },
                 hoursSinceWater = waterRepo.hoursSinceLastLog(),
                 sleepScore      = sleepRepo.lastNightScore(),
-                recoveryScore   = null,
-                strainScore     = null,
+                recovery        = inputs.recovery,
+                strain          = inputs.strain,
+                ali             = inputs.ali,
                 dataMode        = if (s.heartRate != null) DataMode.FULL else DataMode.ENVIRONMENT_ONLY
             )
 
@@ -182,10 +182,14 @@ class ChatDetailsViewModel(
             append("\"ambientTempC\":${s.env.ambientTempC},")
             append("\"aqiValue\":${s.env.aqiValue},")
             append("\"scores\":[")
-            s.riskScores.filter { it.hasNumber }.forEachIndexed { i, sc ->
-                if (i > 0) append(",")
-                append("{\"type\":\"${sc.type.displayName}\",\"score\":${sc.score},\"level\":\"${sc.level}\"}")
-            }
+            // Experimental indicators stay out of the model's context: it would
+            // treat them as risks. Every other score carries its fidelity.
+            s.riskScores.filter { it.hasNumber && it.fidelity != com.bipss.app.domain.Fidelity.EXPERIMENTAL }
+                .forEachIndexed { i, sc ->
+                    if (i > 0) append(",")
+                    append("{\"type\":\"${sc.type.displayName}\",\"value\":\"${sc.valueWithScale}\",")
+                    append("\"level\":\"${sc.levelWord}\",\"fidelity\":\"${sc.fidelity.name}\"}")
+                }
             append("]}")
         }
 
@@ -196,13 +200,14 @@ class ChatDetailsViewModel(
         val prompt = buildString {
             append("System: You are a health-data reporter for the BIPSS wearable app. ")
             append("Rules you MUST follow:\n")
-            append("1. You are NOT a doctor. Never diagnose conditions or prescribe treatment.\n")
+            append("1. You are NOT a doctor. Never name a medical condition or prescribe treatment.\n")
             append("2. A null value in the context means the sensor is offline or data is unavailable. ")
             append("Say 'no data available' — NEVER guess or estimate a number.\n")
             append("3. Only reference values that appear in the context JSON below. Do not invent readings.\n")
-            append("4. If a risk score says HIGH, do not reassure the user that everything is fine.\n")
+            append("4. If a risk score's level is high, do not reassure the user that everything is fine.\n")
             append("5. For medical symptoms or concerns, recommend consulting a healthcare professional.\n")
-            append("6. Keep responses concise and use plain language.\n\n")
+            append("6. Keep responses concise and use plain language.\n")
+            append("7. A score whose fidelity is ESTIMATE is an estimate: say so whenever you mention it.\n\n")
             append("Context: $contextJson\n")
             append("User: $question\n")
             append("Assistant:")

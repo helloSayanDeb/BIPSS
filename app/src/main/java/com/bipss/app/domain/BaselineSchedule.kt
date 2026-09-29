@@ -1,69 +1,83 @@
 package com.bipss.app.domain
 
+/** How far a personal baseline has come. */
+enum class BaselineStage {
+    /** Fewer than 14 days of data: no baseline-derived verdicts at all. */
+    CALIBRATING,
+    /** 14-29 days: verdicts shown, marked provisional. */
+    PROVISIONAL,
+    /** 30 days and more: established, still refining up to day 90. */
+    ESTABLISHED
+}
+
 /**
- * Widening baseline schedule.
+ * The personal-baseline schedule.
  *
- * "Track changes in baseline health patterns" means the window has to grow as
- * evidence accumulates: three days is enough to notice something, ninety days
- * is enough to trust it. A fixed window either reacts too slowly at the start
- * or stays too jumpy at the end, so the window widens 3 -> 7 -> 15 -> 30 -> 90
- * and confidence rises with it.
+ * Day N counts *days with data*, not days since install: a day counts once it
+ * holds at least [MIN_VALID_MINUTES] minutes of measured heart rate, so a week
+ * in a drawer does not advance calibration. Day 1 is the first such day.
  *
- * Pure Kotlin, no Android dependencies - unit-testable.
+ * Milestones 1, 3, 7, 14, 30, 45, 60, 80 and 90 mark where the baseline gets
+ * visibly better: before day 14 nothing is compared against it (a few days
+ * cannot separate a person's normal from a bad week); from 14 comparisons are
+ * shown as provisional; from 30 the baseline is established and keeps
+ * tightening until day 90.
+ *
+ * Pure Kotlin - unit-testable.
  */
 object BaselineSchedule {
 
-    /** Minimum days of data before any baseline-derived score is meaningful. */
-    const val MIN_DAYS_FOR_BASELINE = 3
+    val MILESTONES = listOf(1, 3, 7, 14, 30, 45, 60, 80, 90)
 
-    /** Days at which the schedule is considered mature. */
-    const val MATURE_DAYS = 30
+    const val PROVISIONAL_FROM = 14
+    const val ESTABLISHED_FROM = 30
+    const val MATURE_DAYS = 90
 
-    /** (days of data required, window size to use). */
-    private val STAGES = listOf(
-        0   to 0,
-        3   to 3,
-        7   to 7,
-        15  to 15,
-        30  to 30,
-        60  to 30,   // hold the 30-day window through day 60
-        90  to 90    // then widen to 90
-    )
+    /** A day counts toward the baseline once it has this many minutes of measured heart rate. */
+    const val MIN_VALID_MINUTES = 60
 
-    /** The averaging window to apply given how many days of data exist. */
-    fun windowDaysFor(daysOfData: Int): Int =
-        STAGES.lastOrNull { daysOfData >= it.first }?.second ?: 0
-
-    /** True once baseline-derived domains may report a number at all. */
-    fun isUsable(daysOfData: Int): Boolean = daysOfData >= MIN_DAYS_FOR_BASELINE
-
-    fun stageLabel(daysOfData: Int): String = when {
-        daysOfData < 3  -> "Learning your baseline - day $daysOfData of 3"
-        daysOfData < 7  -> "Baseline: 3-day - refining to 7-day"
-        daysOfData < 15 -> "Baseline: 7-day - refining to 15-day"
-        daysOfData < 30 -> "Baseline: 15-day - refining to 30-day"
-        daysOfData < 90 -> "Baseline: 30-day"
-        else            -> "Baseline: 90-day"
+    fun stage(dayN: Int): BaselineStage = when {
+        dayN < PROVISIONAL_FROM -> BaselineStage.CALIBRATING
+        dayN < ESTABLISHED_FROM -> BaselineStage.PROVISIONAL
+        else                    -> BaselineStage.ESTABLISHED
     }
+
+    /** True once baseline-derived comparisons may be shown at all. */
+    fun isUsable(dayN: Int): Boolean = dayN >= PROVISIONAL_FROM
+
+    /** The next milestone ahead, or null at maturity. */
+    fun nextMilestone(dayN: Int): Int? = MILESTONES.firstOrNull { it > dayN }
 
     /**
-     * How much to trust a baseline-derived score. Feeds RiskScore.confidence,
-     * so a three-day baseline visibly carries less weight than a thirty-day one
-     * instead of both being presented as equally certain.
+     * Confidence in a baseline-derived value: none while calibrating, then
+     * rising linearly between milestones from 0.5 at day 14 to 1.0 at day 90.
      */
-    fun confidenceFor(daysOfData: Int): Float = when {
-        daysOfData < 3  -> 0.0f
-        daysOfData < 7  -> 0.5f
-        daysOfData < 15 -> 0.7f
-        daysOfData < 30 -> 0.85f
-        else            -> 1.0f
+    fun confidenceFor(dayN: Int): Float {
+        if (dayN < PROVISIONAL_FROM) return 0f
+        if (dayN >= MATURE_DAYS) return 1f
+        val points = listOf(14 to 0.5f, 30 to 0.75f, 45 to 0.82f, 60 to 0.88f, 80 to 0.95f, 90 to 1.0f)
+        val (d0, c0) = points.last { it.first <= dayN }
+        val (d1, c1) = points.first { it.first > dayN }
+        return c0 + (c1 - c0) * (dayN - d0) / (d1 - d0).toFloat()
     }
 
-    /** Progress toward a mature baseline, for the onboarding chip. */
-    fun progressFor(daysOfData: Int): Float =
-        (daysOfData.toFloat() / MATURE_DAYS).coerceIn(0f, 1f)
+    /** Progress toward the next stage boundary (14, then 30, then 90), for the chip. */
+    fun progressFor(dayN: Int): Float = when {
+        dayN < PROVISIONAL_FROM -> dayN / PROVISIONAL_FROM.toFloat()
+        dayN < ESTABLISHED_FROM -> (dayN - PROVISIONAL_FROM) / (ESTABLISHED_FROM - PROVISIONAL_FROM).toFloat()
+        else -> ((dayN - ESTABLISHED_FROM) / (MATURE_DAYS - ESTABLISHED_FROM).toFloat()).coerceAtMost(1f)
+    }
 
-    /** Shown in place of a score while the baseline is still building. */
-    fun missingLabel(daysOfData: Int): String =
-        "$daysOfData of $MIN_DAYS_FOR_BASELINE days baseline"
+    fun stageLabel(dayN: Int): String = when {
+        dayN <= 0               -> "Still calibrating · no full day of data yet"
+        dayN < PROVISIONAL_FROM -> "Still calibrating · Day $dayN of $PROVISIONAL_FROM"
+        dayN < ESTABLISHED_FROM -> "Provisional baseline · Day $dayN of $ESTABLISHED_FROM"
+        dayN < MATURE_DAYS      -> "Baseline established · refining until day $MATURE_DAYS"
+        else                    -> "Baseline mature"
+    }
+
+    /** Shown in place of a verdict while calibrating. */
+    fun missingLabel(dayN: Int): String =
+        if (dayN <= 0) "Still calibrating · no full day of data yet"
+        else "Still calibrating · Day $dayN of $PROVISIONAL_FROM"
 }

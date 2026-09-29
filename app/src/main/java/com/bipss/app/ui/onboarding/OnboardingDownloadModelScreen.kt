@@ -98,7 +98,7 @@ fun OnboardingDownloadModelScreen(
                 icon = Icons.Rounded.Insights,
                 tint = colors.sleep,
                 title = "Cross-domain narrative",
-                body = "Connects heat, air quality and cardiac signals into one explanation."
+                body = "Connects heat, air quality and your band's readings into one explanation."
             )
             Spacer(Modifier.height(Space.xl))
             FeatureRow(

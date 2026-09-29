@@ -152,12 +152,6 @@ class UserPreferencesRepository(
         }
     }
 
-    /** Whole days of collected data. Zero until the band has streamed something. */
-    suspend fun daysOfData(): Int {
-        val first = dataStore.data.map { it[KEY_FIRST_READING_MS] }.first() ?: return 0
-        return ((System.currentTimeMillis() - first) / 86_400_000L).toInt().coerceAtLeast(0)
-    }
-
     // ── Alert notification de-duplication ────────────────────────────────────
     // Without this the 15-minute sync re-notifies the same warning all day.
     private val KEY_NOTIFIED_ALERT_IDS = stringSetPreferencesKey("notified_alert_ids")

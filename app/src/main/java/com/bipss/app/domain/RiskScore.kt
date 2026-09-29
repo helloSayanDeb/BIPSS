@@ -25,23 +25,59 @@ data class RiskScore(
     val measuredOutOf: Int               = 100,
     /** The domain's full point budget (Heat Stress awards 125, most others 100). */
     val fullBudget:    Int               = 100,
+    /** How much weight the number can bear; shown as a badge wherever it is. */
+    val fidelity:      Fidelity          = Fidelity.ESTIMATE,
+    /** Shown instead of [score] when the domain has its own scale (Strain "8.4", ALI "Low"). */
+    val displayValue:  String?           = null,
+    /** Top of the displayed scale: 100 for most, 21 for Strain, 0 for a label-only value. */
+    val scaleMax:      Int               = 100,
+    /** Replaces the Normal / Monitor / At risk wording where it does not fit (Strain: Light ... All out). */
+    val levelLabel:    String?           = null,
+    /**
+     * Judged against a baseline that is still provisional (calibration days
+     * 14-29). Shown as its own chip, never as a contributor.
+     */
+    val provisional:   Boolean           = false,
     val computedAt:    Long              = System.currentTimeMillis()
 ) {
     /** True when a number may be displayed for this score. */
     val hasNumber: Boolean get() = availability.hasNumber
 
+    /** The value as displayed: its own scale's figure, or the 0-100 score. */
+    val valueLabel: String get() = displayValue ?: score.toString()
+
+    /** "8.4 / 21", "63 / 100", or just the label for label-only values. */
+    val valueWithScale: String get() = if (scaleMax > 0) "$valueLabel / $scaleMax" else valueLabel
+
     /** One-line explanation shown wherever the number cannot be. */
     val reasonLine: String get() = when (availability) {
         ScoreAvailability.AVAILABLE          -> ""
-        ScoreAvailability.PARTIAL            -> "Environment only - wear band for full picture"
+        // Say what is actually missing: "environment only" used to appear
+        // whenever any single input (even a water log) was absent.
+        ScoreAvailability.PARTIAL            -> missingInputs.takeIf { it.isNotEmpty() }
+            ?.let { "Without " + it.joinToString(", ") }
+            ?: "Partial data"
         ScoreAvailability.NEEDS_BAND         -> "Needs band data" +
             missingInputs.takeIf { it.isNotEmpty() }?.joinToString(", ", " (", ")") .orEmpty()
         ScoreAvailability.NEEDS_MORE_HISTORY -> missingInputs.firstOrNull() ?: "Building baseline"
+        ScoreAvailability.NEEDS_INPUT        -> missingInputs.firstOrNull() ?: "Needs your input"
+    }
+
+    /** The word beside the value: the domain's own (Strain "Moderate") or the concern level. */
+    val levelWord: String get() = levelLabel ?: when (level) {
+        RiskLevel.LOW    -> "low"
+        RiskLevel.MEDIUM -> "medium"
+        RiskLevel.HIGH   -> "high"
     }
 }
 
 /** Whether a domain describes a hazard (higher = worse) or wellness (higher = better). */
-enum class ScoreCategory { WELLNESS, HAZARD }
+enum class ScoreCategory {
+    WELLNESS,
+    HAZARD,
+    /** Shown, never drives the headline, the health status or alerts. */
+    EXPERIMENTAL
+}
 
 enum class RiskScoreType(
     val displayName:    String,
@@ -59,11 +95,12 @@ enum class RiskScoreType(
     // Hazard domains - required by the problem statement.
     HEAT_STRESS   ("Heat Stress",       ScoreCategory.HAZARD, false),
     RESPIRATORY   ("Respiratory",       ScoreCategory.HAZARD, false),
-    CARDIOVASCULAR("Cardiovascular",    ScoreCategory.HAZARD, false),
+    AUTONOMIC_LOAD("Autonomic load",    ScoreCategory.EXPERIMENTAL, false, "Is your body under load while you rest?"),
     FLOOD         ("Flood & Disaster",  ScoreCategory.HAZARD, false),
     SLEEP_QUALITY ("Sleep Quality",     ScoreCategory.HAZARD, false);
 
     val isWellness: Boolean get() = category == ScoreCategory.WELLNESS
+    val isHazard: Boolean get() = category == ScoreCategory.HAZARD
 }
 
 /**

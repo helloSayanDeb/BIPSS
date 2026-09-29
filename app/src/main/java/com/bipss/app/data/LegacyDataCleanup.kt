@@ -86,6 +86,12 @@ class LegacyDataCleanup(
             sql.execSQL("DELETE FROM baseline_stats")
             sql.execSQL("DELETE FROM desaturation_events")
             sql.execSQL("DELETE FROM sleep_sessions")
+            // Derived from the same history, so just as untrustworthy - and
+            // data_days is backfilled from raw readings by MIGRATION_8_9,
+            // which on an upgrade runs before this wipe.
+            sql.execSQL("DELETE FROM signal_epochs")
+            sql.execSQL("DELETE FROM data_days")
+            sql.execSQL("DELETE FROM ewma_baselines")
         }
         prefs.clearFirstReadingMs()
         // Anything uploaded while Demo Mode was on is equally untrustworthy.

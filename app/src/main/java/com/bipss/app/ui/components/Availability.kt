@@ -48,19 +48,21 @@ private const val NO_VALUE = "—"
 /**
  * Chip explaining why a score is incomplete, or nothing at all when it isn't.
  *
- * Amber for PARTIAL because the user can act on it - putting the band on
- * changes the answer. Grey for the two blocked states, which are statements
- * of fact rather than warnings about the body.
+ * Amber for PARTIAL because some inputs were missing (the reason line says
+ * which). Grey for the two blocked states, which are statements of fact
+ * rather than warnings about the body.
  */
 @Composable
 fun AvailabilityChip(availability: ScoreAvailability, modifier: Modifier = Modifier) {
     val colors = BipssTheme.colors
     val spec = when (availability) {
+        // Not "environment only": a partial score may well include the band
+        // and be missing something else, such as a water log or air quality.
         ScoreAvailability.AVAILABLE          -> null
-        ScoreAvailability.PARTIAL            ->
-            "Environment only - wear band for full picture" to colors.bandMonitor
+        ScoreAvailability.PARTIAL            -> "Partial data" to colors.bandMonitor
         ScoreAvailability.NEEDS_BAND         -> "Needs band data" to colors.textTertiary
         ScoreAvailability.NEEDS_MORE_HISTORY -> "Building baseline" to colors.textTertiary
+        ScoreAvailability.NEEDS_INPUT        -> "Needs your input" to colors.textTertiary
     } ?: return
 
     val (label, tint) = spec
@@ -91,7 +93,7 @@ fun ScoreRing(
 ) {
     val colors = BipssTheme.colors
     val known = score.hasNumber
-    val label = if (known) "${score.score}" else NO_VALUE
+    val label = if (known) score.valueLabel else NO_VALUE
 
     // The number is sized from the gauge, in dp so a large system font cannot
     // push it into the stroke. A fixed 34sp fitted the hero gauge but ran over
@@ -122,8 +124,8 @@ fun ScoreRing(
             // rings it wrapped and clipped the number itself, so "100" read
             // as "10" - a rendering bug that silently misreports the score.
             if (known && size >= 80.dp) {
-                Text(
-                    "of 100",
+                if (score.scaleMax > 0) Text(
+                    "of ${score.scaleMax}",
                     style = MaterialTheme.typography.labelSmall,
                     color = colors.textTertiary
                 )

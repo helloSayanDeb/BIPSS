@@ -169,3 +169,28 @@ data class SignalEpochEntity(
         )
     }
 }
+
+/**
+ * Minutes of measured heart rate per local calendar day. A day with at least
+ * BaselineSchedule.MIN_VALID_MINUTES counts toward the personal baseline.
+ */
+@Entity(tableName = "data_days")
+data class DataDayEntity(
+    @PrimaryKey val epochDay: Long,
+    val validMinutes: Int
+)
+
+/**
+ * One exponentially weighted baseline (mean, variance, count) per nightly
+ * recovery input, plus a "prev:" snapshot taken before the most recent night
+ * and a "_last_night" marker so each night is folded in exactly once.
+ */
+@Entity(tableName = "ewma_baselines")
+data class EwmaBaselineEntity(
+    @PrimaryKey val key: String,
+    val mean:             Double,
+    val variance:         Double,
+    val count:            Int,
+    val lastNightStartMs: Long,
+    val updatedAtMs:      Long
+)

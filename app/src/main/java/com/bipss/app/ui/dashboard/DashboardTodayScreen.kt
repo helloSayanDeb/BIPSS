@@ -179,7 +179,7 @@ fun DashboardTodayScreen(
 
             // Only shown while the baseline is still widening.
             Spacer(Modifier.height(Space.m))
-            BaselineProgressChip(state.baselineDays)
+            state.baselineDays?.let { BaselineProgressChip(it) }
 
             // -- Hydration ---------------------------------------------------
             Spacer(Modifier.height(Space.l))
@@ -279,6 +279,25 @@ fun DashboardTodayScreen(
                 }
             }
 
+            // -- Experimental -----------------------------------------------------
+            // Apart from the risk domains: it is never a verdict about risk.
+            val experimental = state.experimentalScores
+            if (experimental.isNotEmpty()) {
+                Spacer(Modifier.height(Space.l))
+                SectionHeader("Experimental")
+                Spacer(Modifier.height(Space.m))
+                experimental.forEach { e ->
+                    ScoreRow(e)
+                    Spacer(Modifier.height(Space.s))
+                    Text(
+                        com.bipss.app.domain.ali.AutonomicLoad.TOOLTIP,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.textTertiary
+                    )
+                    Spacer(Modifier.height(Space.m))
+                }
+            }
+
             // -- Environment ---------------------------------------------------
             Spacer(Modifier.height(Space.l))
             SectionHeader("Environment")
@@ -373,7 +392,13 @@ private fun HeroScoreCard(score: RiskScore) {
                     )
                 }
                 Spacer(Modifier.height(Space.s))
-                if (score.hasNumber) StatusPill(score.level.bandLabel(), color)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (score.hasNumber) {
+                        StatusPill(score.levelLabel ?: score.level.bandLabel(), color)
+                        Spacer(Modifier.width(Space.s))
+                    }
+                    ScoreBadges(score)
+                }
                 ScoreReasonLine(score)
             }
         }
@@ -400,21 +425,26 @@ private fun HeroScoreCard(score: RiskScore) {
 @Composable
 private fun ScoreRow(score: RiskScore, onClick: (() -> Unit)? = null) {
     val colors = BipssTheme.colors
-    val color = if (score.hasNumber) score.level.bandColor() else colors.textTertiary
+    val color = scoreColor(score)
 
     BipssCard(onClick = onClick, contentPadding = PaddingValues(Space.l)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             ScoreRing(score = score, size = 46.dp, strokeWidth = 5.dp, color = color)
             Spacer(Modifier.width(Space.l))
             Column(Modifier.weight(1f)) {
-                Text(
-                    score.type.displayName,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = colors.textPrimary
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        score.type.displayName,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = colors.textPrimary,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    Spacer(Modifier.width(Space.s))
+                    ScoreBadges(score)
+                }
                 if (score.hasNumber) {
                     Text(
-                        score.level.bandLabel(),
+                        score.levelLabel ?: score.level.bandLabel(),
                         style = MaterialTheme.typography.bodySmall,
                         color = color
                     )
@@ -504,6 +534,34 @@ private fun EnvStat(
         Spacer(Modifier.height(Space.s))
         Text(value, style = MaterialTheme.typography.titleLarge, color = colors.textPrimary)
         Text(label, style = MaterialTheme.typography.bodySmall, color = colors.textTertiary)
+    }
+}
+
+/**
+ * The colour a score is drawn in. Hazard verdict colours only for hazards:
+ * Strain is load (the activity colour, whatever its size) and an experimental
+ * indicator is neutral, never green-amber-red.
+ */
+@Composable
+internal fun scoreColor(score: RiskScore): Color {
+    val colors = BipssTheme.colors
+    return when {
+        !score.hasNumber -> colors.textTertiary
+        score.type == com.bipss.app.domain.RiskScoreType.STRAIN -> colors.activity
+        score.type.category == com.bipss.app.domain.ScoreCategory.EXPERIMENTAL -> colors.textSecondary
+        else -> score.level.bandColor()
+    }
+}
+
+/** Fidelity badge, plus a Provisional chip while the baseline behind the score is provisional. */
+@Composable
+internal fun ScoreBadges(score: RiskScore) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        FidelityBadge(score.fidelity)
+        if (score.provisional) {
+            Spacer(Modifier.width(Space.s))
+            StatusPill("Provisional", BipssTheme.colors.bandMonitor)
+        }
     }
 }
 

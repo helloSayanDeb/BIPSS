@@ -98,11 +98,23 @@ fun DashboardInsightsScreen(
             // their reason, so an uncomputed domain is visible but never ranked
             // as though it were a low score.
             state.riskScores
+                .filter { it.type.category != com.bipss.app.domain.ScoreCategory.EXPERIMENTAL }
                 .sortedWith(compareByDescending<RiskScore> { it.hasNumber }.thenByDescending { it.score })
                 .forEach { risk ->
                     RiskDetailCard(risk)
                     Spacer(Modifier.height(Space.m))
                 }
+            // Experimental indicators apart from the risk domains.
+            val experimental = state.experimentalScores
+            if (experimental.isNotEmpty()) {
+                Spacer(Modifier.height(Space.l))
+                SectionLabel("Experimental")
+                Spacer(Modifier.height(Space.m))
+                experimental.forEach { risk ->
+                    RiskDetailCard(risk)
+                    Spacer(Modifier.height(Space.m))
+                }
+            }
         }
 
         // -- Where you are ---------------------------------------------------
@@ -459,7 +471,7 @@ private fun AlertCard(ranked: RankedAlert) {
 @Composable
 private fun RiskDetailCard(risk: RiskScore) {
     val colors = BipssTheme.colors
-    val color = if (risk.hasNumber) risk.level.bandColor() else colors.textTertiary
+    val color = scoreColor(risk)
 
     BipssCard(accent = color) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -472,13 +484,27 @@ private fun RiskDetailCard(risk: RiskScore) {
                     color = colors.textPrimary
                 )
                 Spacer(Modifier.height(6.dp))
-                if (risk.hasNumber) StatusPill(risk.level.bandLabel(), color)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (risk.hasNumber) {
+                        StatusPill(risk.levelLabel ?: risk.level.bandLabel(), color)
+                        Spacer(Modifier.width(Space.s))
+                    }
+                    ScoreBadges(risk)
+                }
                 ScoreReasonLine(risk)
             }
         }
 
         AvailabilityChip(risk.availability, Modifier.padding(top = Space.m))
         ConfidenceBar(risk.confidence, Modifier.padding(top = Space.s))
+        if (risk.type == com.bipss.app.domain.RiskScoreType.AUTONOMIC_LOAD) {
+            Spacer(Modifier.height(Space.s))
+            Text(
+                com.bipss.app.domain.ali.AutonomicLoad.TOOLTIP,
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.textSecondary
+            )
+        }
 
         if (risk.factors.isNotEmpty()) {
             Spacer(Modifier.height(Space.l))

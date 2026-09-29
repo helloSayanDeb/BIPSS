@@ -64,8 +64,8 @@ object AlertRanker {
             mentions("rain", "flood", "cyclone", "storm",
                      "thunder", "wind", "tide", "surge")          -> RiskScoreType.FLOOD
             mentions("air", "pollution", "smog", "dust", "haze")  -> RiskScoreType.RESPIRATORY
-            // Covers "cold wave" as published.
-            mentions("cold")                                      -> RiskScoreType.CARDIOVASCULAR
+            // A cold wave has no scored domain of its own; it is ranked on
+            // severity and distance alone rather than borrowing one.
             else                                                  -> null
         }
     }

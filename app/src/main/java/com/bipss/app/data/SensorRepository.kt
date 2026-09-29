@@ -75,6 +75,17 @@ class SensorRepository(
     val rawReadingDao       = db.rawReadingDao()
     val baselineStatsDao    = db.baselineStatsDao()
     val minuteAggregateDao  = db.minuteAggregateDao()
+    private val dataDayDao  = db.dataDayDao()
+    private val lastCountedHrMinute = java.util.concurrent.atomic.AtomicLong(Long.MIN_VALUE)
+
+    /**
+     * Whether a band is connected and streaming. Not the same as "a heart rate
+     * is available": the pipeline withholds heart rate on poor signal while
+     * the band is very much there.
+     */
+    val bandConnected: StateFlow<Boolean> = bleGattManager.connectionState
+        .map { it is com.bipss.app.ble.BleConnectionState.Connected }
+        .stateIn(appScope, SharingStarted.Eagerly, false)
 
     /** Band battery percent, straight from the BLE manager. Null until the band reports it. */
     val batteryPercent: StateFlow<Int?> = bleGattManager.batteryPercent
@@ -213,6 +224,18 @@ class SensorRepository(
         )
     }
 
+    /**
+     * One more minute of measured heart rate for its local day. A day with
+     * enough of them counts toward the personal baseline (BaselineSchedule).
+     */
+    private suspend fun countDataMinute(timestampMs: Long) {
+        val minute = timestampMs / 60_000L
+        if (lastCountedHrMinute.getAndSet(minute) == minute) return
+        val day = com.bipss.app.domain.time.LocalDay.epochDay(timestampMs)
+        dataDayDao.ensure(day)
+        dataDayDao.increment(day)
+    }
+
     private suspend fun updateMetric(type: String, value: Double, timestampMs: Long) {
         val existing = baselineStatsDao.getByType(type)
 
@@ -227,6 +250,7 @@ class SensorRepository(
                 isAnomalous = isAnomaly
             )
         )
+        if (type == MetricTypes.HR && !isAnomaly) countDataMinute(timestampMs)
 
         // Welford update, skipped for anomalies so one spike cannot drag the mean.
         if (!isAnomaly) {

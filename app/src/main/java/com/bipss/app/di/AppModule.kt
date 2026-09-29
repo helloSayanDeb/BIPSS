@@ -82,7 +82,8 @@ val appModule = module {
         // A separate file in simulation mode, so simulated data never mixes with real data.
         Room.databaseBuilder(androidContext(), AppDatabase::class.java, com.bipss.app.SimulationMode.databaseName(androidContext()))
             .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
-                com.bipss.app.data.db.migration.MIGRATION_6_7, com.bipss.app.data.db.migration.MIGRATION_7_8)
+                com.bipss.app.data.db.migration.MIGRATION_6_7, com.bipss.app.data.db.migration.MIGRATION_7_8,
+                com.bipss.app.data.db.migration.MIGRATION_8_9)
             .build()
     }
 
@@ -104,6 +105,7 @@ val appModule = module {
     // ── Sensor Pipeline ───────────────────────────────────────────────────────
     single { com.bipss.app.data.SignalRepository(get(), get(), get()) }
     single { SensorRepository(get(), get(), get(), get(), get()) }
+    single { com.bipss.app.data.ScoringRepository(get(), get()) }
     single { com.bipss.app.data.LegacyDataCleanup(get(), get()) }
     single { com.bipss.app.data.WaterRepository(get(), get()) }
 
@@ -150,10 +152,10 @@ val appModule = module {
     viewModel { MainViewModel(get()) }
 
     viewModel {
-        DashboardViewModel(get(), get(), get(), get(), get(), get(), get(), get(), androidContext())
+        DashboardViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), androidContext())
     }
 
-    viewModel { com.bipss.app.ui.recovery.RecoveryDetailViewModel(get(), get()) }
+    viewModel { com.bipss.app.ui.recovery.RecoveryDetailViewModel(get()) }
     viewModel { com.bipss.app.ui.strain.StrainDetailViewModel(get()) }
 
     viewModel {
@@ -164,7 +166,8 @@ val appModule = module {
             sensorRepo    = get(),
             envRepo       = get(),
             calculator    = get(),
-            waterRepo     = get()
+            waterRepo     = get(),
+            scoring       = get()
         )
     }
 

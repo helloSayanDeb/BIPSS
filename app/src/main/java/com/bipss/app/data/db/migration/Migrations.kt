@@ -181,3 +181,38 @@ val MIGRATION_7_8 = object : Migration(7, 8) {
         )
     }
 }
+
+/**
+ * v8 -> v9: data_days (minutes of measured heart rate per local day, which is
+ * what the baseline schedule counts) and ewma_baselines (nightly recovery
+ * baselines). data_days is filled from the heart-rate history already stored,
+ * so an existing user keeps the calibration days they have earned.
+ */
+val MIGRATION_8_9 = object : Migration(8, 9) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL(
+            "CREATE TABLE IF NOT EXISTS `data_days` (`epochDay` INTEGER NOT NULL, " +
+                "`validMinutes` INTEGER NOT NULL, PRIMARY KEY(`epochDay`))"
+        )
+        database.execSQL(
+            "CREATE TABLE IF NOT EXISTS `ewma_baselines` (`key` TEXT NOT NULL, `mean` REAL NOT NULL, " +
+                "`variance` REAL NOT NULL, `count` INTEGER NOT NULL, `lastNightStartMs` INTEGER NOT NULL, " +
+                "`updatedAtMs` INTEGER NOT NULL, PRIMARY KEY(`key`))"
+        )
+        // Distinct heart-rate minutes from the raw week and the older minute
+        // aggregates, bucketed into the device's local calendar day.
+        database.execSQL(
+            """
+            INSERT OR REPLACE INTO `data_days` (`epochDay`, `validMinutes`)
+            SELECT CAST(julianday(date(m * 60, 'unixepoch', 'localtime')) - 2440587.5 AS INTEGER) AS d, COUNT(*)
+            FROM (
+                SELECT `timestampMs` / 60000 AS m FROM `raw_readings`
+                    WHERE `metricType` = 'HR' AND `isAnomalous` = 0
+                UNION
+                SELECT `minuteEpoch` AS m FROM `minute_aggregates` WHERE `metricType` = 'HR'
+            )
+            GROUP BY d
+            """.trimIndent()
+        )
+    }
+}

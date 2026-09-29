@@ -30,13 +30,13 @@ object TemplatedResponder {
                 return if (!score.hasNumber) {
                     "I can't score your ${score.type.displayName} yet - ${score.reasonLine.lowercase()}."
                 } else if (score.factors.isEmpty()) {
-                    "Your ${score.type.displayName} score is ${score.score}, but no single factor stands out."
+                    "Your ${score.type.displayName} score is ${score.valueWithScale}, but no single factor stands out."
                 } else {
                     val drivers = score.factors.joinToString(", ") { it.label }
                     val caveat = if (score.availability == ScoreAvailability.PARTIAL)
-                        " This is computed from environment data only - wear the band for the full picture."
+                        " It was worked out ${score.reasonLine.replaceFirstChar { it.lowercase() }}."
                     else ""
-                    "Your ${score.type.displayName} score of ${score.score} is driven by: $drivers.$caveat"
+                    "Your ${score.type.displayName} score of ${score.valueWithScale} is driven by: $drivers.$caveat"
                 }
             }
         }
@@ -44,8 +44,9 @@ object TemplatedResponder {
         // "what is my X"
         riskScores.forEach { score ->
             if (("what" in q || "score" in q) && score.type.displayName.lowercase() in q) {
+                val prefix = if (score.fidelity == com.bipss.app.domain.Fidelity.EXPERIMENTAL) "Experimental: " else ""
                 return if (score.hasNumber)
-                    "Your ${score.type.displayName} score is ${score.score} (${score.level.name.lowercase()})."
+                    "${prefix}Your ${score.type.displayName} score is ${score.valueWithScale} (${score.levelWord})."
                 else
                     "I don't have a ${score.type.displayName} score for you - ${score.reasonLine.lowercase()}."
             }
@@ -78,7 +79,8 @@ object TemplatedResponder {
                     "Connect the band and let the environment sync finish, then ask me again."
             }
             val summary = known.joinToString(". ") {
-                "${it.type.displayName}: ${it.score} (${it.level.name.lowercase()})"
+                "${it.type.displayName}: ${it.valueWithScale} (${it.levelWord})" +
+                    if (it.fidelity == com.bipss.app.domain.Fidelity.EXPERIMENTAL) " [experimental]" else ""
             }
             val unknown = riskScores.filter { !it.hasNumber }
             val tail = if (unknown.isEmpty()) ""

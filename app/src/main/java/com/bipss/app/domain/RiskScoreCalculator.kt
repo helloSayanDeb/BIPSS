@@ -3,7 +3,14 @@ package com.bipss.app.domain
 import com.bipss.app.domain.environmental.AlertSeverity
 import com.bipss.app.domain.environmental.AqiRiskLevel
 import com.bipss.app.domain.environmental.EnvironmentalSnapshot
+import com.bipss.app.domain.ali.AliLevel
+import com.bipss.app.domain.ali.AliResult
+import com.bipss.app.domain.ali.AutonomicLoad
+import com.bipss.app.domain.recovery.RecoveryInput
+import com.bipss.app.domain.recovery.RecoveryResult
+import com.bipss.app.domain.strain.StrainScale
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 /**
  * Computes every risk and wellness score from whatever data actually exists.
@@ -84,35 +91,58 @@ class RiskScoreCalculator {
         val TRAILING_JOINERS = setOf("with", "and", "of", "in", "for", "over", "at", "to", "the", "a")
     }
 
+    /**
+     * The personal context the scores are judged against. Everything nullable:
+     * a missing baseline means the population fallback (or no score), never an
+     * invented personal value.
+     */
+    data class Personal(
+        /** Days with data (BaselineSchedule). */
+        val dayN:            Int = 0,
+        /** Resting heart rate from sleep (EWMA mean), bpm. */
+        val restingHr:       Double? = null,
+        /** The wearer's usual skin temperature, C. */
+        val usualSkinTempC:  Double? = null
+    )
+
+    /** What a missing pillar is waiting for. */
+    enum class MissingKind { BAND, HISTORY, INPUT }
+
+    /** A pillar that was worked out elsewhere, or the reason it could not be. */
+    sealed class Pillar<out T> {
+        data class Value<T>(val value: T) : Pillar<T>()
+        data class Missing(val reason: String, val kind: MissingKind = MissingKind.HISTORY) : Pillar<Nothing>()
+    }
+
+    /** Strain as the calculator needs it: the 0-21 value and whether HRrest was an estimate. */
+    data class StrainInput(val display: Double, val restIsEstimate: Boolean, val activeMinutes: Int, val scoredMinutes: Int)
+
     fun computeAll(
         hr:              Int?,
         spo2:            Int?,
         skinTempC:       Float?,
-        prvRmssd:        Int?,
-        baselineHR:      Double?,
-        baselineHRStd:   Double?,
-        baselineDays:    Int,
+        personal:        Personal,
         env:             EnvironmentalSnapshot?,
         /** Null when the user has never logged water - absence of a log is not evidence of thirst. */
         hoursSinceWater: Float?,
         sleepScore:      Int?,
-        recoveryScore:   Int?,
-        strainScore:     Int?,
+        recovery:        RecoveryResult?,
+        strain:          Pillar<StrainInput>,
+        ali:             AliResult?,
         dataMode:        DataMode
     ): List<RiskScore> {
         val hazards = listOf(
-            computeHeatStress(hr, skinTempC, env, hoursSinceWater, dataMode),
+            computeHeatStress(hr, skinTempC, env, hoursSinceWater, personal, dataMode),
             computeRespiratory(hr, spo2, env, dataMode),
-            computeCardiovascular(hr, baselineHR, baselineHRStd, baselineDays, dataMode),
             computeFlood(env, dataMode)
         )
 
-        val recovery = computeRecovery(prvRmssd, hr, baselineHR, baselineDays, recoveryScore, dataMode)
-        val sleep    = computeSleep(sleepScore, dataMode)
-        val strain   = computeStrain(strainScore, dataMode)
-        val readiness = computeReadiness(recovery, sleep, strain, hazards, dataMode)
+        val recoveryScore = computeRecovery(recovery, personal.dayN, dataMode)
+        val sleepPillar   = computeSleep(sleepScore, dataMode)
+        val strainPillar  = computeStrain(strain, dataMode)
+        val readiness     = computeReadiness(recoveryScore, sleepPillar, strainPillar, hazards, dataMode)
 
-        return listOf(readiness, recovery, sleep, strain) + hazards
+        return listOf(readiness, recoveryScore, sleepPillar, strainPillar) + hazards + computeAutonomicLoad(ali, personal.dayN, dataMode)
     }
 
     // -- Heat stress -----------------------------------------------------------
@@ -125,9 +155,15 @@ class RiskScoreCalculator {
         skinTempC:       Float?,
         env:             EnvironmentalSnapshot?,
         hoursSinceWater: Float?,
+        personal:        Personal,
         dataMode:        DataMode
     ): RiskScore {
         val b = Budget()
+        // From day 14 the body inputs are judged against this wearer's own
+        // resting heart rate and usual skin temperature; before that, against
+        // population thresholds, because two weeks of data cannot yet separate
+        // a person's normal from an unusual fortnight.
+        val personalBody = BaselineSchedule.isUsable(personal.dayN)
 
         // Environmental base - 50 points, split 35 humidity / 15 temperature.
         val humidity = env?.humidityPercent
@@ -172,15 +208,23 @@ class RiskScoreCalculator {
 
         // Body-dependent components - 30 points, band only.
         if (hr != null) {
-            val f = ((hr - 70f) / 30f).coerceIn(0f, 1f)
+            val rest = personal.restingHr?.takeIf { personalBody }
+            // Personal: 25 bpm above your resting rate earns the full points.
+            // Population: 70 bpm upward, full at 100.
+            val f = if (rest != null) ((hr - rest) / 25.0).toFloat().coerceIn(0f, 1f)
+                    else ((hr - 70f) / 30f).coerceIn(0f, 1f)
             b.add(f * 20f, 20f)
-            if (f > 0.5f) b.factor("Heart Rate Elevated", true)
+            if (f > 0.5f) b.factor(if (rest != null) "Heart Rate Above Your Resting Rate" else "Heart Rate Elevated", true)
         } else b.skip("heart rate")
 
         if (skinTempC != null) {
-            val f = ((skinTempC - 36.5f) / 1.5f).coerceIn(0f, 1f)
+            val usual = personal.usualSkinTempC?.takeIf { personalBody }
+            // Personal: 1.0 C above your usual earns the full points.
+            // Population: 36.5 C upward, full at 38.
+            val f = if (usual != null) ((skinTempC - usual) / 1.0).toFloat().coerceIn(0f, 1f)
+                    else ((skinTempC - 36.5f) / 1.5f).coerceIn(0f, 1f)
             b.add(f * 10f, 10f)
-            if (f > 0.5f) b.factor("Skin Temp High", true)
+            if (f > 0.5f) b.factor(if (usual != null) "Skin Warmer Than Usual" else "Skin Temp High", true)
         } else b.skip("skin temperature")
 
         if (!b.hasAnything || b.coverage(125f) < MIN_COVERAGE_FOR_NUMBER) {
@@ -191,8 +235,11 @@ class RiskScoreCalculator {
         }
 
         val bodyMissing = hr == null || skinTempC == null
+        val usedPersonal = personalBody && (
+            (hr != null && personal.restingHr != null) || (skinTempC != null && personal.usualSkinTempC != null))
         return RiskScore(
             type          = RiskScoreType.HEAT_STRESS,
+            provisional   = usedPersonal && BaselineSchedule.stage(personal.dayN) == BaselineStage.PROVISIONAL,
             score         = b.score,
             level         = levelFor(b.score, RiskScoreType.HEAT_STRESS),
             factors       = b.factors.take(3),
@@ -201,7 +248,9 @@ class RiskScoreCalculator {
             dataMode      = dataMode,
             missingInputs = b.missing,
             measuredOutOf = b.possible.toInt(),
-            fullBudget    = 125
+            fullBudget    = 125,
+            // A weighting of environment and body inputs, not a measurement.
+            fidelity      = Fidelity.ESTIMATE
         )
     }
 
@@ -261,69 +310,6 @@ class RiskScoreCalculator {
             factors       = b.factors.take(3),
             availability  = if (b.missing.isEmpty()) ScoreAvailability.AVAILABLE else ScoreAvailability.PARTIAL,
             confidence    = confidenceFrom(b.possible, 100f, spo2 == null),
-            dataMode      = dataMode,
-            missingInputs = b.missing,
-            measuredOutOf = b.possible.toInt()
-        )
-    }
-
-    // -- Cardiovascular --------------------------------------------------------
-    // Genuinely impossible without the band AND a personal baseline. Previously
-    // this reported "0 - Normal", which reads as "your heart is fine" when it
-    // actually meant "we have no idea". Those are different statements and only
-    // one of them is true.
-
-    private fun computeCardiovascular(
-        hr:            Int?,
-        baselineHR:    Double?,
-        baselineHRStd: Double?,
-        baselineDays:  Int,
-        dataMode:      DataMode
-    ): RiskScore {
-        if (hr == null) {
-            return unavailable(
-                RiskScoreType.CARDIOVASCULAR, ScoreAvailability.NEEDS_BAND, dataMode,
-                listOf("heart rate")
-            )
-        }
-        if (baselineHR == null || !BaselineSchedule.isUsable(baselineDays)) {
-            return RiskScore(
-                type          = RiskScoreType.CARDIOVASCULAR,
-                score         = 0,
-                level         = RiskLevel.LOW,
-                factors       = listOf(RiskFactor(BaselineSchedule.stageLabel(baselineDays), false)),
-                availability  = ScoreAvailability.NEEDS_MORE_HISTORY,
-                confidence    = 0f,
-                dataMode      = dataMode,
-                missingInputs = listOf(BaselineSchedule.missingLabel(baselineDays)),
-                measuredOutOf = 0
-            )
-        }
-
-        val b = Budget()
-        val sd = baselineHRStd?.takeIf { it > 0.0 }
-        if (sd != null) {
-            val sigma = ((hr - baselineHR) / sd).toFloat()
-            b.add((sigma.coerceIn(0f, 3f) / 3f) * 70f, 70f)
-            if (sigma > 2f) b.factor("Well Above Your Baseline", true)
-            else if (sigma > 1f) b.factor("Above Your Baseline", true)
-            else b.factor("Within Your Baseline", false)
-        } else b.skip("baseline variability")
-
-        // Absolute tachycardia is meaningful regardless of baseline spread.
-        b.add(if (hr > 100) 30f else 0f, 30f)
-        if (hr > 100) b.factor("Heart Rate Above 100", true)
-
-        return RiskScore(
-            type          = RiskScoreType.CARDIOVASCULAR,
-            score         = b.score,
-            level         = levelFor(b.score, RiskScoreType.CARDIOVASCULAR),
-            factors       = b.factors.take(3),
-            availability  = if (b.missing.isEmpty()) ScoreAvailability.AVAILABLE else ScoreAvailability.PARTIAL,
-            // A three-day baseline is a real baseline, but not as trustworthy
-            // as a thirty-day one, and the score says so rather than implying
-            // equal certainty.
-            confidence    = BaselineSchedule.confidenceFor(baselineDays),
             dataMode      = dataMode,
             missingInputs = b.missing,
             measuredOutOf = b.possible.toInt()
@@ -397,61 +383,49 @@ class RiskScoreCalculator {
 
     // -- Wellness pillars ------------------------------------------------------
 
-    private fun computeRecovery(
-        prvRmssd:      Int?,
-        hr:            Int?,
-        baselineHR:    Double?,
-        baselineDays:  Int,
-        precomputed:   Int?,
-        dataMode:      DataMode
-    ): RiskScore {
-        precomputed?.let {
-            return RiskScore(
-                type = RiskScoreType.RECOVERY, score = it,
-                level = levelFor(it, RiskScoreType.RECOVERY),
-                factors = emptyList(), dataMode = dataMode,
-                confidence = BaselineSchedule.confidenceFor(baselineDays)
-            )
-        }
-        if (prvRmssd == null && hr == null) {
-            return unavailable(
-                RiskScoreType.RECOVERY, ScoreAvailability.NEEDS_BAND, dataMode,
-                listOf("pulse rate variability")
-            )
-        }
-        if (baselineHR == null || !BaselineSchedule.isUsable(baselineDays)) {
+    /**
+     * Recovery from last night, as RecoveryEngine judged it against this
+     * wearer's own baseline. The composite is an estimate; the inputs it is
+     * built from are shown on the detail screen.
+     */
+    private fun computeRecovery(recovery: RecoveryResult?, dayN: Int, dataMode: DataMode): RiskScore {
+        if (recovery == null) {
             return unavailable(
                 RiskScoreType.RECOVERY, ScoreAvailability.NEEDS_MORE_HISTORY, dataMode,
-                listOf(BaselineSchedule.missingLabel(baselineDays))
+                listOf("a night's sleep with the band")
             )
         }
-
-        val b = Budget()
-        // Resting HR near or below baseline means recovered; well above means not.
-        if (hr != null) {
-            val delta = (hr - baselineHR).toFloat()
-            val f = (1f - (delta / 15f)).coerceIn(0f, 1f)
-            b.add(f * 60f, 60f)
-            b.factor(if (delta <= 2f) "Resting HR At Baseline" else "Resting HR Elevated", delta > 2f)
-        } else b.skip("resting heart rate")
-
-        if (prvRmssd != null) {
-            // Higher RMSSD is better recovery; 20 ms is poor, 70 ms is strong.
-            val f = ((prvRmssd - 20f) / 50f).coerceIn(0f, 1f)
-            b.add(f * 40f, 40f)
-            b.factor(if (f > 0.5f) "PRV Strong" else "PRV Suppressed", f <= 0.5f)
-        } else b.skip("pulse rate variability")
-
+        val score = recovery.score ?: return unavailable(
+            RiskScoreType.RECOVERY, ScoreAvailability.NEEDS_MORE_HISTORY, dataMode,
+            listOf(recovery.reason ?: BaselineSchedule.missingLabel(dayN))
+        )
+        val factors = recovery.components.mapNotNull { c ->
+            if (c.input == RecoveryInput.SKIN_TEMP) {
+                // Only a genuinely unusual night is worth naming; a typical one
+                // is not a driver in either direction.
+                val raw = c.z ?: return@mapNotNull null
+                return@mapNotNull if (abs(raw) >= 1.0) RiskFactor("Skin Temp Unusual", true) else null
+            }
+            val z = c.signedZ ?: return@mapNotNull null
+            if (abs(z) < 0.5) return@mapNotNull null
+            val better = z > 0
+            val label = when (c.input) {
+                RecoveryInput.PRV            -> if (better) "PRV Above Usual" else "PRV Below Usual"
+                RecoveryInput.RESTING_HR     -> if (better) "Resting HR Below Usual" else "Resting HR Above Usual"
+                else                         -> if (better) "Longer Sleep" else "Short Sleep"
+            }
+            RiskFactor(label, !better)
+        }
         return RiskScore(
             type          = RiskScoreType.RECOVERY,
-            score         = b.score,
-            level         = levelFor(b.score, RiskScoreType.RECOVERY),
-            factors       = b.factors.take(3),
-            availability  = if (b.missing.isEmpty()) ScoreAvailability.AVAILABLE else ScoreAvailability.PARTIAL,
-            confidence    = BaselineSchedule.confidenceFor(baselineDays),
+            score         = score,
+            level         = levelFor(score, RiskScoreType.RECOVERY),
+            provisional   = recovery.stage == BaselineStage.PROVISIONAL,
+            factors       = factors.take(3),
+            availability  = ScoreAvailability.AVAILABLE,
+            confidence    = BaselineSchedule.confidenceFor(dayN),
             dataMode      = dataMode,
-            missingInputs = b.missing,
-            measuredOutOf = b.possible.toInt()
+            fidelity      = Fidelity.ESTIMATE
         )
     }
 
@@ -465,21 +439,78 @@ class RiskScoreCalculator {
         return RiskScore(
             type = RiskScoreType.SLEEP, score = sleepScore,
             level = levelFor(sleepScore, RiskScoreType.SLEEP),
-            factors = emptyList(), dataMode = dataMode
+            factors = emptyList(), dataMode = dataMode,
+            fidelity = Fidelity.ESTIMATE
         )
     }
 
-    private fun computeStrain(strainScore: Int?, dataMode: DataMode): RiskScore {
-        if (strainScore == null) {
-            return unavailable(
-                RiskScoreType.STRAIN, ScoreAvailability.NEEDS_BAND, dataMode,
-                listOf("activity data")
-            )
+    /**
+     * Strain on its own 0-21 scale. [RiskScore.score] carries the same value
+     * as a share of 100 for the ring and Readiness; the display value is the
+     * 0-21 figure.
+     */
+    private fun computeStrain(strain: Pillar<StrainInput>, dataMode: DataMode): RiskScore {
+        val input = when (strain) {
+            is Pillar.Missing -> return unavailable(
+                RiskScoreType.STRAIN,
+                when (strain.kind) {
+                    MissingKind.BAND    -> ScoreAvailability.NEEDS_BAND
+                    MissingKind.HISTORY -> ScoreAvailability.NEEDS_MORE_HISTORY
+                    MissingKind.INPUT   -> ScoreAvailability.NEEDS_INPUT
+                },
+                dataMode, listOf(strain.reason)
+            ).copy(fidelity = Fidelity.PRODUCTION)
+            is Pillar.Value -> strain.value
         }
+        val asPercent = (input.display / StrainScale.MAX_DISPLAY * 100).roundToInt().coerceIn(0, 100)
         return RiskScore(
-            type = RiskScoreType.STRAIN, score = strainScore,
-            level = levelFor(strainScore, RiskScoreType.STRAIN),
-            factors = emptyList(), dataMode = dataMode
+            type          = RiskScoreType.STRAIN,
+            score         = asPercent,
+            level         = levelFor(asPercent, RiskScoreType.STRAIN),
+            factors       = listOf(RiskFactor("${input.scoredMinutes} of ${input.activeMinutes} active min scored", false)),
+            dataMode      = dataMode,
+            // Banister TRIMP is the established method; with the first-day
+            // resting-rate fallback it is an estimate.
+            fidelity      = if (input.restIsEstimate) Fidelity.ESTIMATE else Fidelity.PRODUCTION,
+            // Load, not a health verdict: "Normal"/"At risk" do not apply.
+            levelLabel    = when {
+                input.display < 10.0 -> "Light"
+                input.display < 14.0 -> "Moderate"
+                input.display < 18.0 -> "High"
+                else                 -> "All out"
+            },
+            displayValue  = "%.1f".format(input.display),
+            scaleMax      = StrainScale.MAX_DISPLAY.roundToInt()
+        )
+    }
+
+    /**
+     * The Autonomic Load Indicator - EXPERIMENTAL. Reported as Low / Elevated /
+     * High, never as a number; it never feeds Readiness, the health status or
+     * alert ranking.
+     */
+    private fun computeAutonomicLoad(ali: AliResult?, dayN: Int, dataMode: DataMode): RiskScore {
+        val level = ali?.level ?: return unavailable(
+            RiskScoreType.AUTONOMIC_LOAD, ScoreAvailability.NEEDS_MORE_HISTORY, dataMode,
+            listOf(ali?.reason ?: "Needs still, clean band signal")
+        ).copy(fidelity = Fidelity.EXPERIMENTAL)
+        val ring = when (level) { AliLevel.LOW -> 20; AliLevel.ELEVATED -> 55; AliLevel.HIGH -> 85 }
+        return RiskScore(
+            type          = RiskScoreType.AUTONOMIC_LOAD,
+            score         = ring,
+            level         = when (level) { AliLevel.LOW -> RiskLevel.LOW; AliLevel.ELEVATED -> RiskLevel.MEDIUM; AliLevel.HIGH -> RiskLevel.HIGH },
+            factors       = buildList {
+                ali.prvSuppressionZ?.takeIf { it >= 1.0 }?.let { add(RiskFactor("PRV Below Your Still Range", true)) }
+                ali.stillHrElevationZ?.takeIf { it >= 1.0 }?.let { add(RiskFactor("Still Heart Rate Above Usual", true)) }
+            },
+            dataMode      = dataMode,
+            fidelity      = Fidelity.EXPERIMENTAL,
+            // Its own words, never the Normal / Monitor / At risk of a hazard.
+            levelLabel    = level.label,
+            displayValue  = level.label,
+            scaleMax      = 0,
+            confidence    = BaselineSchedule.confidenceFor(dayN),
+            provisional   = BaselineSchedule.stage(dayN) == BaselineStage.PROVISIONAL
         )
     }
 
@@ -508,7 +539,9 @@ class RiskScoreCalculator {
         // Strain runs the other way: more load means less readiness.
         if (strain.hasNumber)   { weighted += (100 - strain.score) * 0.2f; weight += 0.2f }
 
-        if (weight <= 0f) {
+        // Strain alone is not readiness: a quiet day says nothing about how
+        // well the body has recovered, so a number needs recovery or sleep.
+        if (weight <= 0f || (!recovery.hasNumber && !sleep.hasNumber)) {
             return unavailable(
                 RiskScoreType.READINESS, ScoreAvailability.NEEDS_MORE_HISTORY, dataMode,
                 listOf("at least one night of sleep data")
@@ -538,6 +571,7 @@ class RiskScoreCalculator {
             factors       = factors.take(3),
             availability  = if (pillarsPresent == 3) ScoreAvailability.AVAILABLE else ScoreAvailability.PARTIAL,
             confidence    = weight,
+            fidelity      = Fidelity.ESTIMATE,
             dataMode      = dataMode,
             missingInputs = buildList {
                 if (!recovery.hasNumber) add("recovery")

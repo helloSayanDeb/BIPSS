@@ -23,12 +23,15 @@ class SleepAnalysisWorker(
 ) : CoroutineWorker(appContext, workerParams), KoinComponent {
 
     private val sleepRepo: SleepRepository by inject()
+    private val scoring: com.bipss.app.data.ScoringRepository by inject()
     private val legacyCleanup: com.bipss.app.data.LegacyDataCleanup by inject()
 
     override suspend fun doWork(): Result = try {
         // Never touch these tables while a one-time legacy repair is running.
         legacyCleanup.awaitReady()
         val session = sleepRepo.analyseLastNight()
+        // Fold the new night into the recovery baselines exactly once.
+        runCatching { scoring.processNewNights() }
         if (session != null) {
             val nights = sleepRepo.nightCount()
             val screenings = sleepRepo.nightlyScreenings()

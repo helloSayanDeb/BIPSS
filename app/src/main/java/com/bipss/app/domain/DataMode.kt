@@ -41,7 +41,10 @@ enum class ScoreAvailability {
     NEEDS_BAND,
 
     /** Needs a personal baseline that does not exist yet. */
-    NEEDS_MORE_HISTORY;
+    NEEDS_MORE_HISTORY,
+
+    /** Needs something only the user can give, such as their age. */
+    NEEDS_INPUT;
 
     /** True when a numeric score may be shown. Otherwise the UI must render an em dash. */
     val hasNumber: Boolean get() = this == AVAILABLE || this == PARTIAL

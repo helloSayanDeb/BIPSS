@@ -15,9 +15,11 @@ import com.bipss.app.data.db.entity.*
         EmergencyContactEntity::class,
         SosEventEntity::class,
         WaterLogEntity::class,
-        SignalEpochEntity::class
+        SignalEpochEntity::class,
+        DataDayEntity::class,
+        EwmaBaselineEntity::class
     ],
-    version  = 8,
+    version  = 9,
     // Exported from v6 so every later hand-written migration can be checked
     // against the schema Room actually expects (see app/schemas/).
     exportSchema = true
@@ -33,4 +35,6 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun sosEventDao():           SosEventDao
     abstract fun waterLogDao():           WaterLogDao
     abstract fun signalEpochDao():        SignalEpochDao
+    abstract fun dataDayDao():            DataDayDao
+    abstract fun ewmaBaselineDao():       EwmaBaselineDao
 }

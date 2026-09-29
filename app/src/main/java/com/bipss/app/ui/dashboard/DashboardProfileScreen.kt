@@ -111,7 +111,8 @@ fun DashboardProfileScreen(
             Spacer(Modifier.height(Space.m))
             BipssCard {
                 state.riskScores.forEachIndexed { i, score ->
-                    InfoRow(score.type.displayName, "${score.score} / 100")
+                    // A score that could not be computed is a dash, never "0 / 100".
+                    InfoRow(score.type.displayName, if (score.hasNumber) score.valueWithScale else "—")
                     if (i < state.riskScores.lastIndex) HairlineDivider()
                 }
             }
