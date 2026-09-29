@@ -238,6 +238,7 @@ interface WaterLogDao {
     @Insert
     suspend fun insert(entry: WaterLogEntity)
 
+
     /** [startMs] inclusive, [endMs] exclusive - pass LocalDay ranges. */
     @Query("""
         SELECT COUNT(*) AS drinks, COALESCE(SUM(amountMl), 0) AS totalMl
@@ -300,6 +301,13 @@ interface DataDayDao {
 
     @Query("UPDATE data_days SET validMinutes = validMinutes + 1 WHERE epochDay = :epochDay")
     suspend fun increment(epochDay: Long)
+
+    @Query("SELECT * FROM data_days ORDER BY epochDay ASC")
+    suspend fun all(): List<DataDayEntity>
+
+    /** Raises a day's count to [minutes] if it is lower (restoring from a backup). */
+    @Query("UPDATE data_days SET validMinutes = MAX(validMinutes, :minutes) WHERE epochDay = :epochDay")
+    suspend fun atLeast(epochDay: Long, minutes: Int)
 
     @Query("SELECT COUNT(*) FROM data_days WHERE validMinutes >= :minMinutes")
     suspend fun qualifyingDays(minMinutes: Int): Int
@@ -380,6 +388,13 @@ interface CycleDao {
 
     @Insert
     suspend fun insertPeriod(period: CyclePeriodEntity): Long
+
+    /** For restoring: a start already on this phone is left as it is. */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertPeriodIgnoringDuplicate(period: CyclePeriodEntity): Long
+
+    @Query("SELECT * FROM cycle_day_notes ORDER BY epochDay ASC")
+    suspend fun allNotes(): List<CycleDayNoteEntity>
 
     @Update
     suspend fun updatePeriod(period: CyclePeriodEntity)

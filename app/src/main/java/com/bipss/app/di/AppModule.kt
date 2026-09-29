@@ -67,7 +67,7 @@ val appModule = module {
     single { HealthConnectRepository(androidContext()) }
 
     // ── Google Drive appDataFolder backup (see class doc re: OAuth client requirement) ──
-    single { DriveBackupManager(androidContext(), get(), get(), get(), get()) }
+    single { DriveBackupManager(androidContext(), get(), get(), get(), get(), get(), get(), get(), get()) }
 
     // ── Firebase (data sharing) ───────────────────────────────────────────────
     single { FirebaseFirestore.getInstance() }
@@ -102,6 +102,8 @@ val appModule = module {
     single { get<AppDatabase>().envSnapshotDao() }
     single { get<AppDatabase>().aqiContextSampleDao() }
     single { get<AppDatabase>().cycleDao() }
+    single { get<AppDatabase>().dataDayDao() }
+    single { get<AppDatabase>().ewmaBaselineDao() }
     single { com.bipss.app.data.CycleRepository(get()) }
     single { com.bipss.app.data.environmental.LocationContextSampler(androidContext()) }
     single { com.bipss.app.data.environmental.AqiContextRepository(get(), get(), get(), get(), get()) }

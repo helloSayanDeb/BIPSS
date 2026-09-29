@@ -349,16 +349,21 @@ private fun ThemeSelector(current: ThemePreference, onSelect: (ThemePreference) 
 @Composable
 private fun PrivacySection(state: SettingsUiState, vm: SettingsViewModel) {
     val colors = BipssTheme.colors
-    val signInLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { /* re-tap Back up / Restore after granting access */ }
+    // Google's consent screen for Drive; allowing it repeats the action that asked.
+    lateinit var askConsent: (android.app.PendingIntent) -> Unit
+    val consentLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartIntentSenderForResult()
+    ) { result -> vm.onDriveConsentResult(result.resultCode == android.app.Activity.RESULT_OK) { askConsent(it) } }
+    askConsent = { pi -> consentLauncher.launch(androidx.activity.result.IntentSenderRequest.Builder(pi).build()) }
 
     BipssCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Cloud backup", style = MaterialTheme.typography.titleMedium, color = colors.textPrimary)
                 Text(
-                    "Settings, baselines and contacts only — raw sensor data never leaves the device.",
+                    "Your own copy in your Google Drive (a private app folder only BIPSS can read): profile, " +
+                        "settings, emergency contacts, baselines, water log and cycle log. Raw sensor readings stay " +
+                        "on this phone. For moving to a new phone - nothing reaches the developer.",
                     style = MaterialTheme.typography.bodySmall,
                     color = colors.textSecondary
                 )
@@ -378,13 +383,13 @@ private fun PrivacySection(state: SettingsUiState, vm: SettingsViewModel) {
             Row(horizontalArrangement = Arrangement.spacedBy(Space.s)) {
                 SecondaryButton(
                     text = if (state.isBackingUp) "Backing up…" else "Back up now",
-                    onClick = { vm.onBackupNowTap { intent -> signInLauncher.launch(intent) } },
+                    onClick = { vm.onBackupNowTap(askConsent) },
                     enabled = !state.isBackingUp,
                     modifier = Modifier.weight(1f)
                 )
                 SecondaryButton(
                     text = if (state.isRestoring) "Restoring…" else "Restore",
-                    onClick = { vm.onRestoreTap { intent -> signInLauncher.launch(intent) } },
+                    onClick = { vm.onRestoreTap(askConsent) },
                     enabled = !state.isRestoring,
                     modifier = Modifier.weight(1f)
                 )
@@ -392,6 +397,15 @@ private fun PrivacySection(state: SettingsUiState, vm: SettingsViewModel) {
             state.backupStatusMessage?.let {
                 Spacer(Modifier.height(Space.s))
                 Text(it, style = MaterialTheme.typography.bodySmall, color = colors.textTertiary)
+            }
+            val fmt = java.text.SimpleDateFormat("d MMM yyyy, HH:mm", java.util.Locale.getDefault())
+            val times = listOfNotNull(
+                state.lastBackupAtMs?.let { "Last backup: ${fmt.format(java.util.Date(it))}" },
+                state.lastRestoreAtMs?.let { "Last restore: ${fmt.format(java.util.Date(it))}" }
+            )
+            if (times.isNotEmpty()) {
+                Spacer(Modifier.height(Space.s))
+                Text(times.joinToString("  ·  "), style = MaterialTheme.typography.labelSmall, color = colors.textTertiary)
             }
         }
     }
@@ -424,8 +438,10 @@ private fun PrivacySection(state: SettingsUiState, vm: SettingsViewModel) {
                     color = colors.textPrimary
                 )
                 Text(
-                    "Sends hourly health summaries to help improve the app. " +
-                        "This is not a backup — it does not restore your data.",
+                    "Optional, to help improve BIPSS: shares minute averages of your band readings and your " +
+                        "sleep summaries, under an anonymous ID, every hour. Not a backup - nothing is ever " +
+                        "restored from it. Turning it off stops new uploads; Delete my data also removes " +
+                        "what was shared.",
                     style = MaterialTheme.typography.bodySmall,
                     color = colors.textSecondary
                 )

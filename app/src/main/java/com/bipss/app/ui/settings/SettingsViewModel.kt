@@ -45,6 +45,8 @@ data class SettingsUiState(
     val isBackingUp:           Boolean = false,
     val isRestoring:           Boolean = false,
     val backupStatusMessage:   String? = null,
+    val lastBackupAtMs:        Long?   = null,
+    val lastRestoreAtMs:       Long?   = null,
 
     val emergencyContacts: List<EmergencyContactEntity> = emptyList(),
 
@@ -138,6 +140,10 @@ class SettingsViewModel(
         }
 
         viewModelScope.launch {
+            launch {
+                combine(prefsRepo.lastBackupAtMs, prefsRepo.lastRestoreAtMs) { b, r -> b to r }
+                    .collect { (b, r) -> _uiState.update { it.copy(lastBackupAtMs = b, lastRestoreAtMs = r) } }
+            }
             combine(prefsRepo.cloudBackupEnabled, prefsRepo.themePreference) { backup, theme -> backup to theme }
                 .collect { (backup, theme) ->
                     _uiState.update { it.copy(cloudBackupEnabled = backup, themePreference = theme) }
@@ -243,39 +249,37 @@ class SettingsViewModel(
         }
     }
 
-    /** Returns a sign-in Intent to launch if the caller needs to (re)authorize Drive access. */
-    fun onBackupNowTap(onNeedsSignIn: (android.content.Intent) -> Unit) {
-        viewModelScope.launch {
-            _uiState.update { it.copy(isBackingUp = true, backupStatusMessage = null) }
-            when (val result = driveBackupManager.backupNow()) {
-                is BackupResult.Success -> _uiState.update {
-                    it.copy(isBackingUp = false, backupStatusMessage = "Backed up to Google Drive.")
-                }
-                is BackupResult.NotSignedIn -> {
-                    _uiState.update { it.copy(isBackingUp = false) }
-                    onNeedsSignIn(result.signInIntent)
-                }
-                is BackupResult.Failure -> _uiState.update {
-                    it.copy(isBackingUp = false, backupStatusMessage = "Backup failed: ${result.message}")
-                }
-            }
-        }
+    private enum class DriveAction { BACKUP, RESTORE }
+    /** The action waiting on the Google consent screen, repeated once the user allows it. */
+    private var pendingDriveAction: DriveAction? = null
+
+    fun onBackupNowTap(onNeedsConsent: (android.app.PendingIntent) -> Unit) = runDrive(DriveAction.BACKUP, onNeedsConsent)
+    fun onRestoreTap(onNeedsConsent: (android.app.PendingIntent) -> Unit) = runDrive(DriveAction.RESTORE, onNeedsConsent)
+
+    /** The consent screen's answer: allowed repeats the action; anything else says so. */
+    fun onDriveConsentResult(allowed: Boolean, onNeedsConsent: (android.app.PendingIntent) -> Unit) {
+        val action = pendingDriveAction ?: return
+        pendingDriveAction = null
+        if (allowed) runDrive(action, onNeedsConsent)
+        else _uiState.update { it.copy(backupStatusMessage = "Drive access wasn't allowed, so nothing was " +
+            (if (action == DriveAction.BACKUP) "backed up." else "restored.")) }
     }
 
-    fun onRestoreTap(onNeedsSignIn: (android.content.Intent) -> Unit) {
+    private fun runDrive(action: DriveAction, onNeedsConsent: (android.app.PendingIntent) -> Unit) {
         viewModelScope.launch {
-            _uiState.update { it.copy(isRestoring = true, backupStatusMessage = null) }
-            when (val result = driveBackupManager.restoreLatest()) {
-                is BackupResult.Success -> _uiState.update {
-                    it.copy(isRestoring = false, backupStatusMessage = "Restored from Google Drive.")
+            _uiState.update {
+                it.copy(isBackingUp = action == DriveAction.BACKUP, isRestoring = action == DriveAction.RESTORE,
+                        backupStatusMessage = null)
+            }
+            val result = if (action == DriveAction.BACKUP) driveBackupManager.backupNow() else driveBackupManager.restoreLatest()
+            _uiState.update { it.copy(isBackingUp = false, isRestoring = false) }
+            when (result) {
+                is BackupResult.Success -> _uiState.update { it.copy(backupStatusMessage = result.detail) }
+                is BackupResult.NeedsConsent -> {
+                    pendingDriveAction = action
+                    onNeedsConsent(result.pendingIntent)
                 }
-                is BackupResult.NotSignedIn -> {
-                    _uiState.update { it.copy(isRestoring = false) }
-                    onNeedsSignIn(result.signInIntent)
-                }
-                is BackupResult.Failure -> _uiState.update {
-                    it.copy(isRestoring = false, backupStatusMessage = "Restore failed: ${result.message}")
-                }
+                is BackupResult.Failure -> _uiState.update { it.copy(backupStatusMessage = result.message) }
             }
         }
     }

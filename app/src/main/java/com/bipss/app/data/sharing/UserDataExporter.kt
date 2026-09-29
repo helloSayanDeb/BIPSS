@@ -88,14 +88,14 @@ class UserDataExporter(
 
         // 1. Minute aggregates — watermark is minuteEpoch
         val lastAggMinute = prefsRepo.lastSyncedAggMinute.first()
-        val newAggs = aggDao.getRange("HR", lastAggMinute + 1, Long.MAX_VALUE) +
-                      aggDao.getRange("SPO2", lastAggMinute + 1, Long.MAX_VALUE) +
-                      aggDao.getRange("SKIN_TEMP", lastAggMinute + 1, Long.MAX_VALUE) +
-                      aggDao.getRange("PRV", lastAggMinute + 1, Long.MAX_VALUE) +
-                      aggDao.getRange("AMB_TEMP", lastAggMinute + 1, Long.MAX_VALUE) +
-                      aggDao.getRange("HUMIDITY", lastAggMinute + 1, Long.MAX_VALUE) +
-                      aggDao.getRange("AQI", lastAggMinute + 1, Long.MAX_VALUE) +
-                      aggDao.getRange("ACCEL_MAG", lastAggMinute + 1, Long.MAX_VALUE)
+        // The keys aggregates are actually stored under (MetricTypes). "AMB_TEMP"
+        // matched nothing, so ambient temperature was never shared; there is no
+        // "AQI" metric, and "ACCEL_MAG" was only ever written by Demo Mode.
+        val newAggs = listOf(
+            com.bipss.app.data.MetricTypes.HR, com.bipss.app.data.MetricTypes.SPO2,
+            com.bipss.app.data.MetricTypes.SKIN_TEMP, com.bipss.app.data.MetricTypes.PRV,
+            com.bipss.app.data.MetricTypes.AMBIENT, com.bipss.app.data.MetricTypes.HUMIDITY
+        ).flatMap { aggDao.getRange(it, lastAggMinute + 1, Long.MAX_VALUE) }
 
         if (newAggs.isNotEmpty()) {
             val aggCollection = userRef.collection("minute_aggregates")

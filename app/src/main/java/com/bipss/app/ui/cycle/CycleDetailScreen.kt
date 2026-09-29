@@ -144,7 +144,8 @@ fun CycleDetailScreen(navController: NavController, vm: CycleViewModel = koinVie
             }
             Spacer(Modifier.height(Space.l))
             Text(
-                "Kept on this phone only, in the app's own storage. BIPSS doesn't use your calendar.",
+                "Kept in the app's own storage on this phone, and in your Drive backup if you turn that on. " +
+                    "Never part of the optional data sharing. BIPSS doesn't use your calendar.",
                 style = MaterialTheme.typography.bodySmall, color = colors.textTertiary
             )
             Spacer(Modifier.height(Space.huge))
