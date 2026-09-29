@@ -131,13 +131,22 @@ fun MetricDetailScreen(
             item {
                 if (!state.hasData && !state.isLoading) {
                     InfoBanner(
-                        text = "No data recorded in this period. Wear the band to start building history.",
+                        text = if (state.range == TimeRange.LIVE)
+                            "No readings in the last 5 minutes. This view fills in, second by second, while your band is streaming."
+                        else "No data recorded in this period. Wear the band to start building history.",
                         icon = Icons.Rounded.Info,
                         tint = colors.textTertiary
                     )
                 } else {
                     BipssCard {
-                        SectionLabel("This ${state.range.label.lowercase()}")
+                        SectionLabel(
+                            when (state.range) {
+                                TimeRange.LIVE  -> "Last 5 minutes"
+                                TimeRange.DAY   -> "Last 24 hours"
+                                TimeRange.WEEK  -> "Last 7 days"
+                                TimeRange.MONTH -> "Last 30 days"
+                            }
+                        )
                         Spacer(Modifier.height(Space.m))
                         MetricStatsRow(
                             minValue     = state.stats?.minValue,

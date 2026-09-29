@@ -62,7 +62,53 @@ class MetricDetailViewModel(
         val hasData: Boolean get() = points.any { !it.value.isNaN() }
     }
 
-    private val range = MutableStateFlow(TimeRange.DAY)
+    /** Opens on Live while the band is streaming this reading; on Day otherwise. */
+    private val range = MutableStateFlow(
+        sensorRepo.sensorEvents.replayCache.lastOrNull()
+            ?.takeIf { System.currentTimeMillis() - it.timestamp <= LIVE_MAX_AGE_MS && liveValue(metricType, it) != null }
+            ?.let { TimeRange.LIVE } ?: TimeRange.DAY
+    )
+
+    /**
+     * The last five minutes at one point per second: seeded from the stored
+     * readings, then extended by each reading as it arrives, so the Live chart
+     * moves the way the Home card does rather than waiting on a database read.
+     */
+    private val liveTrace = flow {
+        val now = System.currentTimeMillis()
+        val trace = ArrayDeque(
+            bucketsToPoints(rawDao.getBuckets(metricType, now - TimeRange.LIVE.durationMs, now, 1_000L), 1_000L)
+        )
+        emit(trace.toList())
+        sensorRepo.sensorEvents.collect { r ->
+            val v = liveValue(metricType, r) ?: return@collect
+            if (trace.isNotEmpty() && r.timestamp <= trace.last().timestampMs) return@collect
+            trace.addLast(GraphPoint(r.timestamp, v))
+            val cutoff = System.currentTimeMillis() - TimeRange.LIVE.durationMs
+            while (trace.isNotEmpty() && trace.first().timestampMs < cutoff) trace.removeFirst()
+            emit(trace.toList())
+        }
+    }
+
+    /** Ticks each second so the Live window keeps sliding even between readings. */
+    private val secondTicks = flow { while (true) { emit(System.currentTimeMillis()); delay(1_000L) } }
+
+    private fun liveState(): kotlinx.coroutines.flow.Flow<UiState> = combine(liveTrace, secondTicks) { trace, now ->
+        val inWindow = trace.filter { it.timestampMs >= now - TimeRange.LIVE.durationMs }
+        val values = inWindow.map { it.value }
+        UiState(
+            metricType   = metricType,
+            range        = TimeRange.LIVE,
+            points       = insertGaps(inWindow, TimeRange.LIVE.gapThresholdMs),
+            stats        = if (values.isEmpty()) null else MetricStats(
+                minValue = values.min(), maxValue = values.max(), avgValue = values.average().toFloat(),
+                sampleCount = values.size
+            ),
+            currentValue = inWindow.lastOrNull()?.value,
+            updatedAtMs  = now,
+            isLoading    = false
+        )
+    }
 
     /** This metric's latest live value and its time. Readings without it leave the last one standing. */
     private val live = sensorRepo.sensorEvents
@@ -74,7 +120,7 @@ class MetricDetailViewModel(
     private val tick = flow { while (true) { emit(Unit); delay(5_000L) } }
 
     private val history = range.flatMapLatest { r ->
-        flow {
+        if (r == TimeRange.LIVE) liveState() else flow {
             emit(UiState(metricType = metricType, range = r, isLoading = true))
             while (true) {
                 emit(query(r))

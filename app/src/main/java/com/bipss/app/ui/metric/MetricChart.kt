@@ -56,6 +56,8 @@ data class GraphPoint(
  */
 /** [refreshMs]: how often an open chart is re-read - a minute bucket changes every minute, a half-hour one rarely. */
 enum class TimeRange(val label: String, val durationMs: Long, val gapThresholdMs: Long, val bucketMs: Long, val refreshMs: Long) {
+    /** The last five minutes, second by second, from the band's readings as they arrive. */
+    LIVE("Live", 5 * 60_000L, 5_000L, 1_000L, 1_000L),
     DAY("Day", 24 * 3600_000L, 5 * 60_000L, 60_000L, 5_000L),
     WEEK("Week", 7 * 24 * 3600_000L, 30 * 60_000L, 5 * 60_000L, 60_000L),
     MONTH("Month", 30 * 24 * 3600_000L, 3 * 3600_000L, 30 * 60_000L, 300_000L),
@@ -158,6 +160,10 @@ fun MetricLineChart(
 
     val observedMin = segments.minOf { seg -> seg.minOf { it.value } }
     val observedMax = segments.maxOf { seg -> seg.maxOf { it.value } }
+    // Whole-number labels that round to the same figure ("97" and "97") say
+    // nothing; one decimal then shows the actual spread.
+    val labelDecimals = if (decimals == 0 && kotlin.math.round(observedMin) == kotlin.math.round(observedMax) &&
+        observedMax - observedMin > 0.0001f) 1 else decimals
     // A flat series has zero range, which would divide by zero and pin the line
     // to an edge. Pad it so the reading sits mid-chart and both labels agree.
     val pad = if (observedMax - observedMin < 0.0001f) {
@@ -247,7 +253,7 @@ fun MetricLineChart(
         }
 
         Text(
-            formatFigure(observedMax, decimals),
+            formatFigure(observedMax, labelDecimals),
             style = MaterialTheme.typography.labelSmall,
             color = colors.textTertiary,
             modifier = Modifier
@@ -256,7 +262,7 @@ fun MetricLineChart(
                 .padding(end = Space.xs)
         )
         Text(
-            formatFigure(observedMin, decimals),
+            formatFigure(observedMin, labelDecimals),
             style = MaterialTheme.typography.labelSmall,
             color = colors.textTertiary,
             modifier = Modifier

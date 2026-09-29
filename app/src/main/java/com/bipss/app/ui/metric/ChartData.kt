@@ -60,7 +60,12 @@ fun bucketsToPoints(buckets: List<MetricBucket>, bucketMs: Long): List<GraphPoin
 fun timeTicks(range: TimeRange, endMs: Long, zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): List<Pair<Long, String>> {
     val startMs = endMs - range.durationMs
     val start = java.time.Instant.ofEpochMilli(startMs).atZone(zone)
+    if (range == TimeRange.LIVE) {
+        // A tick each minute back from now: "4 min", "3 min", ... "Now".
+        return (4 downTo 1).map { m -> (endMs - m * 60_000L) to "$m min" } + (endMs to "Now")
+    }
     val (first, step, pattern, clearanceMs) = when (range) {
+        TimeRange.LIVE -> error("handled above")
         TimeRange.DAY -> {
             val h = start.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
             val next = h.plusHours(((6 - h.hour % 6) % 6).toLong()).let { if (it.toInstant().toEpochMilli() <= startMs) it.plusHours(6) else it }

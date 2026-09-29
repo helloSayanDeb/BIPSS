@@ -27,6 +27,11 @@ class TimeTicksTest {
     }
 
     @Test
+    fun `the live window is labelled by minutes back from now`() {
+        assertEquals(listOf("4 min", "3 min", "2 min", "1 min", "Now"), timeTicks(TimeRange.LIVE, end, zone).map { it.second })
+    }
+
+    @Test
     fun `every tick lies inside the window, in order`() {
         TimeRange.entries.forEach { range ->
             val ticks = timeTicks(range, end, zone).map { it.first }
