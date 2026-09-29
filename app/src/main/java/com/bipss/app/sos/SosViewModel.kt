@@ -52,7 +52,9 @@ sealed class SosUiState {
         val unconfirmedNames:  List<String>,
         val locationIncluded:  Boolean,
         val locationLastKnown: Boolean,
-        val locationAgeMinutes: Long? = null
+        val locationAgeMinutes: Long? = null,
+        /** One plain line per hospital (or why there are none), as it actually went. */
+        val hospitalLines:     List<String> = emptyList()
     ) : SosUiState()
     /** Nothing left the phone. Never presented as success. */
     data class NotSent(val reason: SosNotSentReason, val detail: String? = null) : SosUiState()
@@ -75,7 +77,8 @@ class SosViewModel(
     private val sosEventDao:         SosEventDao,
     private val locationHelper:      LocationHelper,
     private val smsSender:           SmsSender,
-    private val prefsRepo:           UserPreferencesRepository
+    private val prefsRepo:           UserPreferencesRepository,
+    private val hospitalLocator:     HospitalLocator
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<SosUiState>(SosUiState.Idle)
@@ -101,6 +104,8 @@ class SosViewModel(
 
     private var countdownJob: Job? = null
     private var locationJob: Deferred<LocationFix?>? = null
+    /** Started with the countdown, so the nearest hospitals are usually known by the time it ends. */
+    private var hospitalJob: Deferred<HospitalLookup?>? = null
     private var triggerStartMs: Long = 0L
 
     /**
@@ -120,6 +125,7 @@ class SosViewModel(
 
         triggerStartMs = System.currentTimeMillis()
         locationJob = viewModelScope.async { locationHelper.getCurrentFix(timeoutMs = 20_000L) }
+        hospitalJob = viewModelScope.async { lookUpHospitals() }
         countdownJob = viewModelScope.launch {
             for (remaining in SOS_COUNTDOWN_SECONDS downTo 1) {
                 val (blockers, contacts) = checkBlockers()
@@ -140,6 +146,8 @@ class SosViewModel(
         countdownJob = null
         locationJob?.cancel()
         locationJob = null
+        hospitalJob?.cancel()
+        hospitalJob = null
         val cancelledAt = current.secondsLeft
         _state.value = SosUiState.FalseAlarm(cancelledAt)
 
@@ -181,6 +189,7 @@ class SosViewModel(
         }
         if (blockedBy != null) {
             locationJob?.cancel()
+            hospitalJob?.cancel()
             sosEventDao.insert(SosEventEntity(
                 triggeredAtMs = triggerStartMs, source = source.name,
                 outcome = when (blockedBy) {
@@ -195,13 +204,43 @@ class SosViewModel(
         }
 
         _state.value = SosUiState.Sending
+        val dispatchStartMs = System.currentTimeMillis()
         val location = resolveLocation()
         val contacts = emergencyContactDao.all().first()
+        val recipients = contacts.map { SmsRecipient(it.name, it.phoneNumber) }
         val userName  = prefsRepo.userProfile.first()?.name?.takeIf { it.isNotBlank() } ?: "A BIPSS user"
         val timestamp = SimpleDateFormat("dd MMM yyyy, HH:mm z", Locale.ENGLISH).format(Date(triggerStartMs))
 
-        val body = SosMessageBuilder.contactMessage(userName, timestamp, location)
-        val results = smsSender.send(contacts.map { SmsRecipient(it.name, it.phoneNumber) }, body)
+        // Hospitals: whatever the lookup started with the countdown has found,
+        // given until HOSPITAL_WAIT_MS after the countdown ended. The contacts
+        // are never held longer than that; a lookup still running is dropped.
+        val deadline = dispatchStartMs + HOSPITAL_WAIT_MS
+        val lookup = withTimeoutOrNull(remainingMs(deadline)) { hospitalJob?.await() }
+        hospitalJob?.cancel()
+        hospitalJob = null
+        val hospitals = lookup?.hospitals.orEmpty()
+        val textable = hospitals.filter { it.mobile != null }
+        val hospitalSend = if (textable.isEmpty()) null else viewModelScope.async {
+            smsSender.send(
+                textable.map { SmsRecipient(it.name, it.mobile!!) },
+                SosMessageBuilder.hospitalMessage(userName, timestamp, location, recipients)
+            )
+        }
+        // The network's verdict, if it arrives within the same window, decides
+        // whether the contacts are told the hospitals "were sent" the alert.
+        val early = hospitalSend?.let { withTimeoutOrNull(remainingMs(deadline)) { it.await() } }
+        fun verdictFor(h: Hospital) = early?.firstOrNull { it.recipient.phoneNumber == h.mobile }
+        val notice = SosMessageBuilder.HospitalNotice(
+            alerted      = textable.filter { verdictFor(it)?.sent == true },
+            beingAlerted = textable.filter { early == null || verdictFor(it)?.unconfirmed == true },
+            toCall       = hospitals.filter { h ->
+                h.mobile == null || verdictFor(h)?.let { !it.sent && !it.unconfirmed } == true
+            }
+        )
+
+        val body = SosMessageBuilder.contactMessage(userName, timestamp, location, notice)
+        val results = smsSender.send(recipients, body)
+        val hospitalResults = hospitalSend?.await().orEmpty()
         val sent = results.count { it.sent }
         val unconfirmed = results.count { it.unconfirmed }
 
@@ -219,8 +258,8 @@ class SosViewModel(
             lat            = location?.lat,
             lng            = location?.lng,
             recipientCount = sent,
-            notes          = results.filterNot { it.sent }
-                .joinToString("; ") { "${it.recipient.name}: ${it.error}" }
+            notes          = (results.filterNot { it.sent }.map { "${it.recipient.name}: ${it.error}" } +
+                hospitalAudit(lookup, hospitals, hospitalResults)).joinToString("; ")
         ))
 
         _state.value = if (sent == 0 && unconfirmed == 0) {
@@ -233,10 +272,71 @@ class SosViewModel(
                 unconfirmedNames   = results.filter { it.unconfirmed }.map { it.recipient.name },
                 locationIncluded   = location != null,
                 locationLastKnown  = location?.isLastKnown == true,
-                locationAgeMinutes = location?.ageMinutes
+                locationAgeMinutes = location?.ageMinutes,
+                hospitalLines      = hospitalLines(lookup, hospitals, hospitalResults, location != null)
             )
         }
     }
+
+    /**
+     * The nearest hospitals for this SOS. Waits a few seconds for the fix the
+     * countdown requested, then falls back to the last known position (same
+     * rules as the message), so the lookup has time to finish before the
+     * countdown does. Null when there is no position to search from.
+     */
+    private suspend fun lookUpHospitals(): HospitalLookup? {
+        if (!locationHelper.hasAnyPermission()) return null
+        val fix = withTimeoutOrNull(LOOKUP_FIX_WAIT_MS) { locationJob?.await() }
+        val (lat, lon) = if (fix != null) fix.lat to fix.lon else {
+            val cached = prefsRepo.cachedLocation.first() ?: return null
+            val atMs = cached.atMs ?: return null
+            if (triggerStartMs - atMs !in 0..MAX_LAST_KNOWN_AGE_MS) return null
+            cached.lat to cached.lon
+        }
+        return hospitalLocator.nearest(lat, lon)
+    }
+
+    private fun remainingMs(deadline: Long) = (deadline - System.currentTimeMillis()).coerceAtLeast(1L)
+
+    private fun sendVerdict(h: Hospital, results: List<SmsSendResult>): String {
+        val r = results.firstOrNull { it.recipient.phoneNumber == h.mobile }
+        return when {
+            r == null      -> "not texted"
+            r.sent         -> "texted"
+            r.unconfirmed  -> "text not confirmed yet"
+            else           -> "text failed"
+        }
+    }
+
+    /** For the result screen: what happened with each hospital, or why there were none. */
+    private fun hospitalLines(
+        lookup: HospitalLookup?,
+        hospitals: List<Hospital>,
+        results: List<SmsSendResult>,
+        hadLocation: Boolean
+    ): List<String> = when {
+        lookup == null && !hadLocation -> listOf("Nearby hospitals could not be looked up without your location.")
+        lookup == null -> listOf("The nearby-hospital lookup did not finish in time.")
+        lookup.status == HospitalLookup.Status.FAILED -> listOf("The nearby-hospital lookup failed (map service unreachable).")
+        lookup.status == HospitalLookup.Status.NONE_NEARBY -> listOf("No hospital is mapped within 15 km of you.")
+        lookup.status == HospitalLookup.Status.NONE_WITH_NUMBER ->
+            listOf("${lookup.found} hospital(s) are mapped near you, but none lists a phone number.")
+        else -> hospitals.map { h ->
+            val km = "%.1f".format(Locale.ROOT, h.distanceKm)
+            if (h.mobile != null) "${h.name} ($km km): ${sendVerdict(h, results)}"
+            else "${h.name} ($km km): no mobile number listed, given to your contacts to call"
+        }
+    }
+
+    /** For sos_events.notes: the hospital attempts, in the same terms. */
+    private fun hospitalAudit(lookup: HospitalLookup?, hospitals: List<Hospital>, results: List<SmsSendResult>): List<String> =
+        when (lookup?.status) {
+            null -> listOf("hospitals: no lookup result")
+            HospitalLookup.Status.FOUND -> hospitals.map { h ->
+                "hospital ${h.name} " + (h.mobile?.let { "$it: ${sendVerdict(h, results)}" } ?: "${h.callNumber}: listed to call")
+            }
+            else -> listOf("hospitals: ${lookup.status.name.lowercase()} (${lookup.found} mapped)")
+        }
 
     /**
      * The fix requested at countdown start, given a few more seconds if still
@@ -262,5 +362,9 @@ class SosViewModel(
 
     private companion object {
         const val MAX_LAST_KNOWN_AGE_MS = 24 * 3_600_000L
+        /** How long the contacts may wait for the hospital lookup and its sends after the countdown. */
+        const val HOSPITAL_WAIT_MS = 3_000L
+        /** How long the lookup waits for a fresh fix before searching from the last known position. */
+        const val LOOKUP_FIX_WAIT_MS = 6_000L
     }
 }

@@ -474,7 +474,7 @@ private fun EmergencyContacts(
     val locPerm = rememberLocationPermission()
 
     Text(
-        "Contacts here receive an SMS when SOS fires, with your location if BIPSS can get it. Stored on this phone, and in your Drive backup if it's on.",
+        "Contacts here receive an SMS when SOS fires, with your location if BIPSS can get it. Nearby hospitals that list a mobile number are texted too, with these contacts' names and numbers. Stored on this phone, and in your Drive backup if it's on.",
         style = MaterialTheme.typography.bodySmall,
         color = colors.textSecondary
     )

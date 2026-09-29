@@ -152,6 +152,7 @@ val appModule = module {
     single { com.bipss.app.data.environmental.ImdCapEnricher(get(), get()) }
     single { com.bipss.app.worker.WorkScheduler(androidContext(), get(), get(), get(), get()) }
     single { SmsSender(androidContext()) }
+    single { com.bipss.app.sos.HospitalLocator(get()) }
 
     // ── ViewModels ────────────────────────────────────────────────────────────
     viewModel { MainViewModel(get(), get()) }
@@ -198,7 +199,7 @@ val appModule = module {
     }
 
     viewModel {
-        SosViewModel(get(), get(), get(), get(), get())
+        SosViewModel(get(), get(), get(), get(), get(), get())
     }
 
     viewModel {

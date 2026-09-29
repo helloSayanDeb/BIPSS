@@ -107,7 +107,8 @@ fun OnboardingSmsScreen(navController: NavController, catchUp: Boolean) {
         step = OnboardingStep.indexOf(OnboardingStep.SMS, catchUp),
         totalSteps = OnboardingStep.TOTAL,
         title = "Emergency texts",
-        subtitle = "When you trigger SOS, BIPSS texts your emergency contacts from this phone.",
+        subtitle = "When you trigger SOS, BIPSS texts your emergency contacts, and nearby hospitals that list " +
+            "a mobile number, from this phone.",
         onBack = { navController.popBackStack() },
         footer = {
             when {

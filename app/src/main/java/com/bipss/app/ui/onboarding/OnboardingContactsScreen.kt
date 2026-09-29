@@ -129,7 +129,8 @@ fun OnboardingContactsScreen(
                 title = "Picked from your phone's contacts",
                 body = "BIPSS asks to read your contacts so you can choose from them. It keeps only the name " +
                     "and number of the people you pick (up to $MAX_EMERGENCY_CONTACTS), on this phone and in " +
-                    "your Drive backup if you turn that on."
+                    "your Drive backup if you turn that on. In an SOS, nearby hospitals that are texted are " +
+                    "given these names and numbers, so they can reach someone who knows you."
             )
         } else {
             BipssCard(contentPadding = PaddingValues(horizontal = Space.l, vertical = Space.xs)) {

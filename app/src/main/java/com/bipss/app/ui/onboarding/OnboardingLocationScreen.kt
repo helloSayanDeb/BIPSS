@@ -84,8 +84,9 @@ fun OnboardingLocationScreen(
         if (!permission.isGranted) {
             FeatureRow(
                 icon = Icons.Rounded.Sms, tint = colors.bandRisk,
-                title = "In an SOS text",
-                body = "Your emergency contacts get a map link to where you are."
+                title = "In an SOS",
+                body = "Your emergency contacts get a map link to where you are, and BIPSS looks up the " +
+                    "nearest hospitals to alert."
             )
             Spacer(Modifier.height(Space.l))
             FeatureRow(
@@ -95,9 +96,10 @@ fun OnboardingLocationScreen(
             )
             Spacer(Modifier.height(Space.xl))
             Text(
-                "For weather, your coordinates are sent to Open-Meteo; for air quality, your state is sent " +
-                    "to the government's open-data portal; Android's geocoder looks up your district. BIPSS " +
-                    "keeps your last position on this phone, and records where you were in any SOS it sends.",
+                "For weather, your coordinates are sent to Open-Meteo, and in an SOS to public OpenStreetMap " +
+                    "(Overpass) servers to find the nearest hospitals; for air quality, your state is sent to the " +
+                    "government's open-data portal; Android's geocoder looks up your district. BIPSS keeps your " +
+                    "last position on this phone, and records where you were in any SOS it sends.",
                 style = MaterialTheme.typography.bodySmall,
                 color = colors.textTertiary
             )

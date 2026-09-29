@@ -149,7 +149,8 @@ fun SosCountdownOverlay(
                     if (state.blockers.isEmpty()) {
                         Text(
                             text = if (state.locationAllowed)
-                                "Your ${state.contactCount} emergency contact(s) will get an SMS with your location unless you cancel."
+                                "Your ${state.contactCount} emergency contact(s) will get an SMS with your location unless you cancel. " +
+                                    "Nearby hospitals that list a mobile number will be texted too."
                             else
                                 "Your ${state.contactCount} emergency contact(s) will get an SMS unless you cancel. " +
                                     "Location is off for BIPSS, so it won't say where you are.",
@@ -304,6 +305,11 @@ fun SosSentOverlay(state: SosUiState.Sent, onDismiss: () -> Unit) {
                                 "It may still go out, or may have failed."
                         )
                         if (state.failedNames.isNotEmpty()) append("\nNot sent to: ${state.failedNames.joinToString()}.")
+                        if (state.hospitalLines.isNotEmpty()) {
+                            append("\n\nNearby hospitals:")
+                            state.hospitalLines.forEach { append("\n").append(it) }
+                            append("\n")
+                        }
                         when {
                             !state.locationIncluded -> append("\nYour location could not be included.")
                             state.locationLastKnown -> append(
