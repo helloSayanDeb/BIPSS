@@ -19,8 +19,10 @@ import com.bipss.app.domain.RiskScore
 import com.bipss.app.domain.RiskScoreCalculator
 import com.bipss.app.domain.RiskScoreType
 import com.bipss.app.domain.ScoreAvailability
-import com.bipss.app.domain.environmental.ContextInference
-import com.bipss.app.domain.environmental.ContextInferencer
+import com.bipss.app.domain.environmental.AqiDisplay
+import com.bipss.app.domain.environmental.EnvContext
+import com.bipss.app.domain.environmental.EnvContextKind
+import com.bipss.app.domain.environmental.Reconciliation
 import com.bipss.app.domain.environmental.EnvironmentalSnapshot
 import com.bipss.app.domain.environmental.RankedAlert
 import kotlinx.coroutines.flow.*
@@ -50,7 +52,8 @@ data class DashboardUiState(
 
     val riskScores:       List<RiskScore>        = emptyList(),
     val rankedAlerts:     List<RankedAlert>      = emptyList(),
-    val contextInference: ContextInference?      = null,
+    /** Indoors or out, and which air reading to trust (spec 5.9). */
+    val airContext:       AirContextUi?          = null,
     val healthStatus:     HealthStatus           = HealthStatus.NORMAL,
     val env:              EnvironmentalSnapshot  = EnvironmentalSnapshot.EMPTY,
 
@@ -98,6 +101,20 @@ data class DashboardUiState(
         get() = riskScores.filter { it.type.category == com.bipss.app.domain.ScoreCategory.EXPERIMENTAL }
 }
 
+/**
+ * The latest indoor/outdoor check and the air-quality display it decides.
+ * [context] is null once the check is too old to describe now.
+ */
+data class AirContextUi(
+    val context:        EnvContext?,
+    val ageMs:          Long?,
+    val display:        AqiDisplay,
+    val reconciliation: Reconciliation,
+    /** The readings stored with the check, recorded with any correction the user gives. */
+    val checkBandUba:   Int?,
+    val checkCpcbAqi:   Int?
+)
+
 class DashboardViewModel(
     private val sensorRepo: SensorRepository,
     private val waterRepo:  com.bipss.app.data.WaterRepository,
@@ -108,6 +125,7 @@ class DashboardViewModel(
     private val calculator: RiskScoreCalculator,
     private val signalEpochDao: com.bipss.app.data.db.dao.SignalEpochDao,
     private val scoring:    com.bipss.app.data.ScoringRepository,
+    private val aqiContext: com.bipss.app.data.environmental.AqiContextRepository,
     private val context:    Context
 ) : ViewModel() {
 
@@ -130,6 +148,40 @@ class DashboardViewModel(
         observeScoringInputs()
         observeBandConnection()
         loadCachedEnv()
+        observeAirContext()
+    }
+
+    /**
+     * Follows the latest indoor/outdoor check (taken by the band service) and
+     * the band's air reading; re-decided every minute, so an old check stops
+     * counting as "now". The reconciliation is rebuilt when a new check lands.
+     */
+    private fun observeAirContext() {
+        viewModelScope.launch {
+            var rec = Reconciliation.EMPTY
+            var recFor: Long? = -1L
+            val ticks = flow { while (true) { emit(Unit); kotlinx.coroutines.delay(60_000L) } }
+            combine(aqiContext.latest, sensorRepo.bandSensorAqi, ticks) { latest, uba, _ -> latest to uba }
+                .collect { (latest, uba) ->
+                    if (latest?.id != recFor) {
+                        rec = runCatching { aqiContext.reconciliation() }.getOrDefault(Reconciliation.EMPTY)
+                        recFor = latest?.id
+                    }
+                    val now = System.currentTimeMillis()
+                    val age = latest?.let { now - it.takenAtMs }
+                    val context = latest?.takeIf { age!! <= AqiDisplay.CONTEXT_MAX_AGE_MS }?.let {
+                        EnvContext(
+                            kind = runCatching { EnvContextKind.valueOf(it.context) }.getOrDefault(EnvContextKind.UNKNOWN),
+                            confidence = it.confidence,
+                            evidence = it.evidence.split('\n').filter { line -> line.isNotBlank() }
+                        )
+                    }
+                    val display = AqiDisplay.decide(context, age, uba, _uiState.value.env.regionalAqiValue, rec)
+                    _uiState.update {
+                        it.copy(airContext = AirContextUi(context, age, display, rec, latest?.bandUba, latest?.cpcbAqi))
+                    }
+                }
+        }
     }
 
     /**
@@ -334,15 +386,6 @@ class DashboardViewModel(
             userLon      = s.env.longitude
         ).let { AlertRanker.topRelevant(it) }
 
-        val inference = ContextInferencer.infer(
-            // The band reports ENS160 UBA (1-5), a different scale from the
-            // 0-500 station AQI, so it cannot be compared as a ratio here.
-            sensorAqi   = null,
-            apiAqi      = s.env.regionalAqiValue,
-            sensorTempC = null,
-            apiTempC    = s.env.ambientTempC
-        )
-
         // Status reflects hazards only - a low Readiness is not a health
         // alarm, and the experimental Autonomic Load Indicator never drives it.
         val worstHazard = scores
@@ -358,7 +401,6 @@ class DashboardViewModel(
             it.copy(
                 riskScores       = scores,
                 rankedAlerts     = ranked,
-                contextInference = inference.takeIf { inf -> inf.isConclusive },
                 healthStatus     = status,
                 dataMode         = dataMode,
                 baselineDays     = baselineDays
@@ -367,23 +409,21 @@ class DashboardViewModel(
     }
 
     /**
-     * Records whether the indoor/outdoor call was right.
-     *
-     * Collecting this IS the feature: it is the on-device learning loop the
-     * problem statement asks for, and it gives the ratio threshold in
-     * ContextInferencer something real to be tuned against later. The tuning
-     * itself is not implemented yet and the UI does not claim it is.
+     * Records whether the indoor/outdoor call was right. These corrections are
+     * what the GNSS thresholds get tuned against later; the tuning itself is
+     * not implemented and the UI does not claim it is.
      */
     fun submitContextFeedback(wasCorrect: Boolean) {
-        val inference = _uiState.value.contextInference ?: return
+        val air = _uiState.value.airContext ?: return
+        val context = air.context ?: return
         viewModelScope.launch {
             runCatching {
                 feedbackDao.insert(
                     ContextFeedbackEntity(
                         timestampMs     = System.currentTimeMillis(),
-                        inferredContext = inference.context.name,
-                        sensorAqi       = inference.sensorAqi,
-                        apiAqi          = inference.apiAqi,
+                        inferredContext = context.kind.name,
+                        sensorAqi       = air.checkBandUba,
+                        apiAqi          = air.checkCpcbAqi,
                         userSaidCorrect = wasCorrect
                     )
                 )

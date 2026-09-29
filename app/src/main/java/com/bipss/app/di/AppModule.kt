@@ -83,7 +83,8 @@ val appModule = module {
         Room.databaseBuilder(androidContext(), AppDatabase::class.java, com.bipss.app.SimulationMode.databaseName(androidContext()))
             .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
                 com.bipss.app.data.db.migration.MIGRATION_6_7, com.bipss.app.data.db.migration.MIGRATION_7_8,
-                com.bipss.app.data.db.migration.MIGRATION_8_9, com.bipss.app.data.db.migration.MIGRATION_9_10)
+                com.bipss.app.data.db.migration.MIGRATION_8_9, com.bipss.app.data.db.migration.MIGRATION_9_10,
+                com.bipss.app.data.db.migration.MIGRATION_10_11)
             .build()
     }
 
@@ -99,6 +100,9 @@ val appModule = module {
     single { get<AppDatabase>().waterLogDao() }
     single { get<AppDatabase>().signalEpochDao() }
     single { get<AppDatabase>().envSnapshotDao() }
+    single { get<AppDatabase>().aqiContextSampleDao() }
+    single { com.bipss.app.data.environmental.LocationContextSampler(androidContext()) }
+    single { com.bipss.app.data.environmental.AqiContextRepository(get(), get(), get(), get(), get()) }
 
     // ── BLE ───────────────────────────────────────────────────────────────────
     single { BleGattManager(androidContext()) }
@@ -158,7 +162,7 @@ val appModule = module {
     viewModel { MainViewModel(get(), get()) }
 
     viewModel {
-        DashboardViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), androidContext())
+        DashboardViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), androidContext())
     }
 
     viewModel { com.bipss.app.ui.recovery.RecoveryDetailViewModel(get()) }

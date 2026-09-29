@@ -233,7 +233,8 @@ class OpenMeteoFetcher(private val okHttpClient: OkHttpClient) {
                     return@withContext null
                 }
                 val current = lenientJson.parseToJsonElement(it.body?.string() ?: return@withContext null)
-                    .jsonObject["current"]?.jsonObject ?: return@withContext null
+                    .jsonObject["current"]?.jsonObject
+                    ?: return@withContext null.also { Log.w(TAG, "Open-Meteo answer had no current block") }
                 OpenMeteoSnapshot(
                     tempC        = current.float("temperature_2m"),
                     humidity     = current.float("relative_humidity_2m"),

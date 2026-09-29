@@ -161,8 +161,7 @@ class DisasterAlertRepository(
         // Air quality: the regional station only. The band's ENS160 reports
         // UBA 1-5, not a 0-500 AQI, so it is never shown in place of the
         // station value; relating the two scales needs indoor/outdoor context.
-        val blended = BlendedReading.of(null, cpcb?.aqiValue?.toFloat())
-        val aqiValue = blended.displayValue?.toInt()
+        val aqiValue = cpcb?.aqiValue
 
         val now = System.currentTimeMillis()
         val snapshot = EnvironmentalSnapshot(
@@ -173,7 +172,7 @@ class DisasterAlertRepository(
             windSpeedKph      = meteo?.windSpeedKph,
             aqiValue          = aqiValue,
             aqiRiskLevel      = aqiValue?.let { AqiRiskLevel.fromAqi(it) },
-            aqiSource         = blended.source,
+            aqiSource         = if (aqiValue != null) AqiSource.CPCB else AqiSource.NONE,
             regionalAqiValue  = cpcb?.aqiValue,
             dominantPollutant = cpcb?.dominantPollutant,
             pollutantSubIndices = cpcb?.pollutantSubIndices.orEmpty(),

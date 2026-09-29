@@ -230,3 +230,19 @@ val MIGRATION_9_10 = object : Migration(9, 10) {
         )
     }
 }
+
+/** v10 -> v11: aqi_context_samples, the indoor/outdoor checks behind the AQI reconciliation (spec 5.9). */
+val MIGRATION_10_11 = object : Migration(10, 11) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL(
+            "CREATE TABLE IF NOT EXISTS `aqi_context_samples` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "`takenAtMs` INTEGER NOT NULL, `context` TEXT NOT NULL, `confidence` REAL NOT NULL, " +
+                "`evidence` TEXT NOT NULL, `bandUba` INTEGER, `cpcbAqi` INTEGER, `satellitesVisible` INTEGER NOT NULL, " +
+                "`satellitesUsed` INTEGER NOT NULL, `topCn0DbHz` REAL, `accuracyM` REAL, `speedMps` REAL, " +
+                "`displacementM` REAL, `activityMgSPerMin` REAL)"
+        )
+        database.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_aqi_context_samples_takenAtMs` ON `aqi_context_samples` (`takenAtMs`)"
+        )
+    }
+}

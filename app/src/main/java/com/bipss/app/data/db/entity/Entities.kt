@@ -217,3 +217,29 @@ data class EnvSnapshotEntity(
     val maxAlertSeverity: Int,
     val json:             String
 )
+
+/**
+ * One indoor/outdoor check (spec 5.9): the context judged from GNSS signal
+ * and movement, the evidence, and both air readings at that moment. No
+ * position is stored - the reconciliation needs where the user was relative
+ * to a building, not where on the map.
+ */
+@Entity(tableName = "aqi_context_samples", indices = [Index(value = ["takenAtMs"])])
+data class AqiContextSampleEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val takenAtMs:          Long,
+    /** EnvContextKind name. */
+    val context:            String,
+    val confidence:         Float,
+    /** The classifier's evidence, one line each. */
+    val evidence:           String,
+    val bandUba:            Int?,
+    val cpcbAqi:            Int?,
+    val satellitesVisible:  Int,
+    val satellitesUsed:     Int,
+    val topCn0DbHz:         Double?,
+    val accuracyM:          Double?,
+    val speedMps:           Double?,
+    val displacementM:      Double?,
+    val activityMgSPerMin:  Double?
+)

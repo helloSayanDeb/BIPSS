@@ -3,6 +3,7 @@ package com.bipss.app.ui.onboarding
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Cancel
+import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.LocationOn
@@ -93,6 +94,13 @@ fun OnboardingLocationScreen(
                 icon = Icons.Rounded.Thermostat, tint = colors.temp,
                 title = "Local weather, air quality and alerts",
                 body = "For heat stress and air-quality scores, and official warnings that apply to you."
+            )
+            Spacer(Modifier.height(Space.l))
+            FeatureRow(
+                icon = Icons.Rounded.Home, tint = colors.air,
+                title = "Indoors or outdoors",
+                body = "While your band is connected, BIPSS checks GPS signal strength every 10 minutes to " +
+                    "tell whether the station's or the band's air reading applies to you. Needs precise location."
             )
             Spacer(Modifier.height(Space.xl))
             Text(

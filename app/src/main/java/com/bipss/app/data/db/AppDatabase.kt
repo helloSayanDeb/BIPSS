@@ -18,9 +18,10 @@ import com.bipss.app.data.db.entity.*
         SignalEpochEntity::class,
         DataDayEntity::class,
         EwmaBaselineEntity::class,
-        EnvSnapshotEntity::class
+        EnvSnapshotEntity::class,
+        AqiContextSampleEntity::class
     ],
-    version  = 10,
+    version  = 11,
     // Exported from v6 so every later hand-written migration can be checked
     // against the schema Room actually expects (see app/schemas/).
     exportSchema = true
@@ -39,4 +40,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun dataDayDao():            DataDayDao
     abstract fun ewmaBaselineDao():       EwmaBaselineDao
     abstract fun envSnapshotDao():        EnvSnapshotDao
+    abstract fun aqiContextSampleDao():   AqiContextSampleDao
 }

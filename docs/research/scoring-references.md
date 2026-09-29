@@ -156,3 +156,58 @@ These are weighted budgets of environmental and body inputs, as documented in
   - skin temperature: from 36.5 °C, full at 38.
 
 Fidelity: **Estimate**.
+
+## Indoor/outdoor from GNSS (`domain/environmental/EnvContext.kt`)
+
+The air-quality display needs to know whether the wearer is indoors, where
+the band's ENS160 reads the room, or outdoors, where the CPCB station
+applies. The context is judged from GNSS signal and movement only. The two
+air readings are never an input: inferring "indoors" from their difference
+and then trusting the band because the wearer is indoors was circular.
+
+- **Physical basis.** A building's roof and walls attenuate satellite
+  signals, typically by 10-30 dB depending on the material. Indoors, fewer
+  satellites are tracked, they are weaker, fewer are used in the fix, and
+  the fix is less accurate. Kjaergaard et al., "Indoor Positioning Using GPS
+  Revisited", Pervasive 2010 (LNCS 6030), measured this across building
+  types. Android reports each satellite's carrier-to-noise density
+  (`GnssStatus.getCn0DbHz`); open-sky GPS L1 is commonly 40-50 dB-Hz.
+- **Inputs**, from a window of about 12 s taken every 10 minutes by the band
+  service while the band is connected. The window ends early once the sky
+  is clearly open.
+  - Satellites heard.
+  - Satellites used in the fix.
+  - Mean C/N0 of the four strongest satellites.
+  - Best fix accuracy.
+  - Median speed.
+  - Distance from the previous check.
+  - Band movement.
+- **Decision.** All cut-offs below are design choices inside the published
+  ranges, not measurements on this band or phone. The user's corrections
+  (`context_feedback`) are what they are to be tuned against; that tuning is
+  not implemented.
+  - **Outdoors:** C/N0 >= 35 dB-Hz, with >= 6 satellites in the fix or
+    accuracy <= 15 m. Confidence 0.6-0.9.
+  - **Indoors:** C/N0 < 28 dB-Hz, or no satellites at all, together with
+    <= 3 satellites in the fix and accuracy > 40 m or no fix. Confidence
+    0.6-0.8, higher when the band shows the wearer still (< 600 mg·s/min).
+  - A weak signal while travelling (> 2.5 m/s or > 150 m since the last
+    check) could be a metro or a car. It is left as unknown.
+  - Everything in between (near a window, under trees, between tall
+    buildings) is unknown.
+  - A check needs precise location. With approximate location there is no
+    satellite detail, so no check is taken and the context stays unknown.
+- **Reconciliation** (`AqiReconciler`). It runs on the shared baseline
+  schedule; day N counts days with a confident check that had a band
+  reading.
+  - **Outdoors:** each band category (1-5) learns the station AQI it comes
+    with, as a median and interquartile range, once it has >= 5 checks.
+  - **Indoors:** the wearer's own usual band reading (median and 90th
+    percentile) once there are >= 20 indoor checks.
+  - **Display:** outdoors, the station leads and the band corroborates.
+    Indoors, the band is compared against the wearer's own range, and the
+    station is labelled "outdoors near you". Unclear, both are shown and
+    labelled. The two readings are never averaged.
+
+Fidelity: context **Estimate**; indoor-air comparison **Estimate**; station
+AQI is the station's own figure.

@@ -69,6 +69,8 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         mainViewModel.onResume()
+        // The one moment Android allows the band service the location type.
+        com.bipss.app.ble.BleForegroundService.refreshForegroundTypes(this)
     }
 
     /** A tap while the activity already exists arrives here (SINGLE_TOP), not in onCreate. */

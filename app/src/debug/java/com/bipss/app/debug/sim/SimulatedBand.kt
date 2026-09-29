@@ -27,7 +27,8 @@ private const val TAG = "SimulatedBand"
  */
 class SimulatedBand(
     private val ble: BleGattManager,
-    private val appScope: CoroutineScope
+    private val appScope: CoroutineScope,
+    private val context: android.content.Context
 ) {
     private var job: Job? = null
 
@@ -38,6 +39,10 @@ class SimulatedBand(
         stop()
         val sink = ble.attachSimulatedBand() ?: return
         _running.value = scenario
+        // A real connection runs the band service; so does the simulated one
+        // (its notification says "Simulated band"), so what the service does
+        // - the indoor/outdoor checks - can be exercised too.
+        com.bipss.app.ble.BleForegroundService.start(context)
         job = appScope.launch(Dispatchers.Default) {
             val band = SyntheticBand(scenario, seed = System.nanoTime(), periodScale = periodScale)
             val jitter = Random()

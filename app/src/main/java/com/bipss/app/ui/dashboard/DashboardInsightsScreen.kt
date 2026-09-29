@@ -13,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Air
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.CloudOff
+import androidx.compose.material.icons.rounded.HelpOutline
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Insights
 import androidx.compose.material.icons.rounded.LocationOff
@@ -40,7 +41,10 @@ import androidx.navigation.NavController
 import com.bipss.app.domain.RiskScore
 import com.bipss.app.domain.environmental.AlertSeverity
 import com.bipss.app.domain.environmental.AqiSource
-import com.bipss.app.domain.environmental.EnvironmentContext
+import com.bipss.app.domain.environmental.AqiDisplay
+import com.bipss.app.domain.environmental.EnvContext
+import com.bipss.app.domain.environmental.EnvContextKind
+import com.bipss.app.domain.environmental.Reconciliation
 import com.bipss.app.domain.environmental.EnvironmentalSnapshot
 import com.bipss.app.domain.environmental.RankedAlert
 import com.bipss.app.navigation.LocalScaffoldPadding
@@ -120,79 +124,17 @@ fun DashboardInsightsScreen(
         }
 
         // -- Where you are ---------------------------------------------------
-        state.contextInference?.let { inference ->
+        // From GNSS signal and movement (spec 5.9) - never from the air readings.
+        state.airContext?.context?.let { context ->
             Spacer(Modifier.height(Space.l))
             SectionLabel("Where you are")
             Spacer(Modifier.height(Space.m))
-            BipssCard {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconBadge(
-                        if (inference.context == EnvironmentContext.INDOOR) Icons.Rounded.Home
-                        else Icons.Rounded.Park,
-                        colors.air
-                    )
-                    Spacer(Modifier.width(Space.m))
-                    Text(
-                        when (inference.context) {
-                            EnvironmentContext.INDOOR  -> "You appear to be indoors"
-                            EnvironmentContext.OUTDOOR -> "You appear to be outdoors"
-                            else                       -> "Location context unclear"
-                        },
-                        style = MaterialTheme.typography.titleSmall,
-                        color = colors.textPrimary
-                    )
-                }
-                Spacer(Modifier.height(Space.s))
-                Text(
-                    inference.reason,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colors.textSecondary
-                )
-                if (inference.sensorAqi != null && inference.apiAqi != null) {
-                    Text(
-                        "Band ${inference.sensorAqi}  ·  Regional ${inference.apiAqi}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = colors.textTertiary
-                    )
-                }
-
-                // Collecting the correction is the feature: it is what the
-                // threshold gets tuned against later. The copy does not claim
-                // the tuning already happens.
-                Spacer(Modifier.height(Space.m))
-                if (state.contextFeedbackGiven) {
-                    Text(
-                        "Thanks — recorded. Corrections like this are what the threshold gets tuned against.",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = colors.textTertiary
-                    )
-                } else {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            "Is this right?",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = colors.textSecondary
-                        )
-                        Spacer(Modifier.width(Space.m))
-                        IconButton(onClick = { vm.submitContextFeedback(true) }) {
-                            Icon(
-                                Icons.Rounded.ThumbUp,
-                                contentDescription = "Correct",
-                                tint = colors.bandNormal,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                        IconButton(onClick = { vm.submitContextFeedback(false) }) {
-                            Icon(
-                                Icons.Rounded.ThumbDown,
-                                contentDescription = "Wrong",
-                                tint = colors.bandMonitor,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
-                }
-            }
+            AirContextCard(
+                context = context,
+                ageMs = state.airContext?.ageMs,
+                feedbackGiven = state.contextFeedbackGiven,
+                onFeedback = vm::submitContextFeedback
+            )
         }
 
         // ── Location-dependent sections ────────────────────────────────────
@@ -217,27 +159,11 @@ fun DashboardInsightsScreen(
                     HairlineDivider()
                     InfoRow("UV index", env.uvIndex?.let { "%.1f".format(it) } ?: "—")
                     HairlineDivider()
-                    InfoRow(
-                        "Air quality index",
-                        env.aqiValue?.let { aqi ->
-                            val band = env.aqiRiskLevel?.label ?: ""
-                            if (band.isBlank()) "$aqi" else "$aqi  ·  $band"
-                        } ?: "—"
+                    AirQualityRows(
+                        display = state.airContext?.display ?: AqiDisplay.StationOnly(env.aqiValue),
+                        stationLabel = env.aqiRiskLevel?.label,
+                        reconciliation = state.airContext?.reconciliation
                     )
-                    if (env.aqiValue != null) {
-                        InfoRow("AQI source", env.aqiSource.label)
-                    }
-                    // The asterisk is explained rather than left dangling: the band and
-                    // the regional station measure different air, and saying so is more
-                    // useful than silently averaging them.
-                    if (env.aqiSource == AqiSource.BLENDED && env.regionalAqiValue != null) {
-                        Text(
-                            "* Regional average (CPCB): ${env.regionalAqiValue} — you may be indoors",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = colors.textTertiary,
-                            modifier = Modifier.padding(top = 4.dp)
-                        )
-                    }
                     env.dominantPollutant?.let {
                         HairlineDivider(); InfoRow("Dominant pollutant", it)
                     }
@@ -377,6 +303,125 @@ fun DashboardInsightsScreen(
         }
 
         Spacer(Modifier.height(Space.huge))
+    }
+}
+
+// ── Indoor / outdoor ─────────────────────────────────────────────────────────
+
+@Composable
+private fun AirContextCard(
+    context: EnvContext,
+    ageMs: Long?,
+    feedbackGiven: Boolean,
+    onFeedback: (Boolean) -> Unit
+) {
+    val colors = BipssTheme.colors
+    BipssCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconBadge(
+                when (context.kind) {
+                    EnvContextKind.INDOOR  -> Icons.Rounded.Home
+                    EnvContextKind.OUTDOOR -> Icons.Rounded.Park
+                    EnvContextKind.UNKNOWN -> Icons.Rounded.HelpOutline
+                },
+                colors.air
+            )
+            Spacer(Modifier.width(Space.m))
+            Text(
+                when (context.kind) {
+                    EnvContextKind.INDOOR  -> "You appear to be indoors"
+                    EnvContextKind.OUTDOOR -> "You appear to be outdoors"
+                    EnvContextKind.UNKNOWN -> "Can't tell if you're indoors or out"
+                },
+                style = MaterialTheme.typography.titleSmall,
+                color = colors.textPrimary,
+                modifier = Modifier.weight(1f)
+            )
+            FidelityBadge(com.bipss.app.domain.Fidelity.ESTIMATE)
+        }
+        Spacer(Modifier.height(Space.s))
+        context.evidence.forEach {
+            Text("· $it", style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
+        }
+        Spacer(Modifier.height(Space.s))
+        Text(
+            "From GPS signal and your band's movement" +
+                (ageMs?.let { ", checked ${(it / 60_000L).coerceAtLeast(0)} min ago." } ?: "."),
+            style = MaterialTheme.typography.labelSmall,
+            color = colors.textTertiary
+        )
+        // Corrections are what the thresholds get tuned against later; the
+        // copy does not claim the tuning already happens.
+        if (context.kind != EnvContextKind.UNKNOWN) {
+            Spacer(Modifier.height(Space.m))
+            if (feedbackGiven) {
+                Text(
+                    "Thanks - recorded. Corrections like this are what the GPS thresholds get tuned against.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = colors.textTertiary
+                )
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Is this right?", style = MaterialTheme.typography.labelMedium, color = colors.textSecondary)
+                    Spacer(Modifier.width(Space.m))
+                    IconButton(onClick = { onFeedback(true) }) {
+                        Icon(Icons.Rounded.ThumbUp, contentDescription = "Correct", tint = colors.bandNormal, modifier = Modifier.size(20.dp))
+                    }
+                    IconButton(onClick = { onFeedback(false) }) {
+                        Icon(Icons.Rounded.ThumbDown, contentDescription = "Wrong", tint = colors.bandMonitor, modifier = Modifier.size(20.dp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Air quality as the context decides: the station outdoors (the band as
+ * corroboration), the band against the user's own range indoors (the station
+ * labelled as outdoors), or both, labelled, when it is unclear. Never an
+ * average of the two - they measure different air on different scales.
+ */
+@Composable
+private fun AirQualityRows(display: AqiDisplay, stationLabel: String?, reconciliation: Reconciliation?) {
+    val colors = BipssTheme.colors
+    fun station(aqi: Int?) = aqi?.let { if (stationLabel.isNullOrBlank()) "$it" else "$it  ·  $stationLabel" } ?: "—"
+    fun band(uba: Int) = "$uba of 5  ·  ${AqiDisplay.ubaLabel(uba)}"
+    val learning = reconciliation?.let { "day ${it.dayN} of ${com.bipss.app.domain.BaselineSchedule.PROVISIONAL_FROM}" }
+    @Composable
+    fun note(text: String) = Text(text, style = MaterialTheme.typography.labelSmall, color = colors.textTertiary,
+                                  modifier = Modifier.padding(bottom = 4.dp))
+    when (display) {
+        is AqiDisplay.StationOnly -> InfoRow("Air quality (CPCB station)", station(display.cpcbAqi))
+        is AqiDisplay.Outdoor -> {
+            InfoRow("Air quality (CPCB station)", station(display.cpcbAqi))
+            InfoRow("Band air sensor", band(display.bandUba))
+            note(
+                display.expected?.let {
+                    "Outdoors here, a band reading of ${display.bandUba} has come with station AQI " +
+                        "${it.q1.toInt()}-${it.q3.toInt()} (median ${it.median.toInt()}, ${it.n} checks)."
+                } ?: "Still learning how the band lines up with the station outdoors" + (learning?.let { " ($it)." } ?: ".")
+            )
+        }
+        is AqiDisplay.Indoor -> {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.weight(1f)) { InfoRow("Band air sensor (indoors)", band(display.bandUba)) }
+            }
+            note(
+                display.usual?.let {
+                    val median = it.medianUba.toInt()
+                    val high = it.p90Uba.toInt()
+                    if (display.bandUba > it.p90Uba) "Above your usual indoor air (typically $median, rarely above $high). Estimate."
+                    else "Within your usual indoor air (typically $median, rarely above $high). Estimate."
+                } ?: "Still learning your usual indoor air" + (learning?.let { " ($it)." } ?: ".")
+            )
+            InfoRow("Outdoors near you (CPCB)", station(display.cpcbAqi))
+        }
+        is AqiDisplay.Unclear -> {
+            InfoRow("Band air sensor", band(display.bandUba))
+            InfoRow("CPCB station (outdoors)", station(display.cpcbAqi))
+            note("Shown side by side: whether you're indoors or out is unclear right now.")
+        }
     }
 }
 

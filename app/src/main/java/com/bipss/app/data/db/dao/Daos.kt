@@ -354,3 +354,18 @@ interface EnvSnapshotDao {
         const val MIN_SPACING_MS = 10 * 60_000L
     }
 }
+
+@Dao
+interface AqiContextSampleDao {
+    @Insert
+    suspend fun insert(row: AqiContextSampleEntity)
+
+    @Query("SELECT * FROM aqi_context_samples ORDER BY takenAtMs DESC LIMIT 1")
+    fun latestFlow(): Flow<AqiContextSampleEntity?>
+
+    @Query("SELECT * FROM aqi_context_samples WHERE takenAtMs >= :sinceMs ORDER BY takenAtMs ASC")
+    suspend fun since(sinceMs: Long): List<AqiContextSampleEntity>
+
+    @Query("DELETE FROM aqi_context_samples WHERE takenAtMs < :beforeMs")
+    suspend fun deleteBefore(beforeMs: Long)
+}

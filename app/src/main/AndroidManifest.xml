@@ -41,6 +41,10 @@
     -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <!-- Indoor/outdoor GNSS checks while the band is connected (spec 5.9). The
+         type is only requested at runtime with precise location granted and
+         the app in the foreground; see BleForegroundService. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
 
     <!-- SOS SMS -->
     <uses-permission android:name="android.permission.SEND_SMS" />
@@ -85,7 +89,7 @@
         <service
             android:name=".ble.BleForegroundService"
             android:exported="false"
-            android:foregroundServiceType="connectedDevice" />
+            android:foregroundServiceType="connectedDevice|location" />
 
         <!--
           Health Connect permission rationale. Android 14+ looks for

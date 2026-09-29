@@ -85,11 +85,13 @@ data class EnvironmentalSnapshot(
     }
 }
 
-/** Where an AQI number came from. Shown to the user verbatim. */
+/**
+ * Where the headline AQI came from. Only the station: the band's ENS160 reads
+ * a 1-5 index of the air around the wearer, a different quantity, shown beside
+ * the station by context (AqiDisplay) and never in its place.
+ */
 enum class AqiSource(val label: String) {
-    SENSOR ("Band sensor"),
     CPCB   ("CPCB station"),
-    BLENDED("Band sensor*"),
     NONE   ("Unavailable")
 }
 
@@ -275,39 +277,6 @@ enum class AqiRiskLevel(val label: String) {
     }
 }
 
-/**
- * A value that may come from the band sensor, a regional API, or both.
- *
- * When both exist we display the sensor value (it is what the user is actually
- * breathing) and footnote the regional average, rather than silently averaging
- * two readings that mean different things.
- */
-data class BlendedReading(
-    val sensorValue: Float?,
-    val apiValue:    Float?,
-    val source:      AqiSource
-) {
-    val hasBoth:      Boolean get() = sensorValue != null && apiValue != null
-    /** What to show: the sensor when present, otherwise the API. */
-    val displayValue: Float?  get() = sensorValue ?: apiValue
-    /** Mean of the two, only when both exist. Never shown as the headline. */
-    val blendedValue: Float?  get() = if (hasBoth) (sensorValue!! + apiValue!!) / 2f else null
-    val divergence:   Float?  get() = if (hasBoth) abs(sensorValue!! - apiValue!!) else null
-
-    companion object {
-        fun of(sensor: Float?, api: Float?): BlendedReading = BlendedReading(
-            sensorValue = sensor,
-            apiValue    = api,
-            source      = when {
-                sensor != null && api != null -> AqiSource.BLENDED
-                sensor != null                -> AqiSource.SENSOR
-                api    != null                -> AqiSource.CPCB
-                else                          -> AqiSource.NONE
-            }
-        )
-    }
-}
-
 // -- Health advisories ------------------------------------------------------
 
 /**
@@ -334,21 +303,6 @@ enum class AdvisoryScope(val label: String) {
     NATIONAL("India"),
     REGIONAL("Your state"),
     LOCAL   ("Your district")
-}
-
-// -- Indoor / outdoor inference --------------------------------------------
-
-enum class EnvironmentContext { INDOOR, OUTDOOR, UNCERTAIN }
-
-data class ContextInference(
-    val context:    EnvironmentContext,
-    val confidence: Float,
-    val reason:     String,
-    val sensorAqi:  Int?,
-    val apiAqi:     Int?
-) {
-    /** Only worth showing when both inputs existed. */
-    val isConclusive: Boolean get() = context != EnvironmentContext.UNCERTAIN
 }
 
 // -- Geo --------------------------------------------------------------------
