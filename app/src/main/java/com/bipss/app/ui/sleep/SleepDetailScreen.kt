@@ -100,7 +100,6 @@ fun SleepDetailScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("Last night", style = MaterialTheme.typography.titleMedium,
                              color = colors.textPrimary, modifier = Modifier.weight(1f))
-                        FidelityBadge(com.bipss.app.domain.Fidelity.ESTIMATE)
                     }
                     Spacer(Modifier.height(Space.s))
                     Row(verticalAlignment = Alignment.Bottom) {

@@ -33,11 +33,18 @@ fun BipssCard(
     onClick: (() -> Unit)? = null,
     contentPadding: PaddingValues = PaddingValues(Space.l),
     accent: Color? = null,
+    /**
+     * Fill the height the parent gives it, content spread top to bottom - for
+     * cards side by side in a row of equal height (see IntrinsicSize.Min).
+     */
+    fillHeight: Boolean = false,
     content: @Composable ColumnScope.() -> Unit
 ) {
     val colors = BipssTheme.colors
     val shape = RoundedCornerShape(20.dp)
     val border = BorderStroke(1.dp, accent?.copy(alpha = 0.35f) ?: colors.hairline)
+    val inner = if (fillHeight) Modifier.fillMaxHeight().padding(contentPadding) else Modifier.padding(contentPadding)
+    val arrangement = if (fillHeight) Arrangement.SpaceBetween else Arrangement.Top
 
     if (onClick != null) {
         Surface(
@@ -47,7 +54,7 @@ fun BipssCard(
             border = border,
             modifier = modifier.fillMaxWidth()
         ) {
-            Column(Modifier.padding(contentPadding), content = content)
+            Column(inner, verticalArrangement = arrangement, content = content)
         }
     } else {
         Surface(
@@ -56,7 +63,7 @@ fun BipssCard(
             border = border,
             modifier = modifier.fillMaxWidth()
         ) {
-            Column(Modifier.padding(contentPadding), content = content)
+            Column(inner, verticalArrangement = arrangement, content = content)
         }
     }
 }

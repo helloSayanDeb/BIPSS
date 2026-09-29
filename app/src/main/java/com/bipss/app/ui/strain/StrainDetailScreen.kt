@@ -16,7 +16,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.bipss.app.data.StrainOutcome
-import com.bipss.app.domain.Fidelity
 import com.bipss.app.domain.strain.StrainScale
 import com.bipss.app.domain.strain.TrimpSex
 import com.bipss.app.ui.components.*
@@ -73,7 +72,6 @@ fun StrainDetailScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text("Today", style = MaterialTheme.typography.titleMedium,
                                  color = colors.textPrimary, modifier = Modifier.weight(1f))
-                            FidelityBadge(if (outcome.restIsEstimate) Fidelity.ESTIMATE else Fidelity.PRODUCTION)
                         }
                         Spacer(Modifier.height(Space.s))
                         Row(verticalAlignment = Alignment.Bottom) {
@@ -94,7 +92,7 @@ fun StrainDetailScreen(
                         Spacer(Modifier.height(Space.s))
                         InfoRow("Training impulse (TRIMP)", "%.0f".format(r.trimp))
                         HairlineDivider()
-                        InfoRow("Resting heart rate", "${r.hrRest.roundToInt()} bpm" + if (outcome.restIsEstimate) " (estimate)" else "")
+                        InfoRow("Resting heart rate", "${r.hrRest.roundToInt()} bpm" + if (outcome.restIsEstimate) " (your stillest stretch today; no sleep recorded yet)" else " (from last night's sleep)")
                         HairlineDivider()
                         InfoRow("Maximum heart rate", "${r.hrMax.roundToInt()} bpm (from age)")
                         HairlineDivider()

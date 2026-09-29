@@ -36,7 +36,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
-import com.bipss.app.domain.Fidelity
 import com.bipss.app.domain.cycle.CyclePhase
 import com.bipss.app.domain.cycle.DayKind
 import com.bipss.app.ui.components.*
@@ -171,7 +170,6 @@ private fun SummaryCard(ui: CycleUi) {
                 Text("Day ${t.cycleDay} of your cycle", style = MaterialTheme.typography.titleLarge, color = colors.textPrimary)
                 Text(t.phase.label, style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary)
             }
-            FidelityBadge(Fidelity.ESTIMATE)
         }
         Spacer(Modifier.height(Space.m))
         val next = LocalDate.ofEpochDay(t.nextStartDay).format(date)
@@ -190,7 +188,7 @@ private fun SummaryCard(ui: CycleUi) {
         )
         Spacer(Modifier.height(Space.m))
         InfoBanner(
-            text = "Fertile window (estimate): ${LocalDate.ofEpochDay(t.fertileStartDay).format(date)} - " +
+            text = "Predicted fertile window: ${LocalDate.ofEpochDay(t.fertileStartDay).format(date)} - " +
                 "${LocalDate.ofEpochDay(t.fertileEndDay).format(date)}. Not a method of contraception.",
             icon = Icons.Rounded.Info,
             tint = colors.sleep
@@ -291,7 +289,7 @@ private fun Legend() {
     Row(horizontalArrangement = Arrangement.spacedBy(Space.m)) {
         item("Logged") { Box(Modifier.size(10.dp).clip(CircleShape).background(colors.heart)) }
         item("Predicted") { Box(Modifier.size(10.dp).border(1.5.dp, colors.heart, CircleShape)) }
-        item("Fertile (estimate)") { Box(Modifier.size(10.dp).clip(CircleShape).background(colors.sleep.copy(alpha = 0.4f))) }
+        item("Fertile (predicted)") { Box(Modifier.size(10.dp).clip(CircleShape).background(colors.sleep.copy(alpha = 0.4f))) }
     }
 }
 
@@ -312,9 +310,9 @@ fun CycleQuickCard(onOpen: () -> Unit, vm: CycleViewModel = koinViewModel()) {
         subtitle = when {
             !ui.loaded -> "…"
             t == null -> "Log your period to see where you are in your cycle."
-            t.isLate -> "Day ${t.cycleDay} · period expected ${-t.daysUntilNext} day(s) ago (estimate)"
-            t.phase == CyclePhase.FERTILE -> "Day ${t.cycleDay} of your cycle · fertile window (estimate)"
-            else -> "Day ${t.cycleDay} of your cycle · ${t.phase.label} (estimate)"
+            t.isLate -> "Day ${t.cycleDay} · period expected ${-t.daysUntilNext} day(s) ago"
+            t.phase == CyclePhase.FERTILE -> "Day ${t.cycleDay} of your cycle · predicted fertile window"
+            else -> "Day ${t.cycleDay} of your cycle · ${t.phase.label}"
         },
         onOpen = onOpen,
         footnote = message

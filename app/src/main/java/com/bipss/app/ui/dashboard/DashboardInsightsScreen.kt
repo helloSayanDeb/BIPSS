@@ -122,7 +122,7 @@ fun DashboardInsightsScreen(
             val experimental = state.experimentalScores
             if (experimental.isNotEmpty()) {
                 Spacer(Modifier.height(Space.l))
-                SectionLabel("Experimental")
+                SectionLabel("Also tracked")
                 Spacer(Modifier.height(Space.m))
                 experimental.forEach { risk ->
                     RiskDetailCard(risk)
@@ -415,7 +415,6 @@ private fun AirContextCard(
                 color = colors.textPrimary,
                 modifier = Modifier.weight(1f)
             )
-            FidelityBadge(com.bipss.app.domain.Fidelity.ESTIMATE)
         }
         Spacer(Modifier.height(Space.s))
         context.evidence.forEach {
@@ -500,8 +499,8 @@ private fun AirQualityRows(display: AqiDisplay, stationLabel: String?, reconcili
                 display.usual?.let {
                     val median = it.medianUba.toInt()
                     val high = it.p90Uba.toInt()
-                    if (display.bandUba > it.p90Uba) "Above your usual indoor air (typically $median, rarely above $high). Estimate."
-                    else "Within your usual indoor air (typically $median, rarely above $high). Estimate."
+                    if (display.bandUba > it.p90Uba) "Above your usual indoor air (typically $median, rarely above $high)."
+                    else "Within your usual indoor air (typically $median, rarely above $high)."
                 } ?: "Still learning your usual indoor air" + (learning?.let { " ($it)." } ?: ".")
             )
             InfoRow(outdoorsNear, station(display.cpcbAqi))
@@ -638,14 +637,12 @@ private fun RiskDetailCard(risk: RiskScore) {
 
         AvailabilityChip(risk.availability, Modifier.padding(top = Space.m))
         ConfidenceBar(risk.confidence, Modifier.padding(top = Space.s))
-        if (risk.type == com.bipss.app.domain.RiskScoreType.AUTONOMIC_LOAD) {
-            Spacer(Modifier.height(Space.s))
-            Text(
-                com.bipss.app.domain.ali.AutonomicLoad.TOOLTIP,
-                style = MaterialTheme.typography.bodySmall,
-                color = colors.textSecondary
-            )
-        }
+        Spacer(Modifier.height(Space.m))
+        Text(
+            risk.type.method,
+            style = MaterialTheme.typography.bodySmall,
+            color = colors.textSecondary
+        )
 
         if (risk.factors.isNotEmpty()) {
             Spacer(Modifier.height(Space.l))
@@ -699,7 +696,6 @@ private fun RestingPrvCard(prv: RestingPrv?, onOpen: () -> Unit) {
                 color = colors.textPrimary,
                 modifier = Modifier.weight(1f)
             )
-            com.bipss.app.ui.components.FidelityBadge(com.bipss.app.domain.Fidelity.ESTIMATE)
         }
         Spacer(Modifier.height(Space.s))
         if (prv != null) {

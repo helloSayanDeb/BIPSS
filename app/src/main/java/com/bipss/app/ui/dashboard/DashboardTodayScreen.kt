@@ -177,7 +177,7 @@ fun DashboardTodayScreen(
             Spacer(Modifier.height(Space.xxl))
             SectionHeader("Vitals")
             Spacer(Modifier.height(Space.m))
-            Row(horizontalArrangement = Arrangement.spacedBy(Space.m)) {
+            Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(Space.m)) {
                 MetricTile(
                     label = "Heart rate",
                     value = state.heartRate?.toString() ?: "—",
@@ -186,9 +186,7 @@ fun DashboardTodayScreen(
                     tint = colors.heart,
                     history = state.heartRateHistory,
                     caption = if (state.heartRate != null) "Tap for history" else "Waiting for readings",
-                    fidelity = if (state.hrFromPipeline) com.bipss.app.domain.Fidelity.PRODUCTION
-                               else com.bipss.app.domain.Fidelity.ESTIMATE,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
                     onClick = { navController.navigate(Routes.metricDetail(MetricTypes.HR)) }
                 )
                 MetricTile(
@@ -199,13 +197,12 @@ fun DashboardTodayScreen(
                     tint = colors.spo2,
                     history = state.spO2History,
                     caption = if (state.spO2 != null) "Tap for history" else "Waiting for readings",
-                    fidelity = com.bipss.app.domain.Fidelity.ESTIMATE,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
                     onClick = { navController.navigate(Routes.metricDetail(MetricTypes.SPO2)) }
                 )
             }
             Spacer(Modifier.height(Space.m))
-            Row(horizontalArrangement = Arrangement.spacedBy(Space.m)) {
+            Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(Space.m)) {
                 MetricTile(
                     label = "Skin temp",
                     value = state.skinTempC?.let { "%.1f".format(it) } ?: "—",
@@ -214,7 +211,7 @@ fun DashboardTodayScreen(
                     tint = colors.temp,
                     history = state.skinTempHistory,
                     caption = if (state.skinTempC != null) "Tap for history" else "Waiting for readings",
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
                     onClick = { navController.navigate(Routes.metricDetail(MetricTypes.SKIN_TEMP)) }
                 )
                 MetricTile(
@@ -225,8 +222,7 @@ fun DashboardTodayScreen(
                     tint = colors.activity,
                     history = emptyList(),
                     caption = if (state.prvRmssd != null) "Tap for history" else "Waiting for readings",
-                    fidelity = com.bipss.app.domain.Fidelity.ESTIMATE,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
                     onClick = { navController.navigate(Routes.metricDetail(MetricTypes.PRV)) }
                 )
             }
@@ -268,7 +264,7 @@ fun DashboardTodayScreen(
             val experimental = state.experimentalScores
             if (experimental.isNotEmpty()) {
                 Spacer(Modifier.height(Space.l))
-                SectionHeader("Experimental")
+                SectionHeader("Also tracked")
                 Spacer(Modifier.height(Space.m))
                 experimental.forEach { e ->
                     ScoreRow(e)
@@ -522,16 +518,10 @@ internal fun scoreColor(score: RiskScore): Color {
     }
 }
 
-/** Fidelity badge, plus a Provisional chip while the baseline behind the score is provisional. */
+/** A Provisional chip while the baseline behind the score is still provisional. */
 @Composable
 internal fun ScoreBadges(score: RiskScore) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        FidelityBadge(score.fidelity)
-        if (score.provisional) {
-            Spacer(Modifier.width(Space.s))
-            StatusPill("Provisional", BipssTheme.colors.bandMonitor)
-        }
-    }
+    if (score.provisional) StatusPill("Provisional", BipssTheme.colors.bandMonitor)
 }
 
 @Composable

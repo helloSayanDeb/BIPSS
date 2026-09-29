@@ -38,7 +38,7 @@ data class AliResult(
 object AutonomicLoad {
 
     const val TOOLTIP =
-        "Experimental. Combines pulse rate variability and heart rate while you're still. " +
+        "A newer measure, still being evaluated. It combines pulse rate variability and heart rate while you're still. " +
             "It does not detect heart-rhythm problems and does not measure stress — this band " +
             "has no skin-conductance sensor."
 

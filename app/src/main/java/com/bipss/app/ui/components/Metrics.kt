@@ -149,12 +149,14 @@ fun MetricTile(
     history: List<Float>,
     modifier: Modifier = Modifier,
     caption: String? = null,
-    /** Null for a raw sensor reading; every derived value carries one. */
-    fidelity: com.bipss.app.domain.Fidelity? = null,
     onClick: (() -> Unit)? = null,
 ) {
     val colors = BipssTheme.colors
-    BipssCard(modifier = modifier, onClick = onClick, contentPadding = PaddingValues(Space.l)) {
+    // Every tile has the same parts in the same places - label at the top;
+    // value, trend and caption at the bottom - so tiles side by side line up
+    // whether or not they have readings. A tile that lost its trend line or
+    // gained a second label line used to come out a different height.
+    BipssCard(modifier = modifier, onClick = onClick, contentPadding = PaddingValues(Space.l), fillHeight = true) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconBadge(icon, tint, size = 30.dp)
             Spacer(Modifier.width(Space.s))
@@ -164,47 +166,46 @@ fun MetricTile(
                 color = colors.textSecondary
             )
         }
-        if (fidelity != null) {
-            Spacer(Modifier.height(Space.s))
-            FidelityBadge(fidelity)
-        }
-        Spacer(Modifier.height(Space.m))
-        val hasValue = value != "—"
-        Row(verticalAlignment = Alignment.Bottom) {
-            Text(
-                value,
-                style = MetricValue,
-                color = if (hasValue) colors.textPrimary else colors.textTertiary
-            )
-            if (unit.isNotEmpty()) {
-                Spacer(Modifier.width(3.dp))
+        Column {
+            Spacer(Modifier.height(Space.l))
+            val hasValue = value != "—"
+            Row(verticalAlignment = Alignment.Bottom) {
                 Text(
-                    unit,
-                    style = MetricUnit,
-                    color = colors.textTertiary,
-                    modifier = Modifier.padding(bottom = 5.dp)
+                    value,
+                    style = MetricValue,
+                    color = if (hasValue) colors.textPrimary else colors.textTertiary
                 )
+                if (unit.isNotEmpty() && hasValue) {
+                    Spacer(Modifier.width(3.dp))
+                    Text(
+                        unit,
+                        style = MetricUnit,
+                        color = colors.textTertiary,
+                        modifier = Modifier.padding(bottom = 5.dp)
+                    )
+                }
             }
-        }
-        Spacer(Modifier.height(Space.s))
-        // Only reserve chart space once there's a trend to draw — an empty
-        // 30dp gap reads as a broken tile.
-        if (history.size >= 2) {
-            Sparkline(
-                points = history,
-                color = tint,
-                modifier = Modifier.fillMaxWidth().height(30.dp)
-            )
-        } else {
+            Spacer(Modifier.height(Space.s))
+            if (history.size >= 2) {
+                Sparkline(
+                    points = history,
+                    color = tint,
+                    modifier = Modifier.fillMaxWidth().height(30.dp)
+                )
+            } else {
+                // The trend's place, kept: a faint rule reads as "no trend
+                // yet", where a gap read as a broken tile.
+                Box(Modifier.fillMaxWidth().height(30.dp), contentAlignment = Alignment.Center) {
+                    Box(Modifier.fillMaxWidth().height(1.dp).background(colors.hairline))
+                }
+            }
+            Spacer(Modifier.height(Space.s))
             Text(
                 caption ?: "Waiting for readings",
                 style = MaterialTheme.typography.bodySmall,
-                color = colors.textTertiary
+                color = colors.textTertiary,
+                maxLines = 1
             )
-        }
-        if (caption != null && history.size >= 2) {
-            Spacer(Modifier.height(6.dp))
-            Text(caption, style = MaterialTheme.typography.bodySmall, color = colors.textTertiary)
         }
     }
 }

@@ -101,6 +101,22 @@ enum class RiskScoreType(
 
     val isWellness: Boolean get() = category == ScoreCategory.WELLNESS
     val isHazard: Boolean get() = category == ScoreCategory.HAZARD
+
+    /** How the score is worked out, in plain words - shown with the score in place of a badge. */
+    val method: String get() = when (this) {
+        READINESS -> "Recovery and sleep (40% each) and how much strain you have left (20%), lowered when a " +
+            "hazard score is high."
+        RECOVERY -> "Last night's pulse rate variability, resting heart rate, sleep length and skin temperature, " +
+            "each compared with your own recent nights."
+        SLEEP, SLEEP_QUALITY -> "When you fell asleep and woke, worked out from the band's movement and heart rate " +
+            "overnight, and how long you slept."
+        STRAIN -> "Heart-rate load during your active minutes (a training-impulse method), on a 0-21 scale."
+        HEAT_STRESS -> "Heat index from local weather, official heat alerts, time since your last drink and - when " +
+            "the band is worn - your heart rate and skin temperature against your own baseline."
+        RESPIRATORY -> "Blood oxygen and a breathing-effort signal from the band, with local air quality."
+        FLOOD -> "Official IMD and NDMA alerts for your area, by how severe and how close they are."
+        AUTONOMIC_LOAD -> com.bipss.app.domain.ali.AutonomicLoad.TOOLTIP
+    }
 }
 
 /**

@@ -44,7 +44,7 @@ object TemplatedResponder {
         // "what is my X"
         riskScores.forEach { score ->
             if (("what" in q || "score" in q) && score.type.displayName.lowercase() in q) {
-                val prefix = if (score.fidelity == com.bipss.app.domain.Fidelity.EXPERIMENTAL) "Experimental: " else ""
+                val prefix = ""
                 return if (score.hasNumber)
                     "${prefix}Your ${score.type.displayName} score is ${score.valueWithScale} (${score.levelWord})."
                 else
@@ -80,7 +80,7 @@ object TemplatedResponder {
             }
             val summary = known.joinToString(". ") {
                 "${it.type.displayName}: ${it.valueWithScale} (${it.levelWord})" +
-                    if (it.fidelity == com.bipss.app.domain.Fidelity.EXPERIMENTAL) " [experimental]" else ""
+                    ""
             }
             val unknown = riskScores.filter { !it.hasNumber }
             val tail = if (unknown.isEmpty()) ""

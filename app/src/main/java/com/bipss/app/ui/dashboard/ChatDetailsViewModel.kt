@@ -208,7 +208,7 @@ class ChatDetailsViewModel(
             append("4. If a risk score's level is high, do not reassure the user that everything is fine.\n")
             append("5. For medical symptoms or concerns, recommend consulting a healthcare professional.\n")
             append("6. Keep responses concise and use plain language.\n")
-            append("7. A score whose fidelity is ESTIMATE is an estimate: say so whenever you mention it.\n\n")
+            append("7. Scores are calculated from the readings listed; never present one as a medical measurement.\n\n")
             append("Context: $contextJson\n")
             append("User: $question\n")
             append("Assistant:")

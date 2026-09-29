@@ -17,7 +17,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.bipss.app.domain.BaselineSchedule
 import com.bipss.app.domain.BaselineStage
-import com.bipss.app.domain.Fidelity
 import com.bipss.app.domain.recovery.RecoveryComponent
 import com.bipss.app.domain.recovery.RecoveryInput
 import com.bipss.app.ui.components.*
@@ -78,9 +77,7 @@ fun RecoveryDetailScreen(
                              color = colors.textPrimary, modifier = Modifier.weight(1f))
                         if (result.stage == BaselineStage.PROVISIONAL) {
                             StatusPill("Provisional", colors.bandMonitor)
-                            Spacer(Modifier.width(Space.s))
                         }
-                        FidelityBadge(Fidelity.ESTIMATE)
                     }
                     Spacer(Modifier.height(Space.s))
                     if (result.score != null) {
@@ -93,7 +90,7 @@ fun RecoveryDetailScreen(
                         Spacer(Modifier.height(Space.xs))
                         Text(
                             "50 is an ordinary night for you; higher is better recovered. " +
-                                "The single number is an estimate - the inputs below are what was measured.",
+                                "The number combines the night's measurements listed below.",
                             style = MaterialTheme.typography.bodySmall, color = colors.textSecondary
                         )
                     } else {
