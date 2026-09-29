@@ -112,10 +112,11 @@ val appModule = module {
     // ── Sleep ─────────────────────────────────────────────────────────────────
     single {
         com.bipss.app.data.SleepRepository(
-            rawDao     = get(),
-            sleepDao   = get(),
-            desatDao   = get(),
-            sensorRepo = get()
+            rawDao   = get(),
+            sleepDao = get(),
+            desatDao = get(),
+            epochDao = get(),
+            scoring  = get()
         )
     }
 

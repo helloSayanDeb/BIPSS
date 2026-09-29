@@ -189,8 +189,8 @@ interface DesaturationEventDao {
     @Query("DELETE FROM desaturation_events WHERE sessionId IN (:sessionIds)")
     suspend fun deleteForSessions(sessionIds: List<Long>)
 
-    /** Only non-artefact events count toward the ODI. */
-    @Query("SELECT COUNT(*) FROM desaturation_events WHERE sessionId = :sessionId AND motionArtefact = 0")
+    /** Counted drops: no wrist movement nearby and at least 10 s long (DesaturationScreening). */
+    @Query("SELECT COUNT(*) FROM desaturation_events WHERE sessionId = :sessionId AND motionArtefact = 0 AND durationMs >= 10000")
     suspend fun validCountForSession(sessionId: Long): Int
 }
 

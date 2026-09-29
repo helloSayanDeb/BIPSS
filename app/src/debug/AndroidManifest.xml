@@ -13,6 +13,7 @@
                 <action android:name="com.bipss.app.debug.SIM_MODE" />
                 <action android:name="com.bipss.app.debug.SIM_START" />
                 <action android:name="com.bipss.app.debug.SIM_STOP" />
+                <action android:name="com.bipss.app.debug.ANALYSE_SLEEP" />
             </intent-filter>
         </receiver>
     </application>

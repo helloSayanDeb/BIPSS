@@ -39,7 +39,7 @@ object NotificationIds {
     const val SERVICE        = 1001
     const val COACHING       = 1002
     const val REMINDER       = 1003
-    const val APNEA_SUMMARY  = 1004
+    const val BREATHING_SUMMARY  = 1004
 }
 
 /**
@@ -171,31 +171,31 @@ object BipssNotifications {
     /**
      * Overnight desaturation count.
      *
-     * RULE: screening language only. This wording must never say "apnea detected", never
-     * use the word diagnosis, and never imply a condition has been identified. It reports
+     * RULE: counting language only. This wording must never name or grade a condition,
+     * and never imply one has been identified. It reports
      * the count of events observed and how far the collection window has got, nothing more
      * - interpreting that belongs to a clinician, not to a wrist sensor.
      */
-    fun showApneaSummary(
+    fun showBreathingSummary(
         context:        Context,
         eventCount:     Int,
         nightsCollected: Int,
         nightsRequired: Int
     ) {
-        val body = "$eventCount desaturation events recorded last night. " +
+        val body = "$eventCount oxygen dips counted last night. " +
                    "$nightsCollected of $nightsRequired nights collected."
 
         val notification = NotificationCompat.Builder(context, CH_COACHING)
             .setSmallIcon(ICON_COACHING)
-            .setContentTitle("Overnight breathing summary")
+            .setContentTitle("Overnight oxygen summary")
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
-            .setContentIntent(deepLink(context, NAV_SLEEP, NotificationIds.APNEA_SUMMARY))
+            .setContentIntent(deepLink(context, NAV_SLEEP, NotificationIds.BREATHING_SUMMARY))
             .build()
 
-        safeNotify(context, NotificationIds.APNEA_SUMMARY, notification)
+        safeNotify(context, NotificationIds.BREATHING_SUMMARY, notification)
     }
 
     /**

@@ -33,7 +33,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
-import com.bipss.app.domain.sleep.ApneaScreening
+import com.bipss.app.domain.sleep.DesaturationScreening
 import com.bipss.app.domain.sleep.NightScreening
 import com.bipss.app.ui.components.*
 import com.bipss.app.ui.theme.BipssTheme
@@ -46,12 +46,11 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * Sleep, plus the overnight breathing screening.
+ * Sleep, plus the overnight oxygen-dip count.
  *
- * The screening deliberately shows its working rather than a verdict: a
- * progress bar toward the fourteen nights an average needs, and one browsable
- * pill per night. A judge or a clinician can see exactly what it will say on
- * night fourteen without the app having to pretend it already knows.
+ * The count shows its working rather than a verdict: progress toward the
+ * fourteen nights an average needs, and one browsable pill per night. It
+ * reports numbers; what they mean is for a clinician.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -92,11 +91,18 @@ fun SleepDetailScreen(
                 EmptyState(
                     icon = Icons.Rounded.Bedtime,
                     title = "No sleep recorded yet",
-                    body = "Wear the band overnight. Detection runs the following morning and " +
-                        "needs at least 30 minutes of sleep to register a session."
+                    body = "Wear the band overnight. Detection runs the following morning and needs at " +
+                        "least 30 minutes of sleep. It works from wrist movement, which the band sends " +
+                        "from firmware v2."
                 )
             } else {
                 BipssCard {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Last night", style = MaterialTheme.typography.titleMedium,
+                             color = colors.textPrimary, modifier = Modifier.weight(1f))
+                        FidelityBadge(com.bipss.app.domain.Fidelity.ESTIMATE)
+                    }
+                    Spacer(Modifier.height(Space.s))
                     Row(verticalAlignment = Alignment.Bottom) {
                         Text(
                             "${last.totalSleepMs / 3_600_000}h ${(last.totalSleepMs % 3_600_000) / 60_000}m",
@@ -127,7 +133,7 @@ fun SleepDetailScreen(
 
             // -- Breathing screening ------------------------------------------
             Spacer(Modifier.height(Space.xxl))
-            SectionLabel("Sleep-disordered breathing screening")
+            SectionLabel("Overnight oxygen dips")
             Spacer(Modifier.height(Space.m))
 
             BipssCard {
@@ -147,7 +153,7 @@ fun SleepDetailScreen(
                 if (!state.hasAnyNight) {
                     Spacer(Modifier.height(Space.m))
                     Text(
-                        "Wear the band overnight to begin screening. Each night is analysed on " +
+                        "Wear the band overnight to start counting. Each night is analysed on " +
                             "its own and shown here from the first one.",
                         style = MaterialTheme.typography.bodySmall,
                         color = colors.textTertiary
@@ -175,7 +181,7 @@ fun SleepDetailScreen(
                         )
                     } else {
                         InfoBanner(
-                            text = "A screening summary appears after ${state.nightsRequired} nights. " +
+                            text = "An average appears after ${state.nightsRequired} nights. " +
                                 "Individual nights are shown above.",
                             icon = Icons.Rounded.Info,
                             tint = colors.textTertiary
@@ -189,7 +195,7 @@ fun SleepDetailScreen(
                                 val report = vm.buildPhysicianReport()
                                 val send = Intent(Intent.ACTION_SEND).apply {
                                     type = "text/plain"
-                                    putExtra(Intent.EXTRA_SUBJECT, "BIPSS overnight breathing record")
+                                    putExtra(Intent.EXTRA_SUBJECT, "BIPSS overnight oxygen record")
                                     putExtra(Intent.EXTRA_TEXT, report)
                                 }
                                 context.startActivity(
@@ -208,8 +214,9 @@ fun SleepDetailScreen(
 
             Spacer(Modifier.height(Space.m))
             Text(
-                "This screening counts oxygen desaturation events. It is not a diagnosis, and " +
-                    "BIPSS is not a medical device. Discuss any concern with a physician.",
+                "This counts drops in blood oxygen during sleep detected from wrist movement - both " +
+                    "estimates from a consumer band. It is not a diagnosis, and BIPSS is not a medical " +
+                    "device. If you are concerned about your breathing during sleep, talk to a doctor.",
                 style = MaterialTheme.typography.labelSmall,
                 color = colors.textTertiary
             )
@@ -251,8 +258,8 @@ private fun NightPill(
         ) {
             Column(Modifier.padding(Space.m)) {
                 Text(
-                    if (night.eventCount == 1) "1 desaturation event"
-                    else "${night.eventCount} desaturation events",
+                    if (night.eventCount == 1) "1 oxygen dip counted"
+                    else "${night.eventCount} oxygen dips counted",
                     style = MaterialTheme.typography.titleSmall,
                     color = colors.textPrimary
                 )
@@ -264,7 +271,7 @@ private fun NightPill(
                     color = colors.textSecondary
                 )
                 Text(
-                    "ODI ${String.format("%.1f", night.odi)}/hour · ${ApneaScreening.odiCategory(night.odi)}",
+                    DesaturationScreening.odiDescription(night.odi),
                     style = MaterialTheme.typography.labelSmall,
                     color = colors.textTertiary
                 )
@@ -272,7 +279,7 @@ private fun NightPill(
                 // judge the night's signal quality instead of trusting a bare count.
                 if (night.rejectedArtefactCount > 0) {
                     Text(
-                        "${night.rejectedArtefactCount} excluded as movement artefact",
+                        "${night.rejectedArtefactCount} more not counted (movement or under 10 s)",
                         style = MaterialTheme.typography.labelSmall,
                         color = colors.textTertiary
                     )
@@ -290,12 +297,12 @@ private fun NightPill(
     }
 }
 
+/**
+ * One neutral colour for every night. Green/amber/red at 5 and 15 per hour
+ * would be clinical severity grading, which a consumer band's count cannot
+ * support.
+ */
 @Composable
-private fun odiColour(odi: Float): Color {
-    val colors = BipssTheme.colors
-    return when {
-        odi < 5f  -> colors.bandNormal
-        odi < 15f -> colors.bandMonitor
-        else      -> colors.bandRisk
-    }
+private fun odiColour(@Suppress("UNUSED_PARAMETER") odi: Float): Color {
+    return BipssTheme.colors.sleep
 }

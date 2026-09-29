@@ -3,23 +3,33 @@ package com.bipss.app.domain.sleep
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-/**
- * Overnight sleep detection and breathing screening.
+/*
+ * Overnight sleep detection and oxygen-dip counting.
  *
- * WORDING RULE, NON-NEGOTIABLE: nothing in this file - code, comment or string -
- * may assert a condition. The words "sleep apnea detected", "you have sleep
- * apnea" and "diagnosis"/"diagnosed" appear nowhere except inside the mandatory
- * disclaimer "This is not a diagnosis". This device is unregulated; reporting
- * desaturation counts and directing the user to a physician is defensible,
- * asserting a disorder is not.
+ * WORDING RULE: nothing here - code, comment or string - may assert or grade a
+ * condition. It detects sleep from movement, and it counts drops in blood
+ * oxygen. What those counts mean is a question for a clinician. The only place
+ * the idea of a diagnosis appears is the disclaimer that this is not one.
  *
- * Pure Kotlin - no Android, no Room. The repository layer maps these types to
- * and from entities, which keeps the arithmetic unit-testable on the JVM.
+ * Pure Kotlin - no Android, no Room - so the arithmetic is unit-testable.
  */
 
 data class Sample(val timestampMs: Long, val value: Float)
 
-data class SleepEpoch(val startMs: Long, val activityCount: Float, val avgHr: Float?)
+/** One minute of the night, as the sleep detector sees it. */
+data class MinuteEpoch(
+    val startMs:  Long,
+    /** Band activity summed over the minute, mg*s; null when the band sent none. */
+    val activity: Double?,
+    /** Mean measured heart rate over the minute, if any. */
+    val hr:       Double?,
+    /**
+     * The band was on the wrist and its signal usable. A minute without data,
+     * without skin contact or with Poor signal is off-wrist: it is never
+     * scored as sleep, and it ends a session.
+     */
+    val onWrist:  Boolean
+)
 
 data class DetectedSleepSession(
     val startMs:          Long,
@@ -39,6 +49,7 @@ data class DesaturationEvent(
     val baselineSpo2:   Float,
     val nadirSpo2:      Float,
     val dropPercent:    Float,
+    /** Within 15 s of wrist movement: probable motion artefact, excluded from the count. */
     val motionArtefact: Boolean
 )
 
@@ -50,212 +61,214 @@ data class NightScreening(
     val odi:                   Float
 )
 
-// -- Sleep detection --------------------------------------------------------
+/** Sleep stages, for a future model. Nothing in the app produces them yet. */
+enum class SleepStage { WAKE, LIGHT, DEEP, REM }
 
+/**
+ * Integration point for a sleep-staging model. Deliberately unimplemented: no
+ * staging is shown until a model validated for this band exists. The app's
+ * sleep output is sleep versus wake only.
+ */
+interface SleepStagingModel {
+    /** One stage per epoch, or null when the model cannot score this night. */
+    fun stage(epochs: List<MinuteEpoch>): List<SleepStage>?
+}
+
+// -- Sleep detection -----------------------------------------------------------------
+
+/**
+ * Sleep/wake from wrist movement, after Cole RJ et al., *Automatic sleep/wake
+ * identification from wrist activity*, Sleep 1992;15(5):461-469.
+ *
+ * For one-minute epochs the published score is
+ *
+ *     D = 0.001 * (106 A-4 + 54 A-3 + 58 A-2 + 76 A-1 + 230 A0 + 74 A+1 + 67 A+2)
+ *
+ * with the current minute weighted most, and D < 1 scored as sleep. A is the
+ * activity count of the actigraph the weights were fitted on; this band's
+ * counts are converted with [MG_S_PER_COUNT], a constant that has not been
+ * calibrated against that device - which is why sleep detection is an Estimate.
+ *
+ * Movement cannot tell sleep from lying still awake. From calibration day 3
+ * a minute whose heart rate sits more than [HR_GATE_BPM] above the wearer's
+ * usual sleeping rate is scored awake; before that there is no sleeping rate
+ * to compare with, and the gate is off.
+ */
 object SleepDetector {
 
-    const val EPOCH_MS = 30_000L
+    const val EPOCH_MS = 60_000L
 
-    /** 30 minutes. Shorter runs are naps or sensor noise, not a night. */
-    const val MIN_EPOCHS = 60
+    /** 30 minutes of sleep: shorter runs are naps or noise, not a night. */
+    const val MIN_SLEEP_EPOCHS = 30
 
-    private val COLE_KRIPKE_WEIGHTS = listOf(0.04f, 0.2f, 1.0f, 0.2f, 0.04f, 0.04f, 0.04f)
+    private val WEIGHTS = doubleArrayOf(106.0, 54.0, 58.0, 76.0, 230.0, 74.0, 67.0)   // A-4 .. A+2
+    private const val P = 0.001
 
-    /**
-     * Buckets both series into 30-second epochs.
-     *
-     * activityCount is the sum of absolute deviations from the epoch's own mean
-     * rather than raw magnitude, because the accelerometer reads a constant ~1 g
-     * of gravity whatever the wearer is doing. Subtracting the epoch mean
-     * removes that offset and leaves only movement, so a perfectly still arm
-     * scores near zero regardless of how it is oriented.
-     */
-    fun buildEpochs(accelMagnitude: List<Sample>, hr: List<Sample>): List<SleepEpoch> {
-        if (accelMagnitude.isEmpty()) return emptyList()
+    /** Band mg*s per actigraph count. Uncalibrated; see the class note. */
+    const val MG_S_PER_COUNT = 300.0
 
-        val accelByEpoch = accelMagnitude.groupBy { it.timestampMs / EPOCH_MS }
-        val hrByEpoch    = hr.groupBy { it.timestampMs / EPOCH_MS }
+    const val HR_GATE_BPM = 15.0
+    const val HR_GATE_FROM_DAY = 3
 
-        val firstEpoch = accelByEpoch.keys.min()
-        val lastEpoch  = accelByEpoch.keys.max()
-
-        return (firstEpoch..lastEpoch).map { epoch ->
-            val accel = accelByEpoch[epoch].orEmpty()
-            val activity = if (accel.isEmpty()) 0f else {
-                val mean = accel.map { it.value }.average().toFloat()
-                accel.sumOf { abs(it.value - mean).toDouble() }.toFloat()
+    /** Per-minute sleep (true) or wake (false). Off-wrist minutes are always false. */
+    fun score(epochs: List<MinuteEpoch>, sleepingHr: Double?, dayN: Int): BooleanArray {
+        val counts = DoubleArray(epochs.size) { i ->
+            if (epochs[i].onWrist) (epochs[i].activity ?: 0.0) / MG_S_PER_COUNT else 0.0
+        }
+        val hrGate = sleepingHr?.takeIf { dayN >= HR_GATE_FROM_DAY }
+        return BooleanArray(epochs.size) { i ->
+            val e = epochs[i]
+            if (!e.onWrist) return@BooleanArray false
+            var d = 0.0
+            for (k in -4..2) {
+                val j = i + k
+                if (j in epochs.indices) d += WEIGHTS[k + 4] * counts[j]
             }
-            val hrSamples = hrByEpoch[epoch].orEmpty()
-            SleepEpoch(
-                startMs       = epoch * EPOCH_MS,
-                activityCount = activity,
-                avgHr         = if (hrSamples.isEmpty()) null
-                                else hrSamples.map { it.value }.average().toFloat()
-            )
+            val stillEnough = P * d < 1.0
+            val calmHeart = hrGate == null || e.hr == null || e.hr <= hrGate + HR_GATE_BPM
+            stillEnough && calmHeart
         }
     }
 
     /**
-     * Cole-Kripke style actigraphy scoring, confirmed against heart rate.
-     *
-     * The accelerometer alone cannot distinguish sleep from lying still awake,
-     * so an epoch only counts as sleep if heart rate also sits below the
-     * wearer's resting baseline. Where no baseline exists yet the HR gate is
-     * skipped rather than guessed - a first-night session is still detected,
-     * just on movement alone.
+     * The main sleep period in [epochs] (consecutive minutes, oldest first):
+     * within each unbroken on-wrist stretch, from the first to the last sleep
+     * minute; the stretch with the most sleep wins.
      */
-    fun detect(
-        accelMagnitude:    List<Sample>,
-        hr:                List<Sample>,
-        restingHrBaseline: Double?
-    ): DetectedSleepSession? {
-        val epochs = buildEpochs(accelMagnitude, hr)
-        if (epochs.size < MIN_EPOCHS) return null
+    fun detect(epochs: List<MinuteEpoch>, sleepingHr: Double?, dayN: Int): DetectedSleepSession? {
+        if (epochs.size < MIN_SLEEP_EPOCHS) return null
+        val asleep = score(epochs, sleepingHr, dayN)
 
-        val asleep = epochs.mapIndexed { i, epoch ->
-            val window = (-4..2).map { epochs.getOrNull(i + it)?.activityCount ?: 0f }
-            val score = window.zip(COLE_KRIPKE_WEIGHTS).fold(0f) { acc, (a, w) -> acc + a * w }
-            val byMovement = score < 1.0f
-
-            val byHeartRate = if (epoch.avgHr != null && restingHrBaseline != null && restingHrBaseline > 0.0)
-                epoch.avgHr < restingHrBaseline * 0.95
-            else true
-
-            byMovement && byHeartRate
-        }
-
-        val sleepIndices = asleep.withIndex().filter { it.value }.map { it.index }
-        if (sleepIndices.size < MIN_EPOCHS) return null
-
-        val firstIdx = sleepIndices.first()
-        val lastIdx  = sleepIndices.last()
-        val onset = epochs[firstIdx].startMs
-        val wake  = epochs[lastIdx].startMs + EPOCH_MS
-
-        val totalSleepMs = sleepIndices.size * EPOCH_MS
-        val timeInBed = wake - onset
-        if (timeInBed <= 0L) return null
-
-        val efficiency = ((totalSleepMs.toDouble() / timeInBed) * 100.0)
-            .roundToInt().coerceIn(0, 100)
-        val wakeAfterOnset = (timeInBed - totalSleepMs).coerceAtLeast(0L)
-
-        // Count only runs of two or more awake epochs, so a single noisy epoch
-        // in the middle of the night is not reported as an awakening.
-        var awakenings = 0
-        var runLength = 0
-        for (i in firstIdx..lastIdx) {
-            if (!asleep[i]) runLength++
-            else {
-                if (runLength >= 2) awakenings++
-                runLength = 0
+        var best: IntRange? = null
+        var bestSleep = 0
+        var i = 0
+        while (i < epochs.size) {
+            if (!epochs[i].onWrist) { i++; continue }
+            var j = i
+            while (j + 1 < epochs.size && epochs[j + 1].onWrist &&
+                epochs[j + 1].startMs - epochs[j].startMs == EPOCH_MS) j++
+            val sleepIdx = (i..j).filter { asleep[it] }
+            if (sleepIdx.size >= MIN_SLEEP_EPOCHS && sleepIdx.size > bestSleep) {
+                best = sleepIdx.first()..sleepIdx.last()
+                bestSleep = sleepIdx.size
             }
+            i = j + 1
+        }
+        val range = best ?: return null
+
+        val onset = epochs[range.first].startMs
+        val wake = epochs[range.last].startMs + EPOCH_MS
+        val timeInBed = wake - onset
+        val totalSleepMs = bestSleep * EPOCH_MS
+
+        // An awakening is at least two consecutive wake minutes, so a single
+        // restless minute is not reported as waking up.
+        var awakenings = 0
+        var run = 0
+        for (k in range) {
+            if (!asleep[k]) run++ else { if (run >= 2) awakenings++; run = 0 }
         }
 
-        val sleepWindowHr = hr.filter { it.timestampMs in onset..wake }
-
+        val sleepHr = range.filter { asleep[it] }.mapNotNull { epochs[it].hr }
         return DetectedSleepSession(
             startMs          = onset,
             endMs            = wake,
             totalSleepMs     = totalSleepMs,
-            efficiencyPct    = efficiency,
-            wakeAfterOnsetMs = wakeAfterOnset,
+            efficiencyPct    = ((totalSleepMs.toDouble() / timeInBed) * 100).roundToInt().coerceIn(0, 100),
+            wakeAfterOnsetMs = (timeInBed - totalSleepMs).coerceAtLeast(0L),
             awakenings       = awakenings,
-            avgHr            = sleepWindowHr.takeIf { it.isNotEmpty() }
-                                   ?.map { it.value }?.average()?.toFloat(),
-            minHr            = sleepWindowHr.minByOrNull { it.value }?.value,
+            avgHr            = sleepHr.takeIf { it.isNotEmpty() }?.average()?.toFloat(),
+            minHr            = sleepHr.minOrNull()?.toFloat(),
             avgSpo2          = null   // filled in by the caller, which holds the SpO2 series
         )
     }
 }
 
-// -- Breathing screening ----------------------------------------------------
+// -- Oxygen dips -----------------------------------------------------------------------
 
-object ApneaScreening {
+/**
+ * Counts drops in blood oxygen during sleep: the oxygen desaturation index
+ * (ODI), qualifying drops per hour of sleep.
+ *
+ * A drop qualifies when SpO2 falls at least 3 percentage points below its own
+ * trailing two-minute mean and stays down at least 10 seconds. Drops within
+ * 15 seconds of wrist movement are kept, tagged as probable movement artefact,
+ * shown and exported, but not counted: motion corrupts wrist oximetry.
+ */
+object DesaturationScreening {
 
     const val MIN_DROP_PERCENT   = 3f
     const val MIN_EVENT_MS       = 10_000L
     const val BASELINE_WINDOW_MS = 120_000L
-    const val MOTION_THRESHOLD   = 0.15f
+    /** Band activity in one second above this (mg*s) counts as wrist movement. */
+    const val MOTION_MG_S        = 30f
     const val MOTION_GUARD_MS    = 15_000L
     const val NIGHTS_REQUIRED    = 14
 
     /**
-     * Finds oxygen desaturation dips against a two-minute moving baseline.
-     *
-     * Two details carry the whole method. Overlapping candidates are merged, so
-     * one long dip is one event rather than one event per sample - an unmerged
-     * implementation reports hundreds of fake events and makes the index
-     * meaningless. And events coinciding with movement are flagged rather than
-     * dropped, so the summary can report how many candidates were rejected
-     * instead of quietly discarding them; artefact rejection is the difference
-     * between a screening tool and a random number generator.
+     * Finds the drops. The trailing mean is kept as a sliding sum (the old
+     * version re-filtered the whole night per sample), overlapping candidates
+     * are merged into one event, and each is checked against movement.
      */
-    fun detectDesaturations(
-        spo2:           List<Sample>,
-        accelMagnitude: List<Sample>
-    ): List<DesaturationEvent> {
+    fun detectDesaturations(spo2: List<Sample>, activityPerSecond: List<Sample>): List<DesaturationEvent> {
         if (spo2.size < 10) return emptyList()
         val ordered = spo2.sortedBy { it.timestampMs }
+        val moves = activityPerSecond.filter { it.value > MOTION_MG_S }.map { it.timestampMs }.sorted()
         val events = mutableListOf<DesaturationEvent>()
 
+        var lo = 0              // first sample inside the trailing window
+        var sum = 0.0           // sum of samples in [lo, i)
         var i = 0
         while (i < ordered.size) {
-            val sample = ordered[i]
-            val windowStart = sample.timestampMs - BASELINE_WINDOW_MS
-            val window = ordered.filter { it.timestampMs in windowStart until sample.timestampMs }
-            if (window.size < 10) { i++; continue }
+            val t = ordered[i].timestampMs
+            while (lo < i && ordered[lo].timestampMs < t - BASELINE_WINDOW_MS) { sum -= ordered[lo].value; lo++ }
+            val n = i - lo
+            if (n < 10) { sum += ordered[i].value; i++; continue }
+            val baseline = (sum / n).toFloat()
+            if (baseline - ordered[i].value < MIN_DROP_PERCENT) { sum += ordered[i].value; i++; continue }
 
-            val baseline = window.map { it.value }.average().toFloat()
-            val drop = baseline - sample.value
-
-            if (drop < MIN_DROP_PERCENT) { i++; continue }
-
-            // Walk forward to recovery, tracking the nadir. This consumes the
-            // whole dip so the outer loop cannot re-report it.
+            // Walk to recovery, tracking the nadir; the whole dip is consumed.
             var j = i
-            var nadir = sample.value
+            var nadir = ordered[i].value
             while (j < ordered.size && ordered[j].value < baseline - 1f) {
                 if (ordered[j].value < nadir) nadir = ordered[j].value
                 j++
             }
-            val endMs = ordered[(j - 1).coerceAtMost(ordered.size - 1)].timestampMs
-            val durationMs = (endMs - sample.timestampMs).coerceAtLeast(0L)
-
-            val motion = accelMagnitude.any {
-                abs(it.timestampMs - sample.timestampMs) < MOTION_GUARD_MS &&
-                    it.value > MOTION_THRESHOLD
-            }
-
+            val endMs = ordered[(j - 1).coerceAtLeast(i)].timestampMs
             events += DesaturationEvent(
-                startMs        = sample.timestampMs,
-                durationMs     = durationMs,
+                startMs        = t,
+                durationMs     = (endMs - t).coerceAtLeast(0L),
                 baselineSpo2   = baseline,
                 nadirSpo2      = nadir,
                 dropPercent    = baseline - nadir,
-                motionArtefact = motion
+                motionArtefact = movedNear(moves, t, endMs)
             )
-
-            i = if (j > i) j else i + 1
+            val next = if (j > i) j else i + 1
+            for (k in i until next) sum += ordered[k].value
+            i = next
         }
         return events
+    }
+
+    /** Any movement from 15 s before the drop starts to 15 s after it ends. */
+    private fun movedNear(sortedMoves: List<Long>, startMs: Long, endMs: Long): Boolean {
+        if (sortedMoves.isEmpty()) return false
+        val from = startMs - MOTION_GUARD_MS
+        var lo = 0; var hi = sortedMoves.size
+        while (lo < hi) { val mid = (lo + hi) / 2; if (sortedMoves[mid] < from) lo = mid + 1 else hi = mid }
+        return lo < sortedMoves.size && sortedMoves[lo] <= endMs + MOTION_GUARD_MS
     }
 
     fun validEvents(all: List<DesaturationEvent>): List<DesaturationEvent> =
         all.filter { !it.motionArtefact && it.durationMs >= MIN_EVENT_MS }
 
-    /** Oxygen desaturation index: qualifying events per hour of sleep. */
+    /** Qualifying drops per hour of sleep. */
     fun computeOdi(validEventCount: Int, sleepDurationMs: Long): Float =
-        if (sleepDurationMs <= 0L) 0f
-        else validEventCount / (sleepDurationMs / 3_600_000f)
+        if (sleepDurationMs <= 0L) 0f else validEventCount / (sleepDurationMs / 3_600_000f)
 
-    fun screen(
-        spo2:    List<Sample>,
-        accel:   List<Sample>,
-        session: DetectedSleepSession
-    ): NightScreening {
+    fun screen(spo2: List<Sample>, activityPerSecond: List<Sample>, session: DetectedSleepSession): NightScreening {
         val inSession = spo2.filter { it.timestampMs in session.startMs..session.endMs }
-        val all = detectDesaturations(inSession, accel)
+        val all = detectDesaturations(inSession, activityPerSecond)
         val valid = validEvents(all)
         return NightScreening(
             sessionStartMs        = session.startMs,
@@ -266,41 +279,24 @@ object ApneaScreening {
         )
     }
 
-    /**
-     * Descriptive band for an index value.
-     *
-     * Deliberately phrased as an observation about the recording, never as a
-     * severity grade for a condition the app is in no position to assert.
-     */
-    fun odiCategory(odi: Float): String = when {
-        odi < 5f  -> "few overnight desaturations"
-        odi < 15f -> "a mild pattern of overnight desaturations"
-        odi < 30f -> "a moderate pattern of overnight desaturations"
-        else      -> "a frequent pattern of overnight desaturations"
-    }
+    /** The per-night figure in plain words - a count, never a grade. */
+    fun odiDescription(odi: Float): String =
+        "${String.format("%.1f", odi)} oxygen dips per hour of sleep"
 
     /**
-     * The screening summary, or null while there are too few nights.
-     *
-     * Returning null before [nightsRequired] is the honest behaviour: the
-     * caller then shows collection progress and the individual nights, which is
-     * both truthful and more interesting than a verdict the data cannot
-     * support. A single night of consumer pulse oximetry is not a basis for
-     * telling someone anything about their breathing.
+     * A plain average over the nights, or null while there are too few to be
+     * stable. No category or severity is attached: the numbers are reported,
+     * not interpreted.
      */
-    fun screeningSummary(
-        nights:         List<NightScreening>,
-        nightsRequired: Int = NIGHTS_REQUIRED
-    ): String? {
+    fun screeningSummary(nights: List<NightScreening>, nightsRequired: Int = NIGHTS_REQUIRED): String? {
         if (nights.size < nightsRequired) return null
         val avg = nights.map { it.odi }.average()
-        return "Your sleep data over the past ${nights.size} nights shows " +
-            "${odiCategory(avg.toFloat())} " +
-            "(average ${String.format("%.1f", avg)} events per hour). " +
-            "This is not a diagnosis. Please discuss with a physician."
+        return "Over the past ${nights.size} nights the band counted an average of " +
+            "${String.format("%.1f", avg)} oxygen dips per hour of sleep " +
+            "(a fall of ${MIN_DROP_PERCENT.toInt()} points or more lasting ${MIN_EVENT_MS / 1000} s or longer). " +
+            "This is not a diagnosis. If you are concerned about your breathing during sleep, talk to a doctor."
     }
 
-    /** Progress toward a summary, for the collection indicator. */
     fun progress(nightsCollected: Int, nightsRequired: Int = NIGHTS_REQUIRED): Float =
         (nightsCollected.toFloat() / nightsRequired).coerceIn(0f, 1f)
 }

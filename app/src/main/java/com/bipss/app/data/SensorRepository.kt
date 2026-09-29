@@ -265,9 +265,4 @@ class SensorRepository(
         }
     }
 
-    /** Resting proxy: mean of the lowest samples in the window. Null when there is no data. */
-    suspend fun restingHeartRate(windowMs: Long = 24 * 3_600_000L): Double? {
-        val now = System.currentTimeMillis()
-        return rawReadingDao.getRestingAverage(MetricTypes.HR, now - windowMs, now)
-    }
 }

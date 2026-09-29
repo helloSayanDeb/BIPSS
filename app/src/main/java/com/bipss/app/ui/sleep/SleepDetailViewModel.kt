@@ -4,7 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.bipss.app.data.SleepRepository
 import com.bipss.app.data.db.entity.SleepSessionEntity
-import com.bipss.app.domain.sleep.ApneaScreening
+import com.bipss.app.domain.sleep.DesaturationScreening
 import com.bipss.app.domain.sleep.NightScreening
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -13,9 +13,9 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * Backs the sleep screen, including the overnight breathing screening.
+ * Backs the sleep screen, including the overnight oxygen-dip count.
  *
- * [summary] is null until [ApneaScreening.NIGHTS_REQUIRED] nights exist. That
+ * [summary] is null until [DesaturationScreening.NIGHTS_REQUIRED] nights exist. That
  * is the point: the screen shows the machinery and the individual nights from
  * night one, and withholds the aggregate statement until the data can support
  * it, rather than issuing a confident verdict off two nights.
@@ -33,8 +33,8 @@ class SleepDetailViewModel(
         val isLoading:     Boolean = true
     ) {
         val nightsCollected: Int get() = screenings.size
-        val nightsRequired:  Int get() = ApneaScreening.NIGHTS_REQUIRED
-        val progress: Float get() = ApneaScreening.progress(nightsCollected)
+        val nightsRequired:  Int get() = DesaturationScreening.NIGHTS_REQUIRED
+        val progress: Float get() = DesaturationScreening.progress(nightsCollected)
         val selected: NightScreening? get() = screenings.getOrNull(selectedIndex)
         val hasAnyNight: Boolean get() = screenings.isNotEmpty()
     }
@@ -54,7 +54,7 @@ class SleepDetailViewModel(
                     // Open on the most recent night, which is what anyone
                     // checking in the morning actually wants to see.
                     selectedIndex  = (screenings.size - 1).coerceAtLeast(0),
-                    summary        = ApneaScreening.screeningSummary(screenings),
+                    summary        = DesaturationScreening.screeningSummary(screenings),
                     lastNightScore = sleepRepo.lastNightScore(),
                     isLoading      = false
                 )

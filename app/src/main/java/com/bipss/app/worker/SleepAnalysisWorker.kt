@@ -3,14 +3,14 @@ package com.bipss.app.worker
 import android.content.Context
 import androidx.work.*
 import com.bipss.app.data.SleepRepository
-import com.bipss.app.domain.sleep.ApneaScreening
+import com.bipss.app.domain.sleep.DesaturationScreening
 import com.bipss.app.notifications.BipssNotifications
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import java.util.concurrent.TimeUnit
 
 /**
- * Runs sleep detection and breathing screening once a day.
+ * Runs sleep detection and the oxygen-dip count once a day.
  *
  * Scheduled rather than triggered on wake because wake detection is itself an
  * output of the analysis. Running mid-morning means the whole night is present
@@ -48,11 +48,11 @@ class SleepAnalysisWorker(
             )
 
             if (lastNight != null && lastNight.eventCount > 0) {
-                BipssNotifications.showApneaSummary(
+                BipssNotifications.showBreathingSummary(
                     applicationContext,
                     eventCount     = lastNight.eventCount,
                     nightsCollected = nights,
-                    nightsRequired = ApneaScreening.NIGHTS_REQUIRED
+                    nightsRequired = DesaturationScreening.NIGHTS_REQUIRED
                 )
             }
         }
@@ -62,16 +62,29 @@ class SleepAnalysisWorker(
     }
 
     companion object {
-        private const val WORK_NAME = "sleep_analysis"
+        /** Previously scheduled with no initial delay, so it ran at whatever hour the app was installed. */
+        private const val OLD_WORK_NAME = "sleep_analysis"
+        private const val WORK_NAME = "sleep_analysis_daily"
+        private const val RUN_AT_HOUR = 10
 
+        /**
+         * Daily at about 10:00 local time: the night is over for most people,
+         * and its raw samples are still un-aggregated. The old, unanchored
+         * schedule is replaced once (a new unique name, the old one cancelled).
+         */
         fun schedule(context: Context) {
+            val wm = WorkManager.getInstance(context)
+            wm.cancelUniqueWork(OLD_WORK_NAME)
+            val now = java.time.ZonedDateTime.now()
+            var next = now.withHour(RUN_AT_HOUR).withMinute(0).withSecond(0).withNano(0)
+            if (!next.isAfter(now)) next = next.plusDays(1)
+            val delayMs = java.time.Duration.between(now, next).toMillis()
             val request = PeriodicWorkRequestBuilder<SleepAnalysisWorker>(24, TimeUnit.HOURS)
+                .setInitialDelay(delayMs, TimeUnit.MILLISECONDS)
                 .setConstraints(Constraints.Builder().setRequiresBatteryNotLow(true).build())
                 .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.MINUTES)
                 .build()
-            WorkManager.getInstance(context).enqueueUniquePeriodicWork(
-                WORK_NAME, ExistingPeriodicWorkPolicy.KEEP, request
-            )
+            wm.enqueueUniquePeriodicWork(WORK_NAME, ExistingPeriodicWorkPolicy.KEEP, request)
         }
     }
 }

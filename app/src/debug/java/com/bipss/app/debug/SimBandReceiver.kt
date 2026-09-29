@@ -31,6 +31,9 @@ private const val TAG = "SimBandReceiver"
  *
  *   adb shell am broadcast -n com.bipss.app/.debug.SimBandReceiver -a com.bipss.app.debug.SIM_STOP
  *
+ *   # run the (normally 10:00) sleep analysis now
+ *   adb shell am broadcast -n com.bipss.app/.debug.SimBandReceiver -a com.bipss.app.debug.ANALYSE_SLEEP
+ *
  *   # back to real data (the simulated database is left untouched)
  *   adb shell am broadcast -n com.bipss.app/.debug.SimBandReceiver \
  *       -a com.bipss.app.debug.SIM_MODE --ez enabled false
@@ -66,6 +69,10 @@ class SimBandReceiver : BroadcastReceiver(), KoinComponent {
                 get<SimulatedBand>().start(scenario, backfill, scale)
             }
             ACTION_STOP -> get<SimulatedBand>().stop()
+            // Sleep analysis normally runs at 10:00; this runs it now, once.
+            ACTION_ANALYSE_SLEEP -> androidx.work.WorkManager.getInstance(context).enqueue(
+                androidx.work.OneTimeWorkRequestBuilder<com.bipss.app.worker.SleepAnalysisWorker>().build()
+            )
         }
     }
 
@@ -73,5 +80,6 @@ class SimBandReceiver : BroadcastReceiver(), KoinComponent {
         const val ACTION_MODE  = "com.bipss.app.debug.SIM_MODE"
         const val ACTION_START = "com.bipss.app.debug.SIM_START"
         const val ACTION_STOP  = "com.bipss.app.debug.SIM_STOP"
+        const val ACTION_ANALYSE_SLEEP = "com.bipss.app.debug.ANALYSE_SLEEP"
     }
 }
