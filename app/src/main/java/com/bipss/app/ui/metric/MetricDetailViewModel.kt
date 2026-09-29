@@ -1,5 +1,9 @@
 package com.bipss.app.ui.metric
 
+import kotlinx.coroutines.flow.stateIn
+
+import kotlinx.coroutines.flow.map
+
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.bipss.app.data.MetricTypes
@@ -23,10 +27,21 @@ import kotlinx.coroutines.launch
  */
 class MetricDetailViewModel(
     private val metricType:  String,
+    sensorRepo:              com.bipss.app.data.SensorRepository,
     private val rawDao:      RawReadingDao,
     private val aggDao:      MinuteAggregateDao,
     private val baselineDao: BaselineStatsDao
 ) : ViewModel() {
+
+    /**
+     * Heart rate is Production only while it actually comes from the phone's
+     * motion-cancelled, quality-checked pipeline (a v2 band streaming its
+     * waveform); the band's own beat detector gives an Estimate.
+     */
+    val fidelity: kotlinx.coroutines.flow.StateFlow<com.bipss.app.domain.Fidelity?> =
+        sensorRepo.sensorEvents.map { r -> metricFidelity(metricType, r.pulseSource == com.bipss.app.ble.PulseSource.PIPELINE) }
+            .stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5_000),
+                     metricFidelity(metricType, false))
 
     data class UiState(
         val metricType:  String = "",
@@ -78,6 +93,14 @@ class MetricDetailViewModel(
             }
         }
     }
+}
+
+/** Null for raw sensor readings, which are shown as the sensor reported them. */
+fun metricFidelity(metricType: String, pipelineHr: Boolean): com.bipss.app.domain.Fidelity? = when (metricType) {
+    MetricTypes.HR   -> if (pipelineHr) com.bipss.app.domain.Fidelity.PRODUCTION else com.bipss.app.domain.Fidelity.ESTIMATE
+    MetricTypes.SPO2 -> com.bipss.app.domain.Fidelity.ESTIMATE
+    MetricTypes.PRV  -> com.bipss.app.domain.Fidelity.ESTIMATE
+    else             -> null
 }
 
 /** Display metadata for a metric key. Keeps units and colours consistent everywhere. */

@@ -259,3 +259,23 @@ interface WaterLogDao {
     @Query("DELETE FROM water_log WHERE timestampMs < :olderThanMs")
     suspend fun pruneOlderThan(olderThanMs: Long)
 }
+
+@Dao
+interface SignalEpochDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(epoch: SignalEpochEntity)
+
+    @Query("SELECT * FROM signal_epochs WHERE startMs >= :fromMs AND startMs < :toMs ORDER BY startMs")
+    suspend fun range(fromMs: Long, toMs: Long): List<SignalEpochEntity>
+
+    /** Clean, still epochs with a PRV value - the ones a resting PRV figure may come from. */
+    @Query(
+        "SELECT * FROM signal_epochs WHERE startMs >= :fromMs AND quality = 'GOOD' " +
+            "AND rmssdMs IS NOT NULL AND prvLowConfidence = 0 AND motionEnergy < :maxMotion " +
+            "ORDER BY startMs DESC LIMIT :limit"
+    )
+    suspend fun restingPrvEpochs(fromMs: Long, maxMotion: Double, limit: Int): List<SignalEpochEntity>
+
+    @Query("DELETE FROM signal_epochs WHERE startMs < :olderThanMs")
+    suspend fun pruneOlderThan(olderThanMs: Long)
+}

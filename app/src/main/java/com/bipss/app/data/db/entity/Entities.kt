@@ -135,3 +135,37 @@ data class WaterLogEntity(
     val timestampMs: Long,
     val amountMl:    Int
 )
+
+/**
+ * 30 seconds of signal-pipeline output. PRV and sleep analysis read these
+ * rather than 1 Hz rows: each epoch carries its own quality verdict, so a
+ * consumer can tell a clean still minute from a noisy one.
+ */
+@Entity(tableName = "signal_epochs")
+data class SignalEpochEntity(
+    @PrimaryKey val startMs: Long,
+    val durationMs:              Int,
+    val coveredSeconds:          Int,
+    val meanHr:                  Double?,
+    val minHr:                   Double?,
+    val maxHr:                   Double?,
+    val beatCount:               Int,
+    /** SignalQuality name: GOOD, DEGRADED or POOR. */
+    val quality:                 String,
+    val rmssdMs:                 Double?,
+    val sdnnMs:                  Double?,
+    val prvInterpolatedFraction: Double,
+    val prvLowConfidence:        Boolean,
+    val motionEnergy:            Double,
+    val coastFraction:           Double
+) {
+    companion object {
+        fun from(e: com.bipss.app.domain.signal.SignalEpoch) = SignalEpochEntity(
+            startMs = e.startMs, durationMs = e.durationMs, coveredSeconds = e.coveredSeconds,
+            meanHr = e.meanHr, minHr = e.minHr, maxHr = e.maxHr, beatCount = e.beatCount,
+            quality = e.quality.name, rmssdMs = e.rmssdMs, sdnnMs = e.sdnnMs,
+            prvInterpolatedFraction = e.prvInterpolatedFraction, prvLowConfidence = e.prvLowConfidence,
+            motionEnergy = e.motionEnergy, coastFraction = e.coastFraction
+        )
+    }
+}

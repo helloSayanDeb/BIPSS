@@ -80,6 +80,11 @@ fun DashboardInsightsScreen(
 
         Spacer(Modifier.height(Space.xxl))
 
+        RestingPrvCard(state.restingPrv) {
+            navController.navigate(com.bipss.app.navigation.Routes.metricDetail(com.bipss.app.data.MetricTypes.PRV))
+        }
+        Spacer(Modifier.height(Space.xl))
+
         if (state.riskScores.isEmpty()) {
             EmptyState(
                 icon = Icons.Rounded.Insights,
@@ -507,5 +512,50 @@ private fun AlertSeverity.severityColor(): Color {
         AlertSeverity.WATCH    -> colors.bandMonitor
         AlertSeverity.ADVISORY -> colors.bandNormal
         AlertSeverity.NONE     -> colors.textTertiary
+    }
+}
+
+/**
+ * The featured PRV figure: a median over clean, still epochs, never a live
+ * value (which mostly reflects posture and movement). Empty, with the reason,
+ * until there is enough such signal.
+ */
+@Composable
+private fun RestingPrvCard(prv: RestingPrv?, onOpen: () -> Unit) {
+    val colors = BipssTheme.colors
+    val now = com.bipss.app.ui.components.rememberNowMs()
+    BipssCard(onClick = onOpen) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "Pulse rate variability",
+                style = MaterialTheme.typography.titleMedium,
+                color = colors.textPrimary,
+                modifier = Modifier.weight(1f)
+            )
+            com.bipss.app.ui.components.FidelityBadge(com.bipss.app.domain.Fidelity.ESTIMATE)
+        }
+        Spacer(Modifier.height(Space.s))
+        if (prv != null) {
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text("${prv.rmssdMs}", style = com.bipss.app.ui.theme.MetricValue, color = colors.textPrimary)
+                Spacer(Modifier.width(4.dp))
+                Text("ms", style = com.bipss.app.ui.theme.MetricUnit, color = colors.textTertiary,
+                     modifier = Modifier.padding(bottom = 6.dp))
+            }
+            Spacer(Modifier.height(Space.xs))
+            Text(
+                "RMSSD, median of ${prv.minutes} min of still, clean signal in the last 24 h. " +
+                    "Most recent window: ${com.bipss.app.domain.time.relativeAgeLabel(prv.latestMs, now)}.",
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.textSecondary
+            )
+        } else {
+            Text(
+                "Appears after a few minutes of sitting or lying still with a firmware-v2 band worn snugly. " +
+                    "It is only taken from clean, still signal, because movement swamps it.",
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.textSecondary
+            )
+        }
     }
 }

@@ -28,12 +28,19 @@ import kotlinx.coroutines.launch
 
 enum class HealthStatus { NORMAL, MONITOR, AT_RISK }
 
+/** Median RMSSD over clean, low-motion epochs - the PRV figure worth featuring. */
+data class RestingPrv(val rmssdMs: Int, val minutes: Int, val latestMs: Long)
+
 data class DashboardUiState(
     /** Null means no reading. Never a substituted value. */
     val heartRate:        Int?                   = null,
     val spO2:             Int?                   = null,
     val skinTempC:        Float?                 = null,
     val prvRmssd:         Int?                   = null,
+    /** Heart rate is the phone pipeline's (v2 band), not the band's own figure. */
+    val hrFromPipeline:   Boolean                = false,
+    /** Resting PRV from clean, still epochs; null until there are enough. */
+    val restingPrv:       RestingPrv?            = null,
     val stepCount:        Int?                   = null,
     val batteryPercent:   Int?                   = null,
 
@@ -93,6 +100,7 @@ class DashboardViewModel(
     private val sleepRepo:  SleepRepository,
     private val feedbackDao: ContextFeedbackDao,
     private val calculator: RiskScoreCalculator,
+    private val signalEpochDao: com.bipss.app.data.db.dao.SignalEpochDao,
     private val context:    Context
 ) : ViewModel() {
 
@@ -104,8 +112,36 @@ class DashboardViewModel(
         observeConnectivity()
         observeBattery()
         observeWaterLog()
+        observeRestingPrv()
         observePermissionState()
         loadCachedEnv()
+    }
+
+    /**
+     * PRV varies with posture, breathing and movement, so a live value mostly
+     * reflects what you are doing. The featured figure is the median of the
+     * last day's clean, still epochs instead - refreshed once a minute.
+     */
+    private fun observeRestingPrv() {
+        viewModelScope.launch {
+            while (true) {
+                val since = System.currentTimeMillis() - 24 * 3_600_000L
+                val epochs = runCatching {
+                    signalEpochDao.restingPrvEpochs(since, com.bipss.app.domain.signal.SignalConfig.MOTION_FREEZE_G2, 40)
+                }.getOrDefault(emptyList())
+                val values = epochs.mapNotNull { it.rmssdMs }.sorted()
+                val summary = if (values.size >= MIN_RESTING_PRV_EPOCHS) RestingPrv(
+                    rmssdMs  = kotlin.math.round(
+                        if (values.size % 2 == 1) values[values.size / 2]
+                        else (values[values.size / 2 - 1] + values[values.size / 2]) / 2
+                    ).toInt(),
+                    minutes  = values.size / 2,
+                    latestMs = epochs.maxOf { it.startMs }
+                ) else null
+                _uiState.update { it.copy(restingPrv = summary) }
+                kotlinx.coroutines.delay(60_000L)
+            }
+        }
     }
 
     private fun observePermissionState() {
@@ -129,11 +165,16 @@ class DashboardViewModel(
                     fun List<Float>.appendRolling(v: Float?) =
                         if (v != null) (this + v).takeLast(20) else this
 
+                    // From the pipeline a missing value means "no measured value
+                    // right now" (poor signal, off the skin): show a dash, never
+                    // the last number under a Production badge.
+                    val fromPipeline = reading.pulseSource == com.bipss.app.ble.PulseSource.PIPELINE
                     s.copy(
-                        heartRate        = reading.heartRate ?: s.heartRate,
+                        heartRate        = if (fromPipeline) reading.heartRate else reading.heartRate ?: s.heartRate,
                         spO2             = reading.spO2      ?: s.spO2,
                         skinTempC        = reading.skinTempC ?: s.skinTempC,
-                        prvRmssd         = reading.bandPrvRmssdMs  ?: s.prvRmssd,
+                        prvRmssd         = if (fromPipeline) reading.prvRmssdMs else reading.prvRmssdMs ?: s.prvRmssd,
+                        hrFromPipeline   = fromPipeline,
                         heartRateHistory = s.heartRateHistory.appendRolling(reading.heartRate?.toFloat()),
                         spO2History      = s.spO2History.appendRolling(reading.spO2?.toFloat()),
                         skinTempHistory  = s.skinTempHistory.appendRolling(reading.skinTempC)
@@ -326,3 +367,6 @@ class DashboardViewModel(
 
     fun baselineStageLabel(): String = BaselineSchedule.stageLabel(_uiState.value.baselineDays)
 }
+
+/** Four epochs = two minutes of clean, still signal. */
+private const val MIN_RESTING_PRV_EPOCHS = 4

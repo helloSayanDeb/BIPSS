@@ -82,7 +82,7 @@ val appModule = module {
         // A separate file in simulation mode, so simulated data never mixes with real data.
         Room.databaseBuilder(androidContext(), AppDatabase::class.java, com.bipss.app.SimulationMode.databaseName(androidContext()))
             .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
-                com.bipss.app.data.db.migration.MIGRATION_6_7)
+                com.bipss.app.data.db.migration.MIGRATION_6_7, com.bipss.app.data.db.migration.MIGRATION_7_8)
             .build()
     }
 
@@ -96,12 +96,14 @@ val appModule = module {
     single { get<AppDatabase>().emergencyContactDao() }
     single { get<AppDatabase>().sosEventDao() }
     single { get<AppDatabase>().waterLogDao() }
+    single { get<AppDatabase>().signalEpochDao() }
 
     // ── BLE ───────────────────────────────────────────────────────────────────
     single { BleGattManager(androidContext()) }
 
     // ── Sensor Pipeline ───────────────────────────────────────────────────────
-    single { SensorRepository(get(), get(), get(), get()) }
+    single { com.bipss.app.data.SignalRepository(get(), get(), get()) }
+    single { SensorRepository(get(), get(), get(), get(), get()) }
     single { com.bipss.app.data.LegacyDataCleanup(get(), get()) }
     single { com.bipss.app.data.WaterRepository(get(), get()) }
 
@@ -148,7 +150,7 @@ val appModule = module {
     viewModel { MainViewModel(get()) }
 
     viewModel {
-        DashboardViewModel(get(), get(), get(), get(), get(), get(), get(), androidContext())
+        DashboardViewModel(get(), get(), get(), get(), get(), get(), get(), get(), androidContext())
     }
 
     viewModel { com.bipss.app.ui.recovery.RecoveryDetailViewModel(get(), get()) }
@@ -196,6 +198,7 @@ val appModule = module {
     viewModel { params ->
         com.bipss.app.ui.metric.MetricDetailViewModel(
             metricType  = params.get(),
+            sensorRepo  = get(),
             rawDao      = get(),
             aggDao      = get(),
             baselineDao = get()

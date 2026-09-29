@@ -37,7 +37,7 @@ class RecoveryDetailViewModel(
                 _uiState.update {
                     it.copy(
                         heartRate = reading.heartRate ?: it.heartRate,
-                        prvRmssd = reading.bandPrvRmssdMs ?: it.prvRmssd
+                        prvRmssd = reading.prvRmssdMs ?: it.prvRmssd
                     )
                 }
                 refresh()

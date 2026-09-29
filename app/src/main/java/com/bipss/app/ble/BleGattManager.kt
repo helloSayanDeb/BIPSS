@@ -58,8 +58,12 @@ enum class BandProtocolVersion {
  */
 data class SensorReading(
     val heartRate:      Int?   = null,
-    /** RMSSD the band computed itself - pulse rate variability (PRV). */
-    val bandPrvRmssdMs: Int?   = null,
+    /**
+     * RMSSD of pulse intervals (PRV), ms. As the band computed it in a raw
+     * reading; in [com.bipss.app.data.SensorRepository.sensorEvents], the
+     * phone pipeline's value while the band streams its waveform.
+     */
+    val prvRmssdMs:     Int?   = null,
     val spO2:           Int?   = null,
     val skinTempC:      Float? = null,
     val ambientTempC:   Float? = null,
@@ -68,8 +72,19 @@ data class SensorReading(
     val ensUba:         Int?   = null,
     /** Movement over the last second, mg*s. Null on v1 bands, which have no motion data. */
     val activityCount:  Int?   = null,
+    /** The band is streaming its pulse waveform, so heart rate and PRV come from the phone's pipeline. */
+    val waveformStreaming: Boolean = false,
+    /** Where [heartRate] came from, in the events the app consumes. */
+    val pulseSource:    PulseSource = PulseSource.BAND,
     val timestamp:      Long   = System.currentTimeMillis()
 )
+
+enum class PulseSource {
+    /** The band's own on-device beat detector. */
+    BAND,
+    /** The phone's signal pipeline on the streamed waveform (motion-cancelled, quality-checked). */
+    PIPELINE
+}
 
 /**
  * Entry point for the debug band simulator. Packets go through the same
@@ -499,13 +514,14 @@ class BleGattManager(private val context: Context) {
         p.batteryPct?.let { _batteryPercent.value = it }
         return SensorReading(
             heartRate      = p.hr,
-            bandPrvRmssdMs = p.prvRmssdMs,
+            prvRmssdMs     = p.prvRmssdMs,
             spO2           = p.spo2,
             skinTempC      = p.skinTempC,
             ambientTempC   = p.ambientTempC,
             humidityPct    = p.humidityPct,
             ensUba         = p.ensUba,
             activityCount  = p.activityCount,
+            waveformStreaming = p.waveformStreaming,
             timestamp      = wall
         )
     }
@@ -542,7 +558,7 @@ class BleGattManager(private val context: Context) {
         _sensorReadings.tryEmit(
             SensorReading(
                 heartRate      = frame.hr,
-                bandPrvRmssdMs = frame.prvRmssdMs,
+                prvRmssdMs     = frame.prvRmssdMs,
                 spO2           = frame.spo2,
                 skinTempC      = frame.skinTempC,
                 ambientTempC   = frame.ambientTempC,

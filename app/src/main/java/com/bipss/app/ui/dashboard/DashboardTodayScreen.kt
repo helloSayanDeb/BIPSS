@@ -202,6 +202,8 @@ fun DashboardTodayScreen(
                     tint = colors.heart,
                     history = state.heartRateHistory,
                     caption = if (state.heartRate != null) "Tap for history" else "Waiting for readings",
+                    fidelity = if (state.hrFromPipeline) com.bipss.app.domain.Fidelity.PRODUCTION
+                               else com.bipss.app.domain.Fidelity.ESTIMATE,
                     modifier = Modifier.weight(1f),
                     onClick = { navController.navigate(Routes.metricDetail(MetricTypes.HR)) }
                 )
@@ -213,6 +215,7 @@ fun DashboardTodayScreen(
                     tint = colors.spo2,
                     history = state.spO2History,
                     caption = if (state.spO2 != null) "Tap for history" else "Waiting for readings",
+                    fidelity = com.bipss.app.domain.Fidelity.ESTIMATE,
                     modifier = Modifier.weight(1f),
                     onClick = { navController.navigate(Routes.metricDetail(MetricTypes.SPO2)) }
                 )
@@ -238,6 +241,7 @@ fun DashboardTodayScreen(
                     tint = colors.activity,
                     history = emptyList(),
                     caption = if (state.prvRmssd != null) "Tap for history" else "Waiting for readings",
+                    fidelity = com.bipss.app.domain.Fidelity.ESTIMATE,
                     modifier = Modifier.weight(1f),
                     onClick = { navController.navigate(Routes.metricDetail(MetricTypes.PRV)) }
                 )

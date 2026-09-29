@@ -11,6 +11,7 @@ import com.bipss.app.data.db.AppDatabase
 import com.bipss.app.data.db.entity.BaselineStatsEntity
 import com.bipss.app.data.db.entity.RawReadingEntity
 import androidx.room.withTransaction
+import com.bipss.app.domain.signal.SignalQuality
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.*
@@ -66,6 +67,7 @@ fun connectivityFlow(context: Context): Flow<Boolean> = callbackFlow {
  */
 class SensorRepository(
     private val bleGattManager: BleGattManager,
+    private val signalRepo:     SignalRepository,
     private val db:             AppDatabase,
     private val prefsRepo:      UserPreferencesRepository,
     private val appScope:       CoroutineScope
@@ -87,6 +89,24 @@ class SensorRepository(
     val sensorEvents: SharedFlow<SensorReading> = _sensorEvents.asSharedFlow()
 
     private var started = false
+    @Volatile private var latestPipelinePrv: Pair<Double, Long>? = null
+
+    /**
+     * The event the screens see. While the band streams its waveform, the
+     * band's own heart rate and RMSSD are replaced by the pipeline's - or by
+     * nothing, when the pipeline has no measured value - so the app never
+     * shows two different heart rates for the same moment.
+     */
+    private fun forDisplay(reading: SensorReading): SensorReading {
+        if (!reading.waveformStreaming) return reading
+        val pulse = signalRepo.latestPulse.value?.takeIf { kotlin.math.abs(it.timeMs - reading.timestamp) <= 5_000 }
+        val prv = latestPipelinePrv?.takeIf { reading.timestamp - it.second <= 5 * 60_000 }
+        return reading.copy(
+            heartRate   = pulse?.bpm?.let { kotlin.math.round(it).toInt() },
+            prvRmssdMs  = prv?.first?.let { kotlin.math.round(it).toInt() },
+            pulseSource = com.bipss.app.ble.PulseSource.PIPELINE
+        )
+    }
     @Volatile private var firstReadingRecorded = false
 
     /**
@@ -107,11 +127,32 @@ class SensorRepository(
         appScope.launch {
             prefsRepo.firstReadingMs.collect { if (it == null) firstReadingRecorded = false }
         }
+        signalRepo.start()
         appScope.launch {
             bleGattManager.sensorReadings.collect { reading ->
                 runCatching { persistAndUpdateBaseline(reading) }
                     .onFailure { android.util.Log.e("SensorRepository", "Persist failed", it) }
-                _sensorEvents.emit(reading)
+                _sensorEvents.emit(forDisplay(reading))
+            }
+        }
+        // With a v2 band, heart rate and PRV come from the phone's pipeline,
+        // which publishes them in sample order; they are stored from there,
+        // not matched to the band's status packets.
+        appScope.launch {
+            signalRepo.pulses.collect { p ->
+                runCatching { db.withTransaction { updateMetric(MetricTypes.HR, p.bpm, p.timeMs) } }
+                    .onFailure { android.util.Log.e("SensorRepository", "Pulse not stored", it) }
+            }
+        }
+        appScope.launch {
+            signalRepo.epochs.collect { e ->
+                val rmssd = e.rmssdMs
+                if (rmssd != null && !e.prvLowConfidence && e.quality == SignalQuality.GOOD) {
+                    val at = e.startMs + e.durationMs
+                    latestPipelinePrv = rmssd to at
+                    runCatching { db.withTransaction { updateMetric(MetricTypes.PRV, rmssd, at) } }
+                        .onFailure { android.util.Log.e("SensorRepository", "PRV not stored", it) }
+                }
             }
         }
     }
@@ -131,10 +172,15 @@ class SensorRepository(
             firstReadingRecorded = true
         }
 
-        reading.heartRate?.let      { updateMetric(MetricTypes.HR, it.toDouble(), ts) }
+        // A streaming v2 band's heart rate and PRV are stored from the
+        // pipeline instead (see start()); storing the band's own figures too
+        // would put two sources into one series.
+        if (!reading.waveformStreaming) {
+            reading.heartRate?.let  { updateMetric(MetricTypes.HR, it.toDouble(), ts) }
+            reading.prvRmssdMs?.let { updateMetric(MetricTypes.PRV, it.toDouble(), ts) }
+        }
         reading.spO2?.let           { updateMetric(MetricTypes.SPO2, it.toDouble(), ts) }
         reading.skinTempC?.let      { updateMetric(MetricTypes.SKIN_TEMP, it.toDouble(), ts) }
-        reading.bandPrvRmssdMs?.let { updateMetric(MetricTypes.PRV, it.toDouble(), ts) }
         reading.activityCount?.let  { updateMetric(MetricTypes.ACTIVITY, it.toDouble(), ts) }
         reading.ambientTempC?.let   { updateMetric(MetricTypes.AMBIENT, it.toDouble(), ts) }
         reading.humidityPct?.let    { updateMetric(MetricTypes.HUMIDITY, it.toDouble(), ts) }

@@ -46,6 +46,7 @@ fun MetricDetailScreen(
     vm: MetricDetailViewModel = koinViewModel { parametersOf(metricType) }
 ) {
     val state by vm.uiState.collectAsStateWithLifecycle()
+    val fidelity by vm.fidelity.collectAsStateWithLifecycle()
     val colors = BipssTheme.colors
     val meta = metricMeta(metricType)
 
@@ -82,6 +83,25 @@ fun MetricDetailScreen(
                         )
                     }
                 }
+            }
+
+            fidelity?.let { f ->
+                item {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        com.bipss.app.ui.components.FidelityBadge(f)
+                        Spacer(Modifier.width(Space.s))
+                        Text(f.explanation, style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
+                    }
+                }
+            }
+
+            if (metricType == MetricTypes.SPO2) item {
+                Text(
+                    "SpO₂ here comes from a textbook red/infrared ratio curve that has not been calibrated " +
+                        "for this band, so read it as a trend rather than an exact percentage.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.textSecondary
+                )
             }
 
             if (metricType == MetricTypes.PRV) item {

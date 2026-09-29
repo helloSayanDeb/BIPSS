@@ -165,3 +165,19 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
         database.execSQL("UPDATE `baseline_stats` SET `metricType` = 'PRV' WHERE `metricType` = 'HRV'")
     }
 }
+
+/**
+ * v7 -> v8: signal_epochs, the signal pipeline's 30-second output (heart rate,
+ * beats, quality, PRV, motion). SQL copied from the exported v8 schema.
+ */
+val MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL(
+            "CREATE TABLE IF NOT EXISTS `signal_epochs` (`startMs` INTEGER NOT NULL, `durationMs` INTEGER NOT NULL, " +
+                "`coveredSeconds` INTEGER NOT NULL, `meanHr` REAL, `minHr` REAL, `maxHr` REAL, " +
+                "`beatCount` INTEGER NOT NULL, `quality` TEXT NOT NULL, `rmssdMs` REAL, `sdnnMs` REAL, " +
+                "`prvInterpolatedFraction` REAL NOT NULL, `prvLowConfidence` INTEGER NOT NULL, " +
+                "`motionEnergy` REAL NOT NULL, `coastFraction` REAL NOT NULL, PRIMARY KEY(`startMs`))"
+        )
+    }
+}

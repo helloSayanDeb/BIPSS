@@ -81,6 +81,7 @@ class AggregationWorker(
         // Aggregates themselves expire, keeping the database bounded.
         val aggCutoff = (System.currentTimeMillis() - AGGREGATE_RETENTION_DAYS * 86_400_000L) / 60_000L
         aggDao.pruneOlderThan(aggCutoff)
+        db.signalEpochDao().pruneOlderThan(aggCutoff * 60_000L)
 
         Result.success()
     } catch (e: Exception) {

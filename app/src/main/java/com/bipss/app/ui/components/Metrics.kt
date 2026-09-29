@@ -149,6 +149,8 @@ fun MetricTile(
     history: List<Float>,
     modifier: Modifier = Modifier,
     caption: String? = null,
+    /** Null for a raw sensor reading; every derived value carries one. */
+    fidelity: com.bipss.app.domain.Fidelity? = null,
     onClick: (() -> Unit)? = null,
 ) {
     val colors = BipssTheme.colors
@@ -161,6 +163,10 @@ fun MetricTile(
                 style = MaterialTheme.typography.labelMedium,
                 color = colors.textSecondary
             )
+        }
+        if (fidelity != null) {
+            Spacer(Modifier.height(Space.s))
+            FidelityBadge(fidelity)
         }
         Spacer(Modifier.height(Space.m))
         val hasValue = value != "—"

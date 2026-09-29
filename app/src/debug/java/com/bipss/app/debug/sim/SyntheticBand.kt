@@ -76,11 +76,14 @@ object ScenarioModel {
             contact = true, gravity = FLAT
         )
         SimScenario.WALKING -> {
+            // A brisk walk: steps at ~1.55 Hz, pulse climbing to ~118 bpm
+            // (1.97 Hz) - motion and pulse overlap in the band but are
+            // separable, which is the case motion cancellation exists for.
             val walking = t >= 60
             val ramp = ((t - 60) / 60).coerceIn(0.0, 1.0)
             SimState(
-                hrBpm = 70 + 32 * ramp + 2 * sin(2 * PI * t / 90), rmssdMs = 38 - 23 * ramp,
-                cadenceHz = if (walking) 1.8 + 0.05 * sin(2 * PI * t / 40) else 0.0,
+                hrBpm = 70 + 48 * ramp + 2 * sin(2 * PI * t / 90), rmssdMs = 38 - 23 * ramp,
+                cadenceHz = if (walking) 1.55 + 0.03 * sin(2 * PI * t / 40) else 0.0,
                 motionAmpG = if (walking) 0.35 else 0.0,
                 spo2 = 97.0, skinTempC = 33.2 - 0.3 * ramp, contact = true, gravity = PALM_UP
             )
@@ -142,7 +145,9 @@ class SyntheticBand(
     seed: Long = 1L,
     private val periodScale: Double = 1.0,
     private val startUptimeMs: Long = 5_000L,
-    private val recordTruth: Boolean = false
+    private val recordTruth: Boolean = false,
+    /** Overrides the scenario's timeline, for tests that need a specific case. */
+    private val model: (Double) -> SimState = { ScenarioModel.stateAt(scenario, it) }
 ) {
     private val rng = Random(seed)
     private val periodMs = BandProtocol.NOMINAL_PPG_PERIOD_MS * periodScale
@@ -188,7 +193,7 @@ class SyntheticBand(
 
         for (i in 0 until BandProtocol.PPG_SAMPLES_PER_PACKET) {
             val tMs = sampleIndex * periodMs
-            val state = ScenarioModel.stateAt(scenario, tMs / 1000.0)
+            val state = model(tMs / 1000.0)
             advanceBeats(tMs, state)
             val a = accelAt(tMs, state)
             if (i % 2 == 0) {
@@ -305,7 +310,7 @@ class SyntheticBand(
 
     private fun status(uptime: Long): ByteArray {
         val t = (uptime - startUptimeMs) / 1000.0
-        val s = ScenarioModel.stateAt(scenario, t)
+        val s = model(t)
         val newest = floor((uptime - startUptimeMs) / periodMs).toLong()
         val settled = s.contact && (t * 1000 - contactSinceMs) > 3000 && recentIbis.size >= 4
         val hr = if (settled) bandHr() else null
