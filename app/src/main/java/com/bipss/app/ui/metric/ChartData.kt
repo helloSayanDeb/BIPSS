@@ -50,3 +50,34 @@ fun combineStats(buckets: List<MetricBucket>): MetricStats {
 /** Plots each bucket at its midpoint; gaps are inserted afterwards by [insertGaps]. */
 fun bucketsToPoints(buckets: List<MetricBucket>, bucketMs: Long): List<GraphPoint> =
     buckets.map { GraphPoint(it.bucketStartMs + bucketMs / 2, it.avgValue.toFloat()) }
+
+/**
+ * Labels for the time axis of [range] ending at [endMs]: clock times every 6 h
+ * for a day, weekdays every other day for a week, dates weekly for a month,
+ * each on a local boundary, and "Now" at the right edge. Ticks that would
+ * crowd "Now" are dropped.
+ */
+fun timeTicks(range: TimeRange, endMs: Long, zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): List<Pair<Long, String>> {
+    val startMs = endMs - range.durationMs
+    val start = java.time.Instant.ofEpochMilli(startMs).atZone(zone)
+    val (first, step, pattern, clearanceMs) = when (range) {
+        TimeRange.DAY -> {
+            val h = start.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
+            val next = h.plusHours(((6 - h.hour % 6) % 6).toLong()).let { if (it.toInstant().toEpochMilli() <= startMs) it.plusHours(6) else it }
+            Quad(next, java.time.Duration.ofHours(6), "HH:mm", 2 * 3_600_000L)
+        }
+        TimeRange.WEEK -> Quad(start.toLocalDate().plusDays(1).atStartOfDay(zone), java.time.Duration.ofDays(2), "EEE", 18 * 3_600_000L)
+        TimeRange.MONTH -> Quad(start.toLocalDate().plusDays(1).atStartOfDay(zone), java.time.Duration.ofDays(7), "d MMM", 3 * 86_400_000L)
+    }
+    val fmt = java.time.format.DateTimeFormatter.ofPattern(pattern, java.util.Locale.ENGLISH)
+    val out = mutableListOf<Pair<Long, String>>()
+    var t = first
+    while (t.toInstant().toEpochMilli() < endMs - clearanceMs) {
+        out += t.toInstant().toEpochMilli() to fmt.format(t)
+        t = t.plus(step)
+    }
+    out += endMs to "Now"
+    return out
+}
+
+private data class Quad(val first: java.time.ZonedDateTime, val step: java.time.Duration, val pattern: String, val clearanceMs: Long)

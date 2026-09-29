@@ -1,6 +1,9 @@
 package com.bipss.app.ui.metric
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -46,7 +49,6 @@ fun MetricDetailScreen(
     vm: MetricDetailViewModel = koinViewModel { parametersOf(metricType) }
 ) {
     val state by vm.uiState.collectAsStateWithLifecycle()
-    val fidelity by vm.fidelity.collectAsStateWithLifecycle()
     val colors = BipssTheme.colors
     val meta = metricMeta(metricType)
 
@@ -64,7 +66,8 @@ fun MetricDetailScreen(
     ) { pad ->
         LazyColumn(
             modifier = Modifier.padding(pad).padding(horizontal = Space.gutter),
-            verticalArrangement = Arrangement.spacedBy(Space.m)
+            contentPadding = PaddingValues(top = Space.m),
+            verticalArrangement = Arrangement.spacedBy(Space.l)
         ) {
             item {
                 Row(verticalAlignment = Alignment.Bottom) {
@@ -83,35 +86,23 @@ fun MetricDetailScreen(
                         )
                     }
                 }
-            }
-
-            fidelity?.let { f ->
-                item {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        com.bipss.app.ui.components.FidelityBadge(f)
+                Spacer(Modifier.height(Space.xs))
+                // Live while the band is sending this reading; otherwise say what the number is.
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (state.isLive) {
+                        Box(Modifier.size(8.dp).clip(CircleShape).background(colors.bandNormal))
                         Spacer(Modifier.width(Space.s))
-                        Text(f.explanation, style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
+                        Text("Live from your band", style = MaterialTheme.typography.labelMedium, color = colors.textSecondary)
+                    } else if (state.currentValue != null) {
+                        Text("Latest reading in the chart", style = MaterialTheme.typography.labelMedium, color = colors.textTertiary)
                     }
                 }
             }
 
-            if (metricType == MetricTypes.SPO2) item {
-                Text(
-                    "SpO₂ here comes from a textbook red/infrared ratio curve that has not been calibrated " +
-                        "for this band, so read it as a trend rather than an exact percentage.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colors.textSecondary
-                )
-            }
-
-            if (metricType == MetricTypes.PRV) item {
-                // The only place the older term appears: to say what PRV stands in for.
-                Text(
-                    "Beat-to-beat variation in your pulse, measured at the wrist " +
-                        "(a proxy for HRV). An estimate: wrist pulse timing is noisier than a chest strap.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colors.textSecondary
-                )
+            metricMethodNote(metricType)?.let { note ->
+                item {
+                    Text(note, style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
+                }
             }
 
             item {
@@ -124,10 +115,15 @@ fun MetricDetailScreen(
 
             item {
                 BipssCard {
+                    val end = state.updatedAtMs.takeIf { it > 0L } ?: System.currentTimeMillis()
                     MetricLineChart(
                         points = state.points,
                         baseline = state.baseline,
-                        lineColor = metricColor(metricType)
+                        lineColor = metricColor(metricType),
+                        windowStartMs = end - state.range.durationMs,
+                        windowEndMs = end,
+                        timeTicks = timeTicks(state.range, end),
+                        decimals = decimalsFor(metricType)
                     )
                 }
             }
@@ -150,7 +146,8 @@ fun MetricDetailScreen(
                             restingValue = state.restingValue,
                             // Resting HR comes from raw rows, which only span a week.
                             restingLabel = if (state.range == com.bipss.app.ui.metric.TimeRange.MONTH) "RESTING · 7D" else "RESTING",
-                            unit         = meta.unit
+                            unit         = meta.unit,
+                            decimals     = decimalsFor(metricType)
                         )
                     }
                 }
@@ -195,6 +192,12 @@ fun MetricDetailScreen(
             item { Spacer(Modifier.height(Space.huge)) }
         }
     }
+}
+
+/** Temperatures to a tenth of a degree; heart rate, SpO2 and PRV as whole numbers, as the band reports them. */
+private fun decimalsFor(metricType: String): Int = when (metricType) {
+    MetricTypes.SKIN_TEMP, MetricTypes.AMBIENT -> 1
+    else -> 0
 }
 
 private fun formatValue(metricType: String, value: Float): String = when (metricType) {

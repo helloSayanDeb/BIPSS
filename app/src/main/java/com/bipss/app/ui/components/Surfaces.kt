@@ -13,6 +13,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -98,6 +102,9 @@ fun StatusPill(
     icon: ImageVector? = null,
     filled: Boolean = false,
 ) {
+    // On a filled pill the text takes whichever of black or white reads on the
+    // fill: a white fill (the dark theme's primary) made white text vanish.
+    val onFill = if (color.luminance() > 0.5f) Color.Black else Color.White
     Row(
         modifier = modifier
             .clip(CircleShape)
@@ -108,7 +115,7 @@ fun StatusPill(
         if (icon != null) {
             Icon(
                 icon, null,
-                tint = if (filled) Color.White else color,
+                tint = if (filled) onFill else color,
                 modifier = Modifier.size(13.dp)
             )
             Spacer(Modifier.width(5.dp))
@@ -116,8 +123,50 @@ fun StatusPill(
         Text(
             text,
             style = MaterialTheme.typography.labelSmall,
-            color = if (filled) Color.White else color
+            color = if (filled) onFill else color
         )
+    }
+}
+
+/**
+ * Equal-width choices in one rounded track; the chosen one is a solid thumb.
+ * Screen readers hear it as a set of tabs with the current one selected.
+ */
+@Composable
+fun <T> SegmentedControl(
+    options: List<T>,
+    selected: T,
+    label: (T) -> String,
+    onSelect: (T) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = BipssTheme.colors
+    Row(
+        modifier = modifier
+            .clip(CircleShape)
+            .background(colors.field)
+            .padding(4.dp)
+            .selectableGroup(),
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        options.forEach { option ->
+            val isSelected = option == selected
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(CircleShape)
+                    .background(if (isSelected) colors.textPrimary else Color.Transparent)
+                    .selectable(selected = isSelected, role = Role.Tab, onClick = { onSelect(option) })
+                    .padding(vertical = 10.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    label(option),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = if (isSelected) MaterialTheme.colorScheme.background else colors.textSecondary
+                )
+            }
+        }
     }
 }
 

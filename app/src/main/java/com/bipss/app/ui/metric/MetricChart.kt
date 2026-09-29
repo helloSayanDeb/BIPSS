@@ -20,6 +20,8 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.bipss.app.ui.components.EmptyState
@@ -52,10 +54,11 @@ data class GraphPoint(
  * across a month. [bucketMs] is the plotting resolution; it is always smaller
  * than the gap threshold so a real gap can never hide inside one bucket.
  */
-enum class TimeRange(val label: String, val durationMs: Long, val gapThresholdMs: Long, val bucketMs: Long) {
-    DAY("Day", 24 * 3600_000L, 5 * 60_000L, 60_000L),
-    WEEK("Week", 7 * 24 * 3600_000L, 30 * 60_000L, 5 * 60_000L),
-    MONTH("Month", 30 * 24 * 3600_000L, 3 * 3600_000L, 30 * 60_000L),
+/** [refreshMs]: how often an open chart is re-read - a minute bucket changes every minute, a half-hour one rarely. */
+enum class TimeRange(val label: String, val durationMs: Long, val gapThresholdMs: Long, val bucketMs: Long, val refreshMs: Long) {
+    DAY("Day", 24 * 3600_000L, 5 * 60_000L, 60_000L, 5_000L),
+    WEEK("Week", 7 * 24 * 3600_000L, 30 * 60_000L, 5 * 60_000L, 60_000L),
+    MONTH("Month", 30 * 24 * 3600_000L, 3 * 3600_000L, 30 * 60_000L, 300_000L),
 }
 
 private const val EmDash = "—"
@@ -105,8 +108,20 @@ fun MetricLineChart(
     modifier: Modifier = Modifier,
     lineColor: Color = MaterialTheme.colorScheme.primary,
     height: Dp = 220.dp,
+    /**
+     * The time window the x-axis spans. Without it the axis stretched to the
+     * data, so three minutes of readings filled a "Day" chart edge to edge and
+     * Day, Week and Month looked alike.
+     */
+    windowStartMs: Long? = null,
+    windowEndMs: Long? = null,
+    /** Labels under the axis, at their times. */
+    timeTicks: List<Pair<Long, String>> = emptyList(),
+    decimals: Int = 1,
 ) {
     val colors = BipssTheme.colors
+    val textMeasurer = rememberTextMeasurer()
+    val tickStyle = MaterialTheme.typography.labelSmall.copy(color = colors.textTertiary)
 
     // Segments are runs of consecutive real samples. Splitting here keeps the
     // draw pass free of allocation and gives each run its own gradient skirt.
@@ -153,18 +168,19 @@ fun MetricLineChart(
     val axisLow = observedMin - pad
     val axisSpan = ((observedMax + pad) - axisLow).coerceAtLeast(0.0001f)
 
-    val firstMs = points.minOf { it.timestampMs }
-    val timeSpan = (points.maxOf { it.timestampMs } - firstMs).coerceAtLeast(1L).toFloat()
+    val firstMs = windowStartMs ?: points.minOf { it.timestampMs }
+    val timeSpan = ((windowEndMs ?: points.maxOf { it.timestampMs }) - firstMs).coerceAtLeast(1L).toFloat()
 
     val labelGutter = Space.huge
     val verticalInset = Space.s
+    val tickBand = if (timeTicks.isEmpty()) 0.dp else 20.dp
 
-    Box(modifier = modifier.fillMaxWidth().height(height)) {
+    Box(modifier = modifier.fillMaxWidth().height(height + tickBand)) {
         Canvas(Modifier.fillMaxSize()) {
             val left = labelGutter.toPx()
             val top = verticalInset.toPx()
             val plotWidth = (size.width - left).coerceAtLeast(1f)
-            val plotHeight = (size.height - top * 2f).coerceAtLeast(1f)
+            val plotHeight = (size.height - tickBand.toPx() - top * 2f).coerceAtLeast(1f)
 
             fun xFor(timestampMs: Long) =
                 left + ((timestampMs - firstMs).toFloat() / timeSpan) * plotWidth
@@ -205,10 +221,11 @@ fun MetricLineChart(
                     moveTo(xFor(segment.first().timestampMs), yFor(segment.first().value))
                     segment.drop(1).forEach { lineTo(xFor(it.timestampMs), yFor(it.value)) }
                 }
+                val floor = top + plotHeight + top
                 val area = Path().apply {
                     addPath(line)
-                    lineTo(xFor(segment.last().timestampMs), size.height)
-                    lineTo(xFor(segment.first().timestampMs), size.height)
+                    lineTo(xFor(segment.last().timestampMs), floor)
+                    lineTo(xFor(segment.first().timestampMs), floor)
                     close()
                 }
                 drawPath(
@@ -219,10 +236,18 @@ fun MetricLineChart(
                 )
                 drawPath(line, lineColor, style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round))
             }
+
+            // Time labels, centred on their tick and kept inside the plot.
+            timeTicks.forEach { (atMs, label) ->
+                val layout = textMeasurer.measure(label, tickStyle)
+                val x = (xFor(atMs) - layout.size.width / 2f)
+                    .coerceIn(left, size.width - layout.size.width.toFloat())
+                drawText(layout, topLeft = Offset(x, size.height - layout.size.height))
+            }
         }
 
         Text(
-            formatFigure(observedMax),
+            formatFigure(observedMax, decimals),
             style = MaterialTheme.typography.labelSmall,
             color = colors.textTertiary,
             modifier = Modifier
@@ -231,44 +256,31 @@ fun MetricLineChart(
                 .padding(end = Space.xs)
         )
         Text(
-            formatFigure(observedMin),
+            formatFigure(observedMin, decimals),
             style = MaterialTheme.typography.labelSmall,
             color = colors.textTertiary,
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .width(labelGutter)
-                .padding(end = Space.xs)
+                .padding(end = Space.xs, bottom = tickBand)
         )
     }
 }
 
-/** Segmented pill row for switching the visible window. */
+/** Day / Week / Month, as one segmented control. */
 @Composable
 fun TimeRangeSelector(
     selected: TimeRange,
     onSelect: (TimeRange) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val colors = BipssTheme.colors
-    val accent = MaterialTheme.colorScheme.primary
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(Space.s),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        TimeRange.entries.forEach { range ->
-            val isSelected = range == selected
-            StatusPill(
-                text = range.label,
-                color = if (isSelected) accent else colors.textTertiary,
-                filled = isSelected,
-                // Clipped before clickable so the ripple follows the pill.
-                modifier = Modifier
-                    .clip(CircleShape)
-                    .clickable { onSelect(range) }
-            )
-        }
-    }
+    com.bipss.app.ui.components.SegmentedControl(
+        options = TimeRange.entries,
+        selected = selected,
+        label = { it.label },
+        onSelect = onSelect,
+        modifier = modifier
+    )
 }
 
 /** Summary figures under the chart. A missing figure reads as an em dash, never a zero. */
@@ -281,15 +293,16 @@ fun MetricStatsRow(
     unit: String,
     modifier: Modifier = Modifier,
     restingLabel: String = "RESTING",
+    decimals: Int = 1,
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(Space.s)
     ) {
-        StatFigure("MIN", minValue, unit, Modifier.weight(1f))
-        StatFigure("AVG", avgValue, unit, Modifier.weight(1f))
-        StatFigure("MAX", maxValue, unit, Modifier.weight(1f))
-        StatFigure(restingLabel, restingValue, unit, Modifier.weight(1f))
+        StatFigure("MIN", minValue, unit, Modifier.weight(1f), decimals)
+        StatFigure("AVG", avgValue, unit, Modifier.weight(1f), decimals)
+        StatFigure("MAX", maxValue, unit, Modifier.weight(1f), decimals)
+        StatFigure(restingLabel, restingValue, unit, Modifier.weight(1f), decimals)
     }
 }
 
@@ -299,9 +312,10 @@ private fun StatFigure(
     value: Float?,
     unit: String,
     modifier: Modifier = Modifier,
+    decimals: Int = 1,
 ) {
     val colors = BipssTheme.colors
-    val text = formatFigure(value)
+    val text = formatFigure(value, decimals)
     val hasValue = text != EmDash
     Column(modifier = modifier) {
         Text(label, style = SectionLabelStyle, color = colors.textTertiary)
@@ -326,9 +340,10 @@ private fun StatFigure(
     }
 }
 
-/** One decimal place, trailing ".0" dropped. Null and NaN both render as an em dash. */
-private fun formatFigure(value: Float?): String {
+/** [decimals] places (0 or 1), trailing ".0" dropped. Null and NaN both render as an em dash. */
+private fun formatFigure(value: Float?, decimals: Int = 1): String {
     if (value == null || value.isNaN() || value.isInfinite()) return EmDash
+    if (decimals <= 0) return kotlin.math.round(value).toInt().toString()
     val rounded = round(value * 10f) / 10f
     return if (rounded % 1f == 0f) rounded.toInt().toString() else rounded.toString()
 }
