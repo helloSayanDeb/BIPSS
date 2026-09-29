@@ -176,7 +176,7 @@ class DashboardViewModel(
                             evidence = it.evidence.split('\n').filter { line -> line.isNotBlank() }
                         )
                     }
-                    val display = AqiDisplay.decide(context, age, uba, _uiState.value.env.regionalAqiValue, rec)
+                    val display = AqiDisplay.decide(context, age, uba, _uiState.value.env.aqiValue, rec)
                     _uiState.update {
                         it.copy(airContext = AirContextUi(context, age, display, rec, latest?.bandUba, latest?.cpcbAqi))
                     }

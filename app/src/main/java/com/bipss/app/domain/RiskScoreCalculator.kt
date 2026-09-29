@@ -2,6 +2,7 @@ package com.bipss.app.domain
 
 import com.bipss.app.domain.environmental.AlertSeverity
 import com.bipss.app.domain.environmental.AqiRiskLevel
+import com.bipss.app.domain.environmental.AqiSource
 import com.bipss.app.domain.environmental.EnvironmentalSnapshot
 import com.bipss.app.domain.ali.AliLevel
 import com.bipss.app.domain.ali.AliResult
@@ -290,7 +291,8 @@ class RiskScoreCalculator {
             }
             b.add(points, 35f)
             val level = env.aqiRiskLevel ?: AqiRiskLevel.fromAqi(aqi)
-            if (points > 0f) b.factor("AQI $aqi (${level.label})", points > 10f)
+            val what = if (env.aqiSource == AqiSource.MODEL) "Modelled AQI" else "AQI"
+            if (points > 0f) b.factor("$what $aqi (${level.label})", points > 10f)
         } else b.skip("air quality")
 
         // AQI alone is 35 of 100 points. Reporting "0 - Normal" off air quality

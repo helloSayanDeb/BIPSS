@@ -139,6 +139,7 @@ val appModule = module {
     single { HealthAdvisoryFetcher(get()) }
     single { CpcbAqiFetcher(get(), BuildConfig.CPCB_AQI_API_KEY) }
     single { OpenMeteoFetcher(get()) }
+    single { com.bipss.app.data.environmental.OpenMeteoAirQualityFetcher(get()) }
     single {
         DisasterAlertRepository(
             sachetFetcher   = get(),
@@ -147,6 +148,7 @@ val appModule = module {
             advisoryFetcher = get(),
             cpcbFetcher     = get(),
             openMeteo       = get(),
+            airQualityModel = get(),
             locationHelper  = get(),
             prefsRepo       = get()
         )

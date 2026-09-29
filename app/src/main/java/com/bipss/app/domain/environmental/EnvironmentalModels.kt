@@ -36,9 +36,16 @@ data class EnvironmentalSnapshot(
     val pollutantSubIndices: Map<String, Int> = emptyMap(),
     val aqiStationName:    String?        = null,
     val aqiStationDistanceKm: Double?     = null,
+    /** When [aqiValue] was measured (station) or modelled (hour), not when it was fetched. */
+    val aqiObservedAtMs:   Long?          = null,
+    /** Why the AQI comes from where it does, when that is not a fresh station reading. */
+    val aqiNote:           String?        = null,
 
     val activeAlerts:      List<ImdAlert>       = emptyList(),
     val advisories:        List<HealthAdvisory> = emptyList(),
+    /** The agencies that answered the last advisory check; empty when none could be reached. */
+    val advisorySources:   List<String>   = emptyList(),
+    val advisoriesFetchedAtMs: Long       = 0L,
     /** Highest severity among [activeAlerts]. Per-alert severity lives on the alert. */
     val alertSeverity:     AlertSeverity  = AlertSeverity.NONE,
     /**
@@ -92,6 +99,8 @@ data class EnvironmentalSnapshot(
  */
 enum class AqiSource(val label: String) {
     CPCB   ("CPCB station"),
+    /** CAMS model via Open-Meteo: only when no station reading is available, and always labelled. */
+    MODEL  ("modelled"),
     NONE   ("Unavailable")
 }
 
@@ -251,7 +260,9 @@ data class AqiSnapshot(
     val distanceKm:          Double? = null,
     val latitude:            Double? = null,
     val longitude:           Double? = null,
-    val fetchedAtMs:         Long    = System.currentTimeMillis()
+    val fetchedAtMs:         Long    = System.currentTimeMillis(),
+    /** The station's own "last updated" time, when the feed gave one. */
+    val observedAtMs:        Long?   = null
 ) {
     val riskLevel: AqiRiskLevel? get() = aqiValue?.let { AqiRiskLevel.fromAqi(it) }
 }
@@ -280,29 +291,43 @@ enum class AqiRiskLevel(val label: String) {
 // -- Health advisories ------------------------------------------------------
 
 /**
- * A disease-outbreak advisory.
+ * One outbreak, as a card: every recent report on it from WHO, CDC and ECDC,
+ * grouped (see [AdvisoryDigest]).
  *
- * The scope is displayed on every card. These sources are national or global;
- * labelling them honestly is the difference between a real feature and a
- * claim of district-level surveillance the app does not have.
+ * The place is displayed on every card. These sources are national or
+ * global; labelling them honestly is the difference between a real feature
+ * and a claim of district-level surveillance the app does not have.
  */
 @Serializable
 data class HealthAdvisory(
     val id:          String,
     val title:       String,
+    /** Summarised on the phone from the agency's own text. */
     val summary:     String,
+    /** The agencies that reported it, e.g. "WHO, ECDC". */
     val source:      String,
     val scope:       AdvisoryScope,
+    /** The most recent report. */
     val publishedMs: Long,
-    val url:         String? = null
+    val url:         String? = null,
+    val place:       String? = null,
+    /** Reports on this outbreak in the window, from all agencies. */
+    val updateCount: Int = 1,
+    val firstReportedMs: Long? = null,
+    /** WHO's own risk verdict, when it gave one. */
+    val riskNote:    String? = null,
+    /** CDC travel-notice level (1 to 4). */
+    val travelLevel: Int? = null
 )
 
 @Serializable
 enum class AdvisoryScope(val label: String) {
-    GLOBAL  ("Global advisory"),
+    GLOBAL  ("Worldwide"),
     NATIONAL("India"),
     REGIONAL("Your state"),
-    LOCAL   ("Your district")
+    LOCAL   ("Your district"),
+    /** An outbreak confined to another country. */
+    ABROAD  ("Outside India")
 }
 
 // -- Geo --------------------------------------------------------------------

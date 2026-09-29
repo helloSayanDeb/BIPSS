@@ -3,6 +3,7 @@ package com.bipss.app.data.environmental
 import android.util.Log
 import com.bipss.app.domain.environmental.AqiIndex
 import com.bipss.app.domain.environmental.AqiSnapshot
+import com.bipss.app.domain.environmental.ModelledAqi
 import com.bipss.app.domain.environmental.haversineKm
 import com.bipss.app.data.net.fetchText
 import kotlinx.coroutines.CancellationException
@@ -194,9 +195,60 @@ class CpcbAqiFetcher(
             pollutantSubIndices = computed.subIndices,
             distanceKm          = distanceKm,
             latitude            = rows.firstNotNullOfOrNull { it.double("latitude") },
-            longitude           = rows.firstNotNullOfOrNull { it.double("longitude") }
+            longitude           = rows.firstNotNullOfOrNull { it.double("longitude") },
+            observedAtMs        = rows.mapNotNull { it.str("last_update")?.let(::parseLastUpdate) }.maxOrNull()
         )
     }
+
+    /** The feed's "last_update", e.g. "29-09-2026 22:00:00", in Indian time. */
+    private fun parseLastUpdate(raw: String): Long? = runCatching {
+        java.time.LocalDateTime.parse(raw.trim(), java.time.format.DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss"))
+            .atZone(java.time.ZoneId.of("Asia/Kolkata")).toInstant().toEpochMilli()
+    }.getOrNull()
+}
+
+/**
+ * Modelled air quality from Open-Meteo's air-quality API (the CAMS global
+ * model), no key needed. Only the fallback: it is shown when no CPCB station
+ * reading is available, labelled as modelled ([ModelledAqi]).
+ */
+class OpenMeteoAirQualityFetcher(private val okHttpClient: OkHttpClient) {
+
+    suspend fun fetch(lat: Double, lon: Double, nowMs: Long = System.currentTimeMillis()): ModelledAqi.Result? =
+        withContext(Dispatchers.IO) {
+            try {
+                val url = "https://air-quality-api.open-meteo.com/v1/air-quality" +
+                    "?latitude=$lat&longitude=$lon" +
+                    "&hourly=pm2_5,pm10,nitrogen_dioxide,sulphur_dioxide,carbon_monoxide,ozone" +
+                    "&past_days=1&forecast_days=1&timeformat=unixtime"
+                val resp = okHttpClient.fetchText(Request.Builder().url(url).build())
+                if (!resp.isSuccessful) {
+                    Log.w(TAG, "Open-Meteo air quality failed: HTTP ${resp.code}")
+                    return@withContext null
+                }
+                parse(resp.body ?: return@withContext null)?.let { ModelledAqi.compute(it, nowMs) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Open-Meteo air quality error: ${e.message}")
+                null
+            }
+        }
+
+    internal fun parse(json: String): ModelledAqi.Hourly? = runCatching {
+        val hourly = lenientJson.parseToJsonElement(json).jsonObject["hourly"]!!.jsonObject
+        fun series(key: String): List<Float?> =
+            hourly[key]?.jsonArray?.map { it.jsonPrimitive.contentOrNullSafe()?.toFloatOrNull() }.orEmpty()
+        ModelledAqi.Hourly(
+            timesMs = hourly["time"]!!.jsonArray.map { it.jsonPrimitive.content.toLong() * 1000L },
+            pm25    = series("pm2_5"),
+            pm10    = series("pm10"),
+            no2     = series("nitrogen_dioxide"),
+            so2     = series("sulphur_dioxide"),
+            coUg    = series("carbon_monoxide"),
+            o3      = series("ozone")
+        )
+    }.getOrNull()
 }
 
 /**

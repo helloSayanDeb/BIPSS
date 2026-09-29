@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss xmlns:dc="http://purl.org/dc/elements/1.1/" version="2.0" xml:base="https://www.ecdc.europa.eu/en">
+  <channel>
+    <title>Epidemiological update</title>
+    <link>https://www.ecdc.europa.eu/en</link>
+    <description/>
+    <language>en</language>
+    
+    <item>
+  <title>Ebola disease outbreak in the Democratic Republic of the Congo</title>
+  <link>https://www.ecdc.europa.eu/en/ebola-outbreak-democratic-republic-congo-and-uganda</link>
+  <description>&lt;p&gt;Since May 2026, an Ebola virus disease outbreak caused by Bundibugyo virus has been ongoing in the Democratic Republic of the Congo (DRC).&lt;/p&gt;
+</description>
+  <pubDate>Mon, 28 Sep 2026 17:36:21 +0200</pubDate>
+    <dc:creator>ECDC</dc:creator>
+    <guid isPermaLink="true">https://www.ecdc.europa.eu/en/ebola-outbreak-democratic-republic-congo-and-uganda</guid>
+    </item>
+<item>
+  <title>MERS-CoV worldwide overview</title>
+  <link>https://www.ecdc.europa.eu/en/middle-east-respiratory-syndrome-coronavirus-mers-cov-situation-update</link>
+  <description>&lt;p&gt;Summary Since the beginning of 2026, and as of 31 August 2026, two MERS cases, including one fatality, have been reported in Saudi Arabia.&lt;/p&gt;
+</description>
+  <pubDate>Mon, 07 Sep 2026 14:20:22 +0200</pubDate>
+    <dc:creator>ECDC</dc:creator>
+    <guid isPermaLink="true">https://www.ecdc.europa.eu/en/middle-east-respiratory-syndrome-coronavirus-mers-cov-situation-update</guid>
+    </item>
+<item>
+  <title>Epidemiological update – 11 August 2026: Imported case of Andes hantavirus in the EU/EEA</title>
+  <link>https://www.ecdc.europa.eu/en/news-events/epidemiological-update-11-august-2026-imported-case-andes-hantavirus-eueea</link>
+  <description>&lt;p&gt;On 6 August 2026, French public health authorities reported an imported case of Andes hantavirus infection in a traveller from Argentina.&amp;nbsp;&lt;/p&gt;
+</description>
+  <pubDate>Thu, 20 Aug 2026 13:39:42 +0200</pubDate>
+    <dc:creator>ECDC</dc:creator>
+    <guid isPermaLink="true">https://www.ecdc.europa.eu/en/news-events/epidemiological-update-11-august-2026-imported-case-andes-hantavirus-eueea</guid>
+    </item>
+<item>
+  <title>Chikungunya virus disease worldwide overview</title>
+  <link>https://www.ecdc.europa.eu/en/chikungunya-monthly</link>
+  <description>&lt;p&gt;Every month ECDC provides detailed epidemiological overview of the worldwide transmission of chikungunya virus disease in its weekly threat report (Communicable Diseases Threat Report).&lt;/p&gt;
+</description>
+  <pubDate>Mon, 10 Aug 2026 16:05:05 +0200</pubDate>
+    <dc:creator>ECDC</dc:creator>
+    <guid isPermaLink="true">https://www.ecdc.europa.eu/en/chikungunya-monthly</guid>
+    </item>
+<item>
+  <title>Andes hantavirus outbreak in cruise ship</title>
+  <link>https://www.ecdc.europa.eu/en/infectious-disease-topics/hantavirus-infection/surveillance-and-updates/andes-hantavirus-outbreak</link>
+  <description>&lt;p&gt;ECDC was notified on 2 May 2026 of a cluster of severe respiratory illness on MV Hondius, a Dutch-flagged cruise ship with passengers and crew from 23 countries, including nine EU/EEA countries. The virus has been identified as Andes hantavirus.&lt;/p&gt;
+</description>
+  <pubDate>Tue, 26 May 2026 17:56:17 +0200</pubDate>
+    <dc:creator>ECDC</dc:creator>
+    <guid isPermaLink="true">https://www.ecdc.europa.eu/en/infectious-disease-topics/hantavirus-infection/surveillance-and-updates/andes-hantavirus-outbreak</guid>
+    </item>
+<item>
+  <title>Epidemiological update: Spread of multidrug-resistant and extensively-drug resistant Shigella in Europe</title>
+  <link>https://www.ecdc.europa.eu/en/news-events/epidemiological-update-spread-multidrug-resistant-and-extensively-drug-resistant</link>
+  <description>&lt;p&gt;Since 2023, 14 countries have reported more than 2 300 infections caused by multidrug-resistant (MDR) or extensively drug-resistant (XDR) Shigella sonnei and Shigella flexneri to ECDC. Seven genetically distinct MDR/XDR clusters, some with prolonged circulation and others more recent, have been reported.&lt;/p&gt;
+</description>
+  <pubDate>Wed, 20 May 2026 13:16:59 +0200</pubDate>
+    <dc:creator>ECDC</dc:creator>
+    <guid isPermaLink="true">https://www.ecdc.europa.eu/en/news-events/epidemiological-update-spread-multidrug-resistant-and-extensively-drug-resistant</guid>
+    </item>
+<item>
+  <title>Mpox worldwide overview</title>
+  <link>https://www.ecdc.europa.eu/en/mpox-worldwide-overview</link>
+  <description>&lt;p&gt;Every month ECDC provides detailed epidemiological overview of the worldwide transmission of mpox in its weekly threat report.&lt;/p&gt;
+</description>
+  <pubDate>Wed, 13 May 2026 12:26:15 +0200</pubDate>
+    <dc:creator>ECDC</dc:creator>
+    <guid isPermaLink="true">https://www.ecdc.europa.eu/en/mpox-worldwide-overview</guid>
+    </item>
+<item>
+  <title>Dengue worldwide overview</title>
+  <link>https://www.ecdc.europa.eu/en/dengue-monthly</link>
+  <description>&lt;p&gt;Every month ECDC provides detailed epidemiological overview of the worldwide transmission of dengue in its weekly threat report (Communicable Diseases Threat Report).&lt;/p&gt;
+</description>
+  <pubDate>Mon, 30 Mar 2026 09:17:53 +0200</pubDate>
+    <dc:creator>ECDC</dc:creator>
+    <guid isPermaLink="true">https://www.ecdc.europa.eu/en/dengue-monthly</guid>
+    </item>
+<item>
+  <title>Epidemiological update: Shigellosis and other gastrointestinal infections in travellers returning from Cabo Verde</title>
+  <link>https://www.ecdc.europa.eu/en/news-events/epidemiological-update-shigellosis-and-other-gastrointestinal-infections-travellers</link>
+  <description>&lt;p&gt;As of March 2026, over 1 000 confirmed and possible cases of shigellosis and other gastrointestinal infections, including salmonellosis, have been detected in travellers returning from Cabo Verde to several countries in the European Union/European Economic Area (EU/EEA), the United Kingdom (UK), and the United States (US), with new cases still being reported.&lt;/p&gt;
+</description>
+  <pubDate>Wed, 18 Mar 2026 10:32:55 +0100</pubDate>
+    <dc:creator>ECDC</dc:creator>
+    <guid isPermaLink="true">https://www.ecdc.europa.eu/en/news-events/epidemiological-update-shigellosis-and-other-gastrointestinal-infections-travellers</guid>
+    </item>
+<item>
+  <title>Early estimates of seasonal influenza vaccine effectiveness against influenza requiring medical attention at primary care level in Europe, week 41 - 49, 2025</title>
+  <link>https://www.ecdc.europa.eu/en/news-events/early-estimates-seasonal-influenza-vaccine-effectiveness-against-influenza-requiring</link>
+  <description>&lt;p&gt;The 2025/26 influenza season has begun earlier than the previous two seasons, driven by the recently-emerged influenza virus A(H3N2) subclade K.&lt;/p&gt;
+</description>
+  <pubDate>Fri, 19 Dec 2025 14:32:38 +0100</pubDate>
+    <dc:creator>ECDC</dc:creator>
+    <guid isPermaLink="true">https://www.ecdc.europa.eu/en/news-events/early-estimates-seasonal-influenza-vaccine-effectiveness-against-influenza-requiring</guid>
+    </item>
+
+  </channel>
+</rss>

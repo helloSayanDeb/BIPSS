@@ -90,7 +90,7 @@ class OnboardingLocationViewModel(
                     }
                 } else listOf(
                     weather(snapshot.ambientTempC),
-                    airQuality(snapshot.regionalAqiValue, snapshot.aqiStationName, snapshot.aqiStationDistanceKm),
+                    airQuality(snapshot),
                     alerts(!snapshot.alertCheckFailed && snapshot.alertsCheckedAtMs > 0, snapshot.activeAlerts.size)
                 ),
                 approximate = approximate
@@ -102,9 +102,19 @@ class OnboardingLocationViewModel(
         SourceResult("Weather", SourceStatus.OK, "${tempC.roundToInt()} °C now")
     else SourceResult("Weather", SourceStatus.FAILED, "The weather service isn't responding right now")
 
-    private fun airQuality(aqi: Int?, station: String?, km: Double?): SourceResult = when {
-        aqi != null -> SourceResult("Air quality", SourceStatus.OK,
-            "AQI $aqi at ${station ?: "the nearest station"}" + (km?.let { ", ${it.roundToInt()} km away" } ?: ""))
+    private fun airQuality(s: com.bipss.app.domain.environmental.EnvironmentalSnapshot): SourceResult = when {
+        s.aqiValue != null && s.aqiSource == com.bipss.app.domain.environmental.AqiSource.CPCB ->
+            SourceResult("Air quality", SourceStatus.OK,
+                "AQI ${s.aqiValue} at ${s.aqiStationName ?: "the nearest station"}" +
+                    (s.aqiStationDistanceKm?.let { ", ${it.roundToInt()} km away" } ?: ""))
+        // No station reading: the CAMS model, said plainly.
+        s.aqiValue != null && s.aqiSource == com.bipss.app.domain.environmental.AqiSource.MODEL ->
+            SourceResult("Air quality", SourceStatus.OK,
+                "AQI ${s.aqiValue}, modelled for your area" + when (cpcb.lastOutcome) {
+                    CpcbAqiFetcher.Outcome.NO_STATION_NEARBY -> " (no CPCB station within 50 km)"
+                    CpcbAqiFetcher.Outcome.OK -> " (the nearest station isn't reporting a full index)"
+                    else -> " (CPCB stations aren't answering)"
+                })
         else -> when (cpcb.lastOutcome) {
             CpcbAqiFetcher.Outcome.NO_STATION_NEARBY ->
                 SourceResult("Air quality", SourceStatus.NOT_AVAILABLE_HERE, "No government monitoring station within 50 km")

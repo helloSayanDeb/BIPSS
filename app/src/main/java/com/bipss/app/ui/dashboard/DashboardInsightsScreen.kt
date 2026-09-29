@@ -31,6 +31,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.automirrored.rounded.OpenInNew
+import com.bipss.app.domain.environmental.AdvisoryScope
+import com.bipss.app.domain.environmental.AdvisorySummarizer
+import com.bipss.app.domain.environmental.HealthAdvisory
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -162,7 +170,8 @@ fun DashboardInsightsScreen(
                     AirQualityRows(
                         display = state.airContext?.display ?: AqiDisplay.StationOnly(env.aqiValue),
                         stationLabel = env.aqiRiskLevel?.label,
-                        reconciliation = state.airContext?.reconciliation
+                        reconciliation = state.airContext?.reconciliation,
+                        env = env
                     )
                     env.dominantPollutant?.let {
                         HairlineDivider(); InfoRow("Dominant pollutant", it)
@@ -249,45 +258,31 @@ fun DashboardInsightsScreen(
                 Spacer(Modifier.height(Space.m))
 
                 if (env.advisories.isEmpty()) {
+                    val checked = env.advisorySources
                     EmptyState(
                         icon = Icons.Rounded.Coronavirus,
-                        title = "No active health advisories",
-                        body = "Monitoring WHO outbreak news. District-level surveillance (IDSP) " +
-                            "is planned for a future release."
+                        title = if (checked.isEmpty()) "Outbreak reports not checked yet" else "No outbreak reports in the last 30 days",
+                        body = if (checked.isEmpty()) "WHO, CDC and ECDC couldn't be reached. Tap Refresh above to try again."
+                               else "Checked ${checked.joinToString(", ")}. Reports older than 30 days aren't shown."
                     )
                 } else {
-                    env.advisories.take(4).forEach { advisory ->
-                        BipssCard {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                IconBadge(Icons.Rounded.Coronavirus, colors.bandMonitor)
-                                Spacer(Modifier.width(Space.m))
-                                Column(Modifier.weight(1f)) {
-                                    Text(
-                                        advisory.title,
-                                        style = MaterialTheme.typography.titleSmall,
-                                        color = colors.textPrimary
-                                    )
-                                    // The scope label is mandatory: these sources are
-                                    // national or global, and implying local detection
-                                    // would be a claim the app cannot support.
-                                    Text(
-                                        "${advisory.scope.label}  ·  ${advisory.source}",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = colors.textTertiary
-                                    )
-                                }
-                            }
-                            if (advisory.summary.isNotBlank()) {
-                                Spacer(Modifier.height(Space.s))
-                                Text(
-                                    advisory.summary,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = colors.textSecondary
-                                )
-                            }
-                        }
+                    var showAll by rememberSaveable { mutableStateOf(false) }
+                    val shown = if (showAll) env.advisories else env.advisories.take(ADVISORIES_SHOWN)
+                    shown.forEach { advisory ->
+                        AdvisoryCard(advisory)
                         Spacer(Modifier.height(Space.m))
                     }
+                    if (env.advisories.size > ADVISORIES_SHOWN) {
+                        TextButton(onClick = { showAll = !showAll }, contentPadding = PaddingValues(horizontal = 0.dp)) {
+                            Text(if (showAll) "Show fewer" else "Show ${env.advisories.size - ADVISORIES_SHOWN} more")
+                        }
+                    }
+                    Text(
+                        "From ${env.advisorySources.ifEmpty { listOf("WHO", "CDC", "ECDC") }.joinToString(", ")}, " +
+                            "last 30 days. Summarised on this phone from each agency's own text.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = colors.textTertiary
+                    )
                 }
             }
             if (!hasLocation) {
@@ -303,6 +298,89 @@ fun DashboardInsightsScreen(
         }
 
         Spacer(Modifier.height(Space.huge))
+    }
+}
+
+// ── Health advisories ────────────────────────────────────────────────────────
+
+/** Cards shown before "Show more". */
+private const val ADVISORIES_SHOWN = 3
+
+/**
+ * One outbreak: where, who reported it, a phone-made summary of the latest
+ * report, WHO's risk verdict when it gave one, and a link to the source.
+ */
+@Composable
+private fun AdvisoryCard(advisory: HealthAdvisory) {
+    val colors = BipssTheme.colors
+    val context = LocalContext.current
+    val open: (() -> Unit)? = advisory.url?.let { url ->
+        {
+            runCatching {
+                context.startActivity(
+                    android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                        .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
+            }
+        }
+    }
+    BipssCard(onClick = open) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconBadge(
+                Icons.Rounded.Coronavirus,
+                if (advisory.scope == AdvisoryScope.NATIONAL) colors.bandRisk else colors.bandMonitor
+            )
+            Spacer(Modifier.width(Space.m))
+            Column(Modifier.weight(1f)) {
+                Text(advisory.title, style = MaterialTheme.typography.titleSmall, color = colors.textPrimary)
+                Spacer(Modifier.height(Space.xs))
+                // Where it is, always: these sources are national or global, and
+                // implying local detection would be a claim the app cannot support.
+                Text(
+                    listOfNotNull(
+                        advisory.place ?: advisory.scope.label,
+                        advisory.source,
+                        AdvisorySummarizer.shortDate(advisory.publishedMs)
+                    ).joinToString("  ·  "),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = colors.textTertiary
+                )
+            }
+        }
+        if (advisory.summary.isNotBlank()) {
+            Spacer(Modifier.height(Space.m))
+            Text(advisory.summary, style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
+        }
+        val extras = listOfNotNull(
+            advisory.riskNote,
+            advisory.travelLevel?.let { "CDC travel notice: level $it of 4." }
+        )
+        extras.forEach {
+            Spacer(Modifier.height(Space.s))
+            Text(it, style = MaterialTheme.typography.labelMedium, color = colors.textPrimary)
+        }
+        if (advisory.updateCount > 1 || open != null) {
+            Spacer(Modifier.height(Space.m))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (advisory.updateCount > 1) {
+                    Text(
+                        "${advisory.updateCount} reports since " +
+                            AdvisorySummarizer.shortDate(advisory.firstReportedMs ?: advisory.publishedMs),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = colors.textTertiary,
+                        modifier = Modifier.weight(1f)
+                    )
+                } else Spacer(Modifier.weight(1f))
+                if (open != null) {
+                    Text("Full report", style = MaterialTheme.typography.labelSmall, color = colors.textSecondary)
+                    Spacer(Modifier.width(Space.xs))
+                    Icon(
+                        Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = null,
+                        tint = colors.textSecondary, modifier = Modifier.size(14.dp)
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -383,18 +461,29 @@ private fun AirContextCard(
  * average of the two - they measure different air on different scales.
  */
 @Composable
-private fun AirQualityRows(display: AqiDisplay, stationLabel: String?, reconciliation: Reconciliation?) {
+private fun AirQualityRows(display: AqiDisplay, stationLabel: String?, reconciliation: Reconciliation?, env: EnvironmentalSnapshot) {
     val colors = BipssTheme.colors
     fun station(aqi: Int?) = aqi?.let { if (stationLabel.isNullOrBlank()) "$it" else "$it  ·  $stationLabel" } ?: "—"
+    // Where the outdoor figure comes from: a CPCB station, or the CAMS model
+    // when no station reading is available - never presented as the other.
+    val modelled = env.aqiSource == AqiSource.MODEL
+    val outdoorRow = if (modelled) "Air quality (modelled)" else "Air quality (CPCB station)"
+    val outdoorsNear = if (modelled) "Outdoors near you (modelled)" else "Outdoors near you (CPCB)"
+    val outdoorsUnclear = if (modelled) "Modelled (outdoors)" else "CPCB station (outdoors)"
+    val nowMs = rememberNowMs()
+    val sourceNote = env.aqiNote?.let { note ->
+        val observed = env.aqiObservedAtMs
+        if (env.aqiSource == AqiSource.CPCB && observed != null) "$note Reading ${relativeAgeLabel(observed, nowMs)}." else note
+    }
     fun band(uba: Int) = "$uba of 5  ·  ${AqiDisplay.ubaLabel(uba)}"
     val learning = reconciliation?.let { "day ${it.dayN} of ${com.bipss.app.domain.BaselineSchedule.PROVISIONAL_FROM}" }
     @Composable
     fun note(text: String) = Text(text, style = MaterialTheme.typography.labelSmall, color = colors.textTertiary,
                                   modifier = Modifier.padding(bottom = 4.dp))
     when (display) {
-        is AqiDisplay.StationOnly -> InfoRow("Air quality (CPCB station)", station(display.cpcbAqi))
+        is AqiDisplay.StationOnly -> InfoRow(outdoorRow, station(display.cpcbAqi))
         is AqiDisplay.Outdoor -> {
-            InfoRow("Air quality (CPCB station)", station(display.cpcbAqi))
+            InfoRow(outdoorRow, station(display.cpcbAqi))
             InfoRow("Band air sensor", band(display.bandUba))
             note(
                 display.expected?.let {
@@ -415,14 +504,15 @@ private fun AirQualityRows(display: AqiDisplay, stationLabel: String?, reconcili
                     else "Within your usual indoor air (typically $median, rarely above $high). Estimate."
                 } ?: "Still learning your usual indoor air" + (learning?.let { " ($it)." } ?: ".")
             )
-            InfoRow("Outdoors near you (CPCB)", station(display.cpcbAqi))
+            InfoRow(outdoorsNear, station(display.cpcbAqi))
         }
         is AqiDisplay.Unclear -> {
             InfoRow("Band air sensor", band(display.bandUba))
-            InfoRow("CPCB station (outdoors)", station(display.cpcbAqi))
+            InfoRow(outdoorsUnclear, station(display.cpcbAqi))
             note("Shown side by side: whether you're indoors or out is unclear right now.")
         }
     }
+    sourceNote?.let { note(it) }
 }
 
 // ── Location required overlay ────────────────────────────────────────────────

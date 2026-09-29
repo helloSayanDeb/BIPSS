@@ -345,6 +345,8 @@ class UserPreferencesRepository(
         val pollutantSubIndices: Map<String, Int> = emptyMap(),
         val aqiStationName:    String? = null,
         val aqiStationDistanceKm: Double? = null,
+        val aqiObservedAtMs:   Long?   = null,
+        val aqiNote:           String? = null,
         val alertSeverity:     String  = "NONE",
         val alerts:            List<ImdAlert>       = emptyList(),
         // Caches written before these fields existed decode to "never checked",
@@ -353,6 +355,9 @@ class UserPreferencesRepository(
         val alertSourcesChecked: List<String> = emptyList(),
         val alertCheckFailed:  Boolean = false,
         val advisories:        List<HealthAdvisory> = emptyList(),
+        // Caches written before these existed read as "never checked", so they are refetched.
+        val advisorySources:   List<String> = emptyList(),
+        val advisoriesFetchedAtMs: Long = 0L,
         val districtName:      String? = null,
         val stateName:         String? = null,
         val latitude:          Double? = null,

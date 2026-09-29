@@ -299,7 +299,7 @@ fun DashboardTodayScreen(
                         Icons.Rounded.WaterDrop, colors.spo2, Modifier.weight(1f)
                     )
                     EnvStat(
-                        "AQI",
+                        if (state.env.aqiSource == com.bipss.app.domain.environmental.AqiSource.MODEL) "AQI (model)" else "AQI",
                         state.env.aqiValue?.toString() ?: "—",
                         Icons.Rounded.Air, colors.air, Modifier.weight(1f)
                     )

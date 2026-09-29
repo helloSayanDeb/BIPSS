@@ -60,7 +60,11 @@ class AqiContextRepository(
 
         // The station reading of the same period; an old one says nothing about now.
         val env = envRepo.getCachedSnapshot()
-        val cpcb = env?.regionalAqiValue?.takeIf { env.fetchedAtMs > 0L && nowMs - env.fetchedAtMs <= CPCB_MAX_AGE_MS }
+        // Station readings only (never the modelled fallback), by when the station measured them.
+        val cpcb = env?.regionalAqiValue?.takeIf {
+            env.aqiSource == com.bipss.app.domain.environmental.AqiSource.CPCB &&
+                (env.aqiObservedAtMs ?: env.fetchedAtMs).let { at -> at > 0L && nowMs - at <= CPCB_MAX_AGE_MS }
+        }
 
         val row = AqiContextSampleEntity(
             takenAtMs         = nowMs,

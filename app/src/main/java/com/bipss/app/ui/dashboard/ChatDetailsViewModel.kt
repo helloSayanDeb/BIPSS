@@ -181,6 +181,7 @@ class ChatDetailsViewModel(
             append("\"skinTempC\":${s.skinTempC},")
             append("\"ambientTempC\":${s.env.ambientTempC},")
             append("\"aqiValue\":${s.env.aqiValue},")
+            append("\"aqiSource\":\"${s.env.aqiSource.name}\",")
             append("\"scores\":[")
             // Experimental indicators stay out of the model's context: it would
             // treat them as risks. Every other score carries its fidelity.

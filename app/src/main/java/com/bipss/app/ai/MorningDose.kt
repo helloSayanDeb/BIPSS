@@ -73,7 +73,10 @@ object MorningDose {
         val parts = buildList {
             env.ambientTempC?.let { add("${it.toInt()}°C") }
             env.humidityPercent?.let { add("${it.toInt()}% humidity") }
-            env.aqiValue?.let { aqi -> add("AQI $aqi${env.aqiRiskLevel?.let { " (${it.label})" } ?: ""}") }
+            env.aqiValue?.let { aqi ->
+                val what = if (env.aqiSource == com.bipss.app.domain.environmental.AqiSource.MODEL) "modelled AQI" else "AQI"
+                add("$what $aqi${env.aqiRiskLevel?.let { " (${it.label})" } ?: ""}")
+            }
             env.uvIndex?.let { if (it >= 3f) add("UV ${"%.0f".format(it)}") }
         }
         if (parts.isEmpty()) return null
