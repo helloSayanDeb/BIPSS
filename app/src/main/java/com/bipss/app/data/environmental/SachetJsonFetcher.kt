@@ -65,6 +65,9 @@ private val INDIA_ZONE = TimeZone.getTimeZone("Asia/Kolkata")
 private val JSON = Json { ignoreUnknownKeys = true }
 
 /**
+ * Fallback alert source, used only when IMD cannot be read or has nothing
+ * current (see DisasterAlertRepository.fetchAlertFeeds).
+ *
  * The bulk listing tier [SachetCapFetcher] was missing. FetchAllAlertDetails
  * returns every currently published NDMA alert in one call, so we no longer
  * need an identifier in hand before we can see anything.

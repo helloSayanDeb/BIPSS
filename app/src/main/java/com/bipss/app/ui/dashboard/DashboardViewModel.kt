@@ -236,14 +236,20 @@ class DashboardViewModel(
         }
     }
 
+    /**
+     * The environment shown is always the cache, followed as it changes: a
+     * sync from any screen or the background job appears everywhere, and a
+     * cache cleared because location was turned off empties the scores that
+     * depended on it instead of leaving them on screen.
+     */
     private fun loadCachedEnv() {
         viewModelScope.launch {
-            envRepo.getCachedSnapshot()?.let { cached ->
-                _uiState.update { it.copy(env = cached) }
+            envRepo.cachedSnapshots.collect { snapshot ->
+                _uiState.update { it.copy(env = snapshot) }
+                recomputeRiskScores()
             }
-            recomputeRiskScores()
-            refreshEnvironment()
         }
+        refreshEnvironment()
     }
 
     /**
@@ -257,8 +263,8 @@ class DashboardViewModel(
             if (!_uiState.value.isOnline || _uiState.value.isRefreshing) return@launch
             _uiState.update { it.copy(isRefreshing = true) }
             try {
-                val fresh = envRepo.fetchAndCache(force = force)
-                _uiState.update { it.copy(env = fresh) }
+                // The result reaches the screen through the cache (loadCachedEnv).
+                envRepo.fetchAndCache(force = force)
             } catch (e: Exception) {
                 // Cached data stays on screen with its age stamp - failing to
                 // refresh must never blank out a warning the user can still act on.

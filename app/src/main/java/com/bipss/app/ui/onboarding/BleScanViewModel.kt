@@ -24,7 +24,8 @@ import kotlinx.coroutines.launch
 class BleScanViewModel(
     private val bleGattManager: BleGattManager,
     private val repository:     UserPreferencesRepository,
-    private val context:        Context
+    private val context:        Context,
+    private val workScheduler:  com.bipss.app.worker.WorkScheduler
 ) : ViewModel() {
 
     val connectionState: StateFlow<BleConnectionState> =
@@ -86,6 +87,7 @@ class BleScanViewModel(
     fun savePairedDevice(mac: String, name: String) {
         viewModelScope.launch {
             repository.savePairedBand(mac = mac, name = name)
+            workScheduler.reconcile()
         }
     }
 

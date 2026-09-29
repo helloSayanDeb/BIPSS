@@ -34,7 +34,9 @@ fun AppShell(
     navController: NavHostController = rememberNavController(),
     startDestination: String = Routes.ONBOARDING_WELCOME,
     deepLink: DeepLink.Target? = null,
-    onDeepLinkConsumed: () -> Unit = {}
+    onDeepLinkConsumed: () -> Unit = {},
+    locationSetupPending: Boolean = false,
+    onLocationSetupConsumed: () -> Unit = {}
 ) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute      = navBackStackEntry?.destination?.route
@@ -56,6 +58,17 @@ fun AppShell(
             }
         }
         onDeepLinkConsumed()
+    }
+
+    // Location granted since the app last looked (Android's settings, or the
+    // Health tab): the same calibrate-fetch-verify screen as onboarding. During
+    // onboarding its own location step does this, so the flag is just cleared.
+    LaunchedEffect(locationSetupPending, startDestination) {
+        if (!locationSetupPending) return@LaunchedEffect
+        if (startDestination == Routes.DASHBOARD_TODAY) {
+            runCatching { navController.navigate(Routes.LOCATION_SETUP) { launchSingleTop = true } }
+        }
+        onLocationSetupConsumed()
     }
 
     val isDashboard = dashboardRoutes.any {

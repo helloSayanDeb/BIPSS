@@ -1,9 +1,11 @@
 package com.bipss.app.ui.dashboard
 
-import android.content.Intent
-import android.net.Uri
-import android.provider.Settings
 import androidx.compose.foundation.background
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.draw.blur
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -59,7 +61,7 @@ fun DashboardInsightsScreen(
     val env = state.env
     val context = LocalContext.current
 
-    val locationPermission = rememberLocationPermission { granted -> if (granted) vm.refreshEnvironment(force = true) }
+    val locationPermission = rememberLocationPermission()
     val hasLocation = locationPermission.isGranted
 
     Column(
@@ -193,182 +195,184 @@ fun DashboardInsightsScreen(
             }
         }
 
-        // ── Location Permission Gate ─────────────────────────────────────────
-        // Environment, Alerts, and Health Advisories all depend on the user's
-        // location (district, lat/lon). If permission hasn't been granted, show
-        // an explanatory card instead of silently fetching without coordinates.
-        if (!hasLocation) {
-            Spacer(Modifier.height(Space.xxl))
-            LocationPermissionGateCard(
-                // Only after this screen has asked and Android stopped showing the
-                // dialog - not on first visit, which used to read as "denied permanently".
-                isPermanentlyDenied = locationPermission.isPermanentlyDenied,
-                onGrant = { locationPermission.request() },
-                onOpenSettings = {
-                    context.startActivity(
-                        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                            data = Uri.fromParts("package", context.packageName, null)
-                        }
-                    )
-                }
-            )
-        } else {
-            // -- Environment -------------------------------------------------
-            Spacer(Modifier.height(Space.l))
-            SectionLabel("Environment")
-            Spacer(Modifier.height(Space.m))
-            BipssCard {
-                InfoRow("Ambient temperature", env.ambientTempC?.let { "${it.toInt()} °C" } ?: "—")
-                HairlineDivider()
-                InfoRow("Humidity", env.humidityPercent?.let { "${it.toInt()} %" } ?: "—")
-                HairlineDivider()
-                InfoRow("UV index", env.uvIndex?.let { "%.1f".format(it) } ?: "—")
-                HairlineDivider()
-                InfoRow(
-                    "Air quality index",
-                    env.aqiValue?.let { aqi ->
-                        val band = env.aqiRiskLevel?.label ?: ""
-                        if (band.isBlank()) "$aqi" else "$aqi  ·  $band"
-                    } ?: "—"
-                )
-                if (env.aqiValue != null) {
-                    InfoRow("AQI source", env.aqiSource.label)
-                }
-                // The asterisk is explained rather than left dangling: the band and
-                // the regional station measure different air, and saying so is more
-                // useful than silently averaging them.
-                if (env.aqiSource == AqiSource.BLENDED && env.regionalAqiValue != null) {
-                    Text(
-                        "* Regional average (CPCB): ${env.regionalAqiValue} — you may be indoors",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = colors.textTertiary,
-                        modifier = Modifier.padding(top = 4.dp)
-                    )
-                }
-                env.dominantPollutant?.let {
-                    HairlineDivider(); InfoRow("Dominant pollutant", it)
-                }
-                env.pressureHpa?.let { HairlineDivider(); InfoRow("Pressure", "${it.toInt()} hPa") }
-                env.windSpeedKph?.let { HairlineDivider(); InfoRow("Wind", "${it.toInt()} km/h") }
-                env.districtName?.let { HairlineDivider(); InfoRow("Location", it) }
-
+        // ── Location-dependent sections ────────────────────────────────────
+        // Environment, alerts and advisories are all fetched for where the user
+        // is. Without location permission nothing is fetched, and these
+        // sections sit under an overlay that says why: blurred on Android 12+
+        // (a heavier scrim before that, where blur is unavailable). The content
+        // underneath is hidden from screen readers and cannot be touched.
+        Spacer(Modifier.height(Space.l))
+        Box {
+            Column(
+                if (hasLocation) Modifier
+                else Modifier.blur(12.dp).clearAndSetSemantics { }
+            ) {
+                // -- Environment -------------------------------------------------
+                SectionLabel("Environment")
                 Spacer(Modifier.height(Space.m))
-                val envNowMs = rememberNowMs()
-                val envAge = relativeAgeLabel(env.fetchedAtMs, envNowMs)
-                val envStale = env.fetchedAtMs > 0L && envNowMs - env.fetchedAtMs > EnvironmentalSnapshot.STALE_THRESHOLD_MS
-                InfoBanner(
-                    text = when {
-                        env.fetchedAtMs == 0L -> "No environment data yet. Values appear after the first sync."
-                        envStale              -> "Reading from $envAge. Values are not updating."
-                        else                  -> "Updated $envAge."
-                    },
-                    icon = if (envStale || env.fetchedAtMs == 0L) Icons.Rounded.CloudOff else Icons.Rounded.Air,
-                    tint = if (envStale || env.fetchedAtMs == 0L) colors.bandMonitor else colors.bandNormal
-                )
-            }
-
-            // -- Alerts --------------------------------------------------------
-            // Rendered straight from the last real fetch. The only progress
-            // indicator is the refresh spinner, which is visible for exactly as
-            // long as the request actually runs.
-            Spacer(Modifier.height(Space.xxl))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                SectionLabel("Active alerts", Modifier.weight(1f))
-                if (state.isRefreshing) {
-                    androidx.compose.material3.CircularProgressIndicator(
-                        modifier = Modifier.size(18.dp),
-                        color = colors.textSecondary,
-                        strokeWidth = 2.dp
+                BipssCard {
+                    InfoRow("Ambient temperature", env.ambientTempC?.let { "${it.toInt()} °C" } ?: "—")
+                    HairlineDivider()
+                    InfoRow("Humidity", env.humidityPercent?.let { "${it.toInt()} %" } ?: "—")
+                    HairlineDivider()
+                    InfoRow("UV index", env.uvIndex?.let { "%.1f".format(it) } ?: "—")
+                    HairlineDivider()
+                    InfoRow(
+                        "Air quality index",
+                        env.aqiValue?.let { aqi ->
+                            val band = env.aqiRiskLevel?.label ?: ""
+                            if (band.isBlank()) "$aqi" else "$aqi  ·  $band"
+                        } ?: "—"
                     )
-                } else if (state.isOnline) {
-                    GhostButton("Refresh", { vm.refreshEnvironment(force = true) })
+                    if (env.aqiValue != null) {
+                        InfoRow("AQI source", env.aqiSource.label)
+                    }
+                    // The asterisk is explained rather than left dangling: the band and
+                    // the regional station measure different air, and saying so is more
+                    // useful than silently averaging them.
+                    if (env.aqiSource == AqiSource.BLENDED && env.regionalAqiValue != null) {
+                        Text(
+                            "* Regional average (CPCB): ${env.regionalAqiValue} — you may be indoors",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = colors.textTertiary,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
+                    env.dominantPollutant?.let {
+                        HairlineDivider(); InfoRow("Dominant pollutant", it)
+                    }
+                    env.pressureHpa?.let { HairlineDivider(); InfoRow("Pressure", "${it.toInt()} hPa") }
+                    env.windSpeedKph?.let { HairlineDivider(); InfoRow("Wind", "${it.toInt()} km/h") }
+                    env.districtName?.let { HairlineDivider(); InfoRow("Location", it) }
+
+                    Spacer(Modifier.height(Space.m))
+                    val envNowMs = rememberNowMs()
+                    val envAge = relativeAgeLabel(env.fetchedAtMs, envNowMs)
+                    val envStale = env.fetchedAtMs > 0L && envNowMs - env.fetchedAtMs > EnvironmentalSnapshot.STALE_THRESHOLD_MS
+                    InfoBanner(
+                        text = when {
+                            env.fetchedAtMs == 0L -> "No environment data yet. Values appear after the first sync."
+                            envStale              -> "Reading from $envAge. Values are not updating."
+                            else                  -> "Updated $envAge."
+                        },
+                        icon = if (envStale || env.fetchedAtMs == 0L) Icons.Rounded.CloudOff else Icons.Rounded.Air,
+                        tint = if (envStale || env.fetchedAtMs == 0L) colors.bandMonitor else colors.bandNormal
+                    )
                 }
-            }
-            Spacer(Modifier.height(Space.m))
 
-            val nowMs = rememberNowMs()
-            val checkedAge = relativeAgeLabel(env.alertsCheckedAtMs, nowMs)
-            val checkedSources = env.alertSourcesChecked.joinToString(" and ")
-
-            if (env.alertCheckFailed) {
-                // The latest attempt reached no feed. Whatever is listed below
-                // is from the last check that actually succeeded, and says so.
-                InfoBanner(
-                    text = if (env.alertsCheckedAtMs > 0L)
-                        "Couldn't reach the alert feeds just now. Showing the result of the last successful check ($checkedAge)."
-                    else "Couldn't reach the alert feeds, and no earlier check has succeeded.",
-                    icon = Icons.Rounded.CloudOff,
-                    tint = colors.bandMonitor
-                )
+                // -- Alerts --------------------------------------------------------
+                // Rendered straight from the last real fetch. The only progress
+                // indicator is the refresh spinner, which is visible for exactly as
+                // long as the request actually runs.
+                Spacer(Modifier.height(Space.xxl))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    SectionLabel("Active alerts", Modifier.weight(1f))
+                    if (state.isRefreshing) {
+                        androidx.compose.material3.CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            color = colors.textSecondary,
+                            strokeWidth = 2.dp
+                        )
+                    } else if (state.isOnline) {
+                        GhostButton("Refresh", { vm.refreshEnvironment(force = true) })
+                    }
+                }
                 Spacer(Modifier.height(Space.m))
-            }
 
-            when {
-                state.rankedAlerts.isNotEmpty() -> state.rankedAlerts.forEach { ranked ->
-                    AlertCard(ranked)
+                val nowMs = rememberNowMs()
+                val checkedAge = relativeAgeLabel(env.alertsCheckedAtMs, nowMs)
+                val checkedSources = env.alertSourcesChecked.joinToString(" and ")
+
+                if (env.alertCheckFailed) {
+                    // The latest attempt reached no feed. Whatever is listed below
+                    // is from the last check that actually succeeded, and says so.
+                    InfoBanner(
+                        text = if (env.alertsCheckedAtMs > 0L)
+                            "Couldn't reach the alert feeds just now. Showing the result of the last successful check ($checkedAge)."
+                        else "Couldn't reach the alert feeds, and no earlier check has succeeded.",
+                        icon = Icons.Rounded.CloudOff,
+                        tint = colors.bandMonitor
+                    )
                     Spacer(Modifier.height(Space.m))
                 }
-                // "No alerts" is only ever claimed for a check that really happened.
-                env.alertsCheckedAtMs == 0L -> EmptyState(
-                    icon = Icons.Rounded.Schedule,
-                    title = "Alerts not checked yet",
-                    body = "Alerts appear after the first successful check of the NDMA and IMD feeds."
-                )
-                else -> EmptyState(
-                    // A positive signal, not a blank space: an empty list here means the
-                    // geo-filter is working, whereas five out-of-state cards meant it was not.
-                    icon = Icons.Rounded.CheckCircle,
-                    title = "No active alerts for your area",
-                    body = env.districtName?.let { "Checked $checkedSources for $it, $checkedAge." }
-                        ?: "Checked $checkedSources, $checkedAge."
-                )
-            }
 
-            // -- Health advisories ---------------------------------------------
-            Spacer(Modifier.height(Space.l))
-            SectionLabel("Health advisories")
-            Spacer(Modifier.height(Space.m))
+                when {
+                    state.rankedAlerts.isNotEmpty() -> state.rankedAlerts.forEach { ranked ->
+                        AlertCard(ranked)
+                        Spacer(Modifier.height(Space.m))
+                    }
+                    // "No alerts" is only ever claimed for a check that really happened.
+                    env.alertsCheckedAtMs == 0L -> EmptyState(
+                        icon = Icons.Rounded.Schedule,
+                        title = "Alerts not checked yet",
+                        body = "Alerts appear after the first successful check of the NDMA and IMD feeds."
+                    )
+                    else -> EmptyState(
+                        // A positive signal, not a blank space: an empty list here means the
+                        // geo-filter is working, whereas five out-of-state cards meant it was not.
+                        icon = Icons.Rounded.CheckCircle,
+                        title = "No active alerts for your area",
+                        body = env.districtName?.let { "Checked $checkedSources for $it, $checkedAge." }
+                            ?: "Checked $checkedSources, $checkedAge."
+                    )
+                }
 
-            if (env.advisories.isEmpty()) {
-                EmptyState(
-                    icon = Icons.Rounded.Coronavirus,
-                    title = "No active health advisories",
-                    body = "Monitoring WHO outbreak news. District-level surveillance (IDSP) " +
-                        "is planned for a future release."
-                )
-            } else {
-                env.advisories.take(4).forEach { advisory ->
-                    BipssCard {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconBadge(Icons.Rounded.Coronavirus, colors.bandMonitor)
-                            Spacer(Modifier.width(Space.m))
-                            Column(Modifier.weight(1f)) {
+                // -- Health advisories ---------------------------------------------
+                Spacer(Modifier.height(Space.l))
+                SectionLabel("Health advisories")
+                Spacer(Modifier.height(Space.m))
+
+                if (env.advisories.isEmpty()) {
+                    EmptyState(
+                        icon = Icons.Rounded.Coronavirus,
+                        title = "No active health advisories",
+                        body = "Monitoring WHO outbreak news. District-level surveillance (IDSP) " +
+                            "is planned for a future release."
+                    )
+                } else {
+                    env.advisories.take(4).forEach { advisory ->
+                        BipssCard {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconBadge(Icons.Rounded.Coronavirus, colors.bandMonitor)
+                                Spacer(Modifier.width(Space.m))
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        advisory.title,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = colors.textPrimary
+                                    )
+                                    // The scope label is mandatory: these sources are
+                                    // national or global, and implying local detection
+                                    // would be a claim the app cannot support.
+                                    Text(
+                                        "${advisory.scope.label}  ·  ${advisory.source}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = colors.textTertiary
+                                    )
+                                }
+                            }
+                            if (advisory.summary.isNotBlank()) {
+                                Spacer(Modifier.height(Space.s))
                                 Text(
-                                    advisory.title,
-                                    style = MaterialTheme.typography.titleSmall,
-                                    color = colors.textPrimary
-                                )
-                                // The scope label is mandatory: these sources are
-                                // national or global, and implying local detection
-                                // would be a claim the app cannot support.
-                                Text(
-                                    "${advisory.scope.label}  ·  ${advisory.source}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = colors.textTertiary
+                                    advisory.summary,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colors.textSecondary
                                 )
                             }
                         }
-                        if (advisory.summary.isNotBlank()) {
-                            Spacer(Modifier.height(Space.s))
-                            Text(
-                                advisory.summary,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = colors.textSecondary
-                            )
-                        }
+                        Spacer(Modifier.height(Space.m))
                     }
-                    Spacer(Modifier.height(Space.m))
                 }
+            }
+            if (!hasLocation) {
+                LocationRequiredOverlay(
+                    modifier = Modifier.matchParentSize(),
+                    permanentlyDenied = locationPermission.isPermanentlyDenied,
+                    onTap = {
+                        if (locationPermission.isPermanentlyDenied) com.bipss.app.sos.openAppSettings(context)
+                        else locationPermission.request()
+                    }
+                )
             }
         }
 
@@ -376,55 +380,57 @@ fun DashboardInsightsScreen(
     }
 }
 
-// ── Location Permission Gate Card ────────────────────────────────────────────
+// ── Location required overlay ────────────────────────────────────────────────
 
 /**
- * Explanatory card shown in place of Environment/Alerts/Advisories when the
- * user has not granted location permission. Two states:
- * - First denial: "Grant location" button re-triggers the system dialog.
- * - Permanent denial: "Open Settings" deep-links to the app's permission page.
+ * Covers the location-dependent sections when location permission is off.
+ * The whole area is one button: it asks for the permission, or - once
+ * Android no longer shows the dialog - opens the app's settings. A grant is
+ * noticed when the app returns and leads to the location setup screen.
  */
 @Composable
-private fun LocationPermissionGateCard(
-    isPermanentlyDenied: Boolean,
-    onGrant: () -> Unit,
-    onOpenSettings: () -> Unit
+private fun LocationRequiredOverlay(
+    permanentlyDenied: Boolean,
+    onTap: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val colors = BipssTheme.colors
-    BipssCard {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconBadge(Icons.Rounded.LocationOff, colors.bandMonitor)
-            Spacer(Modifier.width(Space.m))
-            Column(Modifier.weight(1f)) {
+    val message = "Grant location permission to see local environment data and alerts"
+    val scrimAlpha = if (android.os.Build.VERSION.SDK_INT >= 31) 0.45f else 0.9f
+    Box(
+        modifier
+            .background(MaterialTheme.colorScheme.background.copy(alpha = scrimAlpha))
+            .clickable(
+                onClickLabel = if (permanentlyDenied) "Open settings" else "Allow location",
+                role = androidx.compose.ui.semantics.Role.Button,
+                onClick = onTap
+            )
+            .semantics(mergeDescendants = true) { contentDescription = message },
+        contentAlignment = Alignment.TopCenter
+    ) {
+        BipssCard(modifier = Modifier.padding(top = Space.xl)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconBadge(Icons.Rounded.LocationOff, colors.bandMonitor)
+                Spacer(Modifier.width(Space.m))
                 Text(
-                    "Location needed for local alerts",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = colors.textPrimary
-                )
-                Spacer(Modifier.height(Space.s))
-                Text(
-                    "Environment data, disaster alerts, and air quality readings " +
-                        "are location-specific. Without access to your approximate " +
-                        "location, these sections can't display relevant data.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colors.textSecondary
+                    message,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = colors.textPrimary,
+                    modifier = Modifier.weight(1f)
                 )
             }
-        }
-        Spacer(Modifier.height(Space.l))
-        if (isPermanentlyDenied) {
-            InfoBanner(
-                text = "Permission was denied permanently. Tap below to open Settings and grant location access.",
-                icon = Icons.Rounded.LocationOff,
-                tint = colors.bandMonitor
-            )
             Spacer(Modifier.height(Space.m))
-            PrimaryButton("Open Settings", onClick = onOpenSettings)
-        } else {
-            PrimaryButton("Grant location access", onClick = onGrant)
+            Text(
+                if (permanentlyDenied) "Location is turned off for BIPSS. Tap to open its settings."
+                else "Tap to allow. Weather, air quality and alerts are fetched for where you are; " +
+                    "nothing location-based is fetched without it.",
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.textSecondary
+            )
         }
     }
 }
+
 @Composable
 private fun AlertCard(ranked: RankedAlert) {
     val colors = BipssTheme.colors

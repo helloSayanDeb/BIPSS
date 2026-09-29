@@ -97,6 +97,10 @@ class AggregationWorker(
         private const val BATCH_SIZE = 20_000
         private const val MAX_BATCHES_PER_RUN = 20
 
+        fun cancel(context: Context) {
+            WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
+        }
+
         fun schedule(context: Context) {
             val request = PeriodicWorkRequestBuilder<AggregationWorker>(6, TimeUnit.HOURS)
                 .setConstraints(

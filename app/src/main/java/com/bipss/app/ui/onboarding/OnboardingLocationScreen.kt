@@ -36,11 +36,17 @@ import org.koin.androidx.compose.koinViewModel
 fun OnboardingLocationScreen(
     navController: NavController,
     catchUp: Boolean,
+    /** Opened after a later grant (see AppShell): no step counter, and finishing goes back. */
+    standalone: Boolean = false,
     vm: OnboardingLocationViewModel = koinViewModel()
 ) {
     val colors = BipssTheme.colors
     val phase by vm.phase.collectAsStateWithLifecycle()
-    val next: () -> Unit = { navController.goToNextOnboardingStep(OnboardingStep.LOCATION, catchUp) }
+    val next: () -> Unit = {
+        if (standalone) navController.popBackStack()
+        else navController.goToNextOnboardingStep(OnboardingStep.LOCATION, catchUp)
+    }
+    val continueLabel = if (standalone) "Done" else "Continue"
     val permission = rememberLocationPermission()
 
     // Runs setup once location is allowed: from the dialog, from Android's
@@ -51,7 +57,7 @@ fun OnboardingLocationScreen(
         phase is OnboardingLocationViewModel.Phase.Fetching
 
     OnboardingScaffold(
-        step = OnboardingStep.indexOf(OnboardingStep.LOCATION, catchUp),
+        step = if (standalone) null else OnboardingStep.indexOf(OnboardingStep.LOCATION, catchUp),
         totalSteps = OnboardingStep.TOTAL,
         title = if (permission.isGranted) "Setting up your local data" else "Your location",
         subtitle = if (permission.isGranted) null
@@ -68,9 +74,9 @@ fun OnboardingLocationScreen(
                 p is OnboardingLocationViewModel.Phase.Done && p.anyFailed -> {
                     PrimaryButton("Try again", onClick = { vm.start() })
                     Spacer(Modifier.height(Space.s))
-                    GhostButton("Continue anyway", onClick = next, modifier = Modifier.fillMaxWidth())
+                    GhostButton(if (standalone) "Done" else "Continue anyway", onClick = next, modifier = Modifier.fillMaxWidth())
                 }
-                p is OnboardingLocationViewModel.Phase.Done -> PrimaryButton("Continue", onClick = next)
+                p is OnboardingLocationViewModel.Phase.Done -> PrimaryButton(continueLabel, onClick = next)
                 else -> PrimaryButton("Setting up…", onClick = {}, enabled = false, loading = true)
             }
         }

@@ -79,7 +79,8 @@ class SettingsViewModel(
     private val chatbotEngine:        ChatbotEngine,
     private val db:                   AppDatabase,
     val driveBackupManager:           DriveBackupManager,
-    private val appContext:           Context
+    private val appContext:           Context,
+    private val workScheduler:        com.bipss.app.worker.WorkScheduler
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -195,6 +196,7 @@ class SettingsViewModel(
         viewModelScope.launch {
             bleGattManager.disconnect()
             prefsRepo.clearPairedBand()
+            workScheduler.reconcile()
             _uiState.update { it.copy(showForgetDeviceDialog = false) }
         }
     }
@@ -237,6 +239,7 @@ class SettingsViewModel(
         viewModelScope.launch {
             prefsRepo.setDataSharingEnabled(enabled)
             if (enabled) prefsRepo.getOrCreateSharingUsername()
+            workScheduler.reconcile()
         }
     }
 
@@ -322,7 +325,7 @@ class SettingsViewModel(
             if (sharedUid != null) {
                 com.bipss.app.data.sharing.CloudDeletionWorker.enqueue(appContext, replace = true)
             }
-            com.bipss.app.BipssApplication.schedulePeriodicWork(appContext)
+            workScheduler.reconcile()
 
             _uiState.update { it.copy(deletionResult = DeletionResult(localDeleted = true, hadSharedData = sharedUid != null)) }
         }

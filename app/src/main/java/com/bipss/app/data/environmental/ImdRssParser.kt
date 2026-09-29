@@ -15,19 +15,17 @@ private const val TAG = "ImdRssParser"
 private const val IMD_CAP_RSS_URL = "https://cap-sources.s3.amazonaws.com/in-imd-en/rss.xml"
 
 /**
- * Fallback alert source: the IMD CAP RSS feed.
+ * Primary alert source: IMD's CAP RSS feed (via the WMO Alert Hub mirror).
  *
- * This feed is deliberately the fallback, not the primary. Verified on
- * 8 Sep 2026 it carries ten items whose titles are **all identical**
- * ("Heavy to very heavy with extremely heavy rainfall"), with the region named
- * only inside the free-text description and no severity, expiry or centroid
- * anywhere. Rendering it naively is what produced a wall of indistinguishable
- * cards. [SachetJsonFetcher] provides all of those fields properly and is used
- * whenever it returns anything.
+ * The RSS items themselves are thin - titles repeat across items and there is
+ * no severity, expiry or area - but each links to its CAP document, which has
+ * all three. [ImdCapEnricher] fetches those; this parser only reads the list.
+ * Severity is never guessed from the text any more: keywords made every
+ * "extremely heavy rainfall" headline the highest level. Until its CAP
+ * document is read, an item is an advisory (shown, never notified).
  *
- * To make this source survivable we derive an identifier from the guid, and
- * pull the region out of the description so that at least the geo-filter and
- * de-duplication have something to work with.
+ * The region is still pulled out of the description, for items whose CAP
+ * document could not be read yet.
  */
 class ImdRssParser(private val okHttpClient: OkHttpClient) {
 
@@ -89,12 +87,11 @@ class ImdRssParser(private val okHttpClient: OkHttpClient) {
                             title           = title.trim(),
                             description     = desc.trim(),
                             category        = category.ifBlank { "Weather" },
-                            severity        = detectSeverity("$title $desc"),
+                            severity        = AlertSeverity.ADVISORY,
                             areas           = areas,
                             pubDateMs       = parseDateMs(date) ?: System.currentTimeMillis(),
-                            // This feed publishes no expiry. Null means "unknown",
-                            // and the repository keeps such alerts rather than
-                            // treating unknown as expired.
+                            // Expiry is in the CAP document (ImdCapEnricher); until
+                            // then null means "unknown", which is kept, not expired.
                             expiresMs       = null,
                             capXmlUrl       = link.ifBlank { null },
                             instruction     = null,
@@ -129,16 +126,6 @@ class ImdRssParser(private val okHttpClient: OkHttpClient) {
         return INDIAN_REGIONS.filter { region ->
             description.contains(region, ignoreCase = true)
         }.distinct()
-    }
-
-    private fun detectSeverity(text: String): AlertSeverity {
-        val t = text.lowercase()
-        return when {
-            "red alert" in t || "extremely heavy" in t || "extreme" in t -> AlertSeverity.EXTREME
-            "orange alert" in t || "very heavy" in t || "warning" in t   -> AlertSeverity.WARNING
-            "yellow alert" in t || "heavy" in t || "watch" in t          -> AlertSeverity.WATCH
-            else                                                         -> AlertSeverity.ADVISORY
-        }
     }
 
     /** Returns null on failure - a wrong timestamp silently reorders the feed. */

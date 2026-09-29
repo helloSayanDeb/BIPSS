@@ -7,6 +7,8 @@ import com.bipss.app.sos.LocationHelper
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.withLock
 
 private const val TAG = "DisasterAlertRepo"
@@ -36,6 +38,7 @@ const val SOURCE_IMD    = "IMD"
 class DisasterAlertRepository(
     private val sachetFetcher:   SachetJsonFetcher,
     private val imdParser:       ImdRssParser,
+    private val capEnricher:     ImdCapEnricher,
     private val advisoryFetcher: HealthAdvisoryFetcher,
     private val cpcbFetcher:     CpcbAqiFetcher,
     private val openMeteo:       OpenMeteoFetcher,
@@ -44,6 +47,9 @@ class DisasterAlertRepository(
 ) {
     /** Alerts centred further away than this are not shown, absent a name match. */
     private val MAX_RELEVANT_KM = 250.0
+
+    /** Outside a published polygon but this close to it: "nearby". */
+    private val POLYGON_NEARBY_KM = 50.0
 
     /** A remembered position older than this is not "where the user is". */
     private val MAX_CACHED_LOCATION_AGE_MS = 24 * 3_600_000L
@@ -231,18 +237,20 @@ class DisasterAlertRepository(
     private data class AlertFeeds(val alerts: List<ImdAlert>?, val sourcesChecked: List<String>)
 
     /**
-     * Alerts: Sachet JSON is primary (it carries per-alert identifier,
-     * severity, centroid and expiry). IMD RSS is the fallback - it has none
-     * of those, so it is only used when Sachet returns nothing at all.
+     * Alerts: IMD first, each item completed from its CAP document (severity,
+     * expiry, instruction, polygon). NDMA Sachet only when IMD cannot be read
+     * or has nothing current.
      */
     private suspend fun fetchAlertFeeds(): AlertFeeds {
-        val sachetAlerts = sachetFetcher.fetchAll()
-        var sourcesChecked = if (sachetAlerts != null) listOf(SOURCE_SACHET) else emptyList()
-        if (!sachetAlerts.isNullOrEmpty()) return AlertFeeds(sachetAlerts, sourcesChecked)
-        Log.w(TAG, "Sachet returned nothing - falling back to IMD RSS")
-        val imdAlerts = imdParser.fetchImdAlerts()
-        if (imdAlerts != null) sourcesChecked = sourcesChecked + SOURCE_IMD
-        return AlertFeeds(imdAlerts ?: sachetAlerts, sourcesChecked)
+        val now = System.currentTimeMillis()
+        val imd = imdParser.fetchImdAlerts()?.let { capEnricher.enrich(it, now) }
+        if (imd != null && imd.any { !it.isExpiredAt(now) }) return AlertFeeds(imd, listOf(SOURCE_IMD))
+
+        Log.i(TAG, if (imd == null) "IMD unreachable - trying Sachet" else "Nothing current from IMD - trying Sachet")
+        val sachet = sachetFetcher.fetchAll()
+        val checked = listOfNotNull(SOURCE_IMD.takeIf { imd != null }, SOURCE_SACHET.takeIf { sachet != null })
+        // Null only when neither feed could be read.
+        return AlertFeeds(if (sachet == null && imd == null) null else imd.orEmpty() + sachet.orEmpty(), checked)
     }
 
     /**
@@ -287,6 +295,19 @@ class DisasterAlertRepository(
         lat:      Double?,
         lon:      Double?
     ): Relevance? {
+        // A published polygon is the most exact answer: inside is direct;
+        // outside, the distance to its edge (approximated by the nearest
+        // vertex) decides.
+        if (lat != null && lon != null && alert.polygons.isNotEmpty()) {
+            if (alert.polygons.any { Geo.contains(it, lat, lon) }) return Relevance.DIRECT
+            val edgeKm = alert.polygons.minOf { Geo.nearestVertexKm(it, lat, lon) }
+            return when {
+                edgeKm <= POLYGON_NEARBY_KM -> Relevance.NEARBY
+                edgeKm <= MAX_RELEVANT_KM   -> Relevance.REGIONAL
+                else                        -> null
+            }
+        }
+
         // Coordinate match is preferred: it works offline and does not depend
         // on the feed spelling a district the same way the geocoder does.
         if (lat != null && lon != null && alert.centroidLat != null && alert.centroidLon != null) {
@@ -313,8 +334,24 @@ class DisasterAlertRepository(
     }
 
     /** Reads the cached snapshot. Returns null when nothing has ever been fetched. */
-    suspend fun getCachedSnapshot(): EnvironmentalSnapshot? {
-        val cached = prefsRepo.cachedEnvironmentalData.first() ?: return null
+    /**
+     * The cached snapshot as it changes, EMPTY when there is none (never
+     * fetched, or cleared when location permission went).
+     */
+    val cachedSnapshots: kotlinx.coroutines.flow.Flow<EnvironmentalSnapshot> =
+        prefsRepo.cachedEnvironmentalData.distinctUntilChanged().map { it?.toSnapshot() ?: EnvironmentalSnapshot.EMPTY }
+
+    /** Forgets everything location-derived: the last position and the environment cached from it. */
+    suspend fun clearLocationDerivedData() {
+        prefsRepo.clearCachedLocation()
+        prefsRepo.clearEnvironmentalSnapshot()
+    }
+
+    suspend fun getCachedSnapshot(): EnvironmentalSnapshot? =
+        prefsRepo.cachedEnvironmentalData.first()?.toSnapshot()
+
+    private fun UserPreferencesRepository.CachedEnvData.toSnapshot(): EnvironmentalSnapshot {
+        val cached = this
         val ageMs = System.currentTimeMillis() - cached.fetchedAtMs
         return EnvironmentalSnapshot(
             ambientTempC      = cached.tempC,

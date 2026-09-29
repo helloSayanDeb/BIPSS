@@ -39,6 +39,9 @@ private const val TAG = "SimBandReceiver"
  *
  *   adb shell am broadcast -n com.bipss.app/.debug.SimBandReceiver -a com.bipss.app.debug.SIM_STOP
  *
+ *   # run the (normally every 15 min) environment sync now, once
+ *   adb shell am broadcast -n com.bipss.app/.debug.SimBandReceiver -a com.bipss.app.debug.ENV_SYNC
+ *
  *   # run the (normally 10:00) sleep analysis now
  *   adb shell am broadcast -n com.bipss.app/.debug.SimBandReceiver -a com.bipss.app.debug.ANALYSE_SLEEP
  *
@@ -97,6 +100,9 @@ class SimBandReceiver : BroadcastReceiver(), KoinComponent {
                     Handler(Looper.getMainLooper()).postDelayed({ exitProcess(0) }, 300)
                 }
             }
+            ACTION_ENV_SYNC -> androidx.work.WorkManager.getInstance(context).enqueue(
+                androidx.work.OneTimeWorkRequestBuilder<com.bipss.app.worker.EnvDataSyncWorker>().build()
+            )
             // Sleep analysis normally runs at 10:00; this runs it now, once.
             ACTION_ANALYSE_SLEEP -> androidx.work.WorkManager.getInstance(context).enqueue(
                 androidx.work.OneTimeWorkRequestBuilder<com.bipss.app.worker.SleepAnalysisWorker>().build()
@@ -110,5 +116,6 @@ class SimBandReceiver : BroadcastReceiver(), KoinComponent {
         const val ACTION_STOP  = "com.bipss.app.debug.SIM_STOP"
         const val ACTION_ANALYSE_SLEEP = "com.bipss.app.debug.ANALYSE_SLEEP"
         const val ACTION_ONBOARDING_VERSION = "com.bipss.app.debug.ONBOARDING_VERSION"
+        const val ACTION_ENV_SYNC = "com.bipss.app.debug.ENV_SYNC"
     }
 }

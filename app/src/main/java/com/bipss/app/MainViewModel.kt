@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -20,7 +21,8 @@ data class MainUiState(
 )
 
 class MainViewModel(
-    private val userPreferencesRepository: UserPreferencesRepository
+    private val userPreferencesRepository: UserPreferencesRepository,
+    private val workScheduler:             com.bipss.app.worker.WorkScheduler
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(MainUiState())
@@ -39,6 +41,22 @@ class MainViewModel(
     }
 
     fun consumeDeepLink() { _pendingDeepLink.value = null }
+
+    /** A later location grant waiting for its setup screen (see WorkScheduler). */
+    val locationSetupPending: StateFlow<Boolean> = userPreferencesRepository.locationSetupPending
+        .stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.Eagerly, false)
+
+    fun consumeLocationSetup() {
+        viewModelScope.launch { userPreferencesRepository.setLocationSetupPending(false) }
+    }
+
+    /**
+     * Back in the foreground: permissions may have changed in Android's
+     * settings meanwhile, so the background work is brought back in line.
+     */
+    fun onResume() {
+        viewModelScope.launch { runCatching { workScheduler.reconcile() } }
+    }
 
     init {
         viewModelScope.launch {

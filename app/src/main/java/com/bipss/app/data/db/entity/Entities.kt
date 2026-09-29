@@ -194,3 +194,26 @@ data class EwmaBaselineEntity(
     val lastNightStartMs: Long,
     val updatedAtMs:      Long
 )
+
+/**
+ * One environment sync, kept as a short ring buffer (the last
+ * EnvSnapshotDao.KEEP rows) of what the 15-minute job actually fetched: the
+ * scalar features as columns for querying, the full cached snapshot as JSON.
+ * Written only by that job and at least 10 minutes apart, so the rows are an
+ * evenly spaced series rather than a record of how often the app was opened.
+ * Location-derived, so it is cleared when location permission is.
+ */
+@Entity(tableName = "env_snapshots", indices = [Index(value = ["takenAtMs"], unique = true)])
+data class EnvSnapshotEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val takenAtMs:        Long,
+    val aqi:              Int?,
+    val tempC:            Float?,
+    val humidityPct:      Float?,
+    val uvIndex:          Float?,
+    val pressureHpa:      Float?,
+    val windKph:          Float?,
+    /** AlertSeverity.rank of the most severe active alert; 0 when none. */
+    val maxAlertSeverity: Int,
+    val json:             String
+)

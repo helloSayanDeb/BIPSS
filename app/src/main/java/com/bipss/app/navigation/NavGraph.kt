@@ -72,6 +72,10 @@ fun NavGraph(
                 OnboardingNotificationsScreen(navController = navController)
             }
 
+            composable(Routes.LOCATION_SETUP) {
+                OnboardingLocationScreen(navController = navController, catchUp = false, standalone = true)
+            }
+
             composable(Routes.ONBOARDING_GENDER) {
                 OnboardingGenderScreen(navController = navController)
             }

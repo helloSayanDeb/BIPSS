@@ -83,7 +83,7 @@ val appModule = module {
         Room.databaseBuilder(androidContext(), AppDatabase::class.java, com.bipss.app.SimulationMode.databaseName(androidContext()))
             .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
                 com.bipss.app.data.db.migration.MIGRATION_6_7, com.bipss.app.data.db.migration.MIGRATION_7_8,
-                com.bipss.app.data.db.migration.MIGRATION_8_9)
+                com.bipss.app.data.db.migration.MIGRATION_8_9, com.bipss.app.data.db.migration.MIGRATION_9_10)
             .build()
     }
 
@@ -98,6 +98,7 @@ val appModule = module {
     single { get<AppDatabase>().sosEventDao() }
     single { get<AppDatabase>().waterLogDao() }
     single { get<AppDatabase>().signalEpochDao() }
+    single { get<AppDatabase>().envSnapshotDao() }
 
     // ── BLE ───────────────────────────────────────────────────────────────────
     single { BleGattManager(androidContext()) }
@@ -134,6 +135,7 @@ val appModule = module {
         DisasterAlertRepository(
             sachetFetcher   = get(),
             imdParser       = get(),
+            capEnricher     = get(),
             advisoryFetcher = get(),
             cpcbFetcher     = get(),
             openMeteo       = get(),
@@ -147,10 +149,12 @@ val appModule = module {
 
     // ── SOS ───────────────────────────────────────────────────────────────────
     single { LocationHelper(androidContext()) }
+    single { com.bipss.app.data.environmental.ImdCapEnricher(get(), get()) }
+    single { com.bipss.app.worker.WorkScheduler(androidContext(), get(), get(), get(), get()) }
     single { SmsSender(androidContext()) }
 
     // ── ViewModels ────────────────────────────────────────────────────────────
-    viewModel { MainViewModel(get()) }
+    viewModel { MainViewModel(get(), get()) }
 
     viewModel {
         DashboardViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), androidContext())
@@ -179,7 +183,7 @@ val appModule = module {
     }
 
     viewModel {
-        BleScanViewModel(get(), get(), androidContext())
+        BleScanViewModel(get(), get(), androidContext(), get())
     }
 
     viewModel {
@@ -190,7 +194,7 @@ val appModule = module {
     viewModel { com.bipss.app.ui.onboarding.OnboardingContactsViewModel(get(), get(), get()) }
 
     viewModel {
-        SettingsViewModel(get(), get(), get(), get(), get(), get(), get(), androidContext())
+        SettingsViewModel(get(), get(), get(), get(), get(), get(), get(), androidContext(), get())
     }
 
     viewModel {

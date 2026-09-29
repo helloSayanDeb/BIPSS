@@ -127,7 +127,12 @@ data class ImdAlert(
     val areaCoveredSqKm: Double? = null,
     /** ISO language code of the description - Sachet mixes en/hi/te in one feed. */
     val language:    String  = "en",
-    val source:      String  = "IMD"
+    val source:      String  = "IMD",
+    /**
+     * The published area as polygons (flat lat, lon pairs), from IMD's CAP
+     * documents. When present, "is the user inside it" decides relevance.
+     */
+    val polygons:    List<List<Double>> = emptyList()
 ) {
     /** Radius in km implied by the covered area, treating that area as a circle. */
     val effectiveRadiusKm: Double?
@@ -158,13 +163,24 @@ enum class AlertSeverity(val rank: Int, val label: String) {
     EXTREME (4, "Warning");
 
     companion object {
-        /** CAP standard vocabulary: Extreme / Severe / Moderate / Minor / Unknown. */
+        /**
+         * CAP `severity` to the app's level, following IMD's colour code:
+         *
+         * | CAP      | Level    | IMD colour | Shown as                   |
+         * |----------|----------|------------|----------------------------|
+         * | Extreme  | EXTREME  | Red        | "Warning" - take action    |
+         * | Severe   | WARNING  | Orange     | "Alert" - be prepared      |
+         * | Moderate | WATCH    | Yellow     | "Watch" - be aware         |
+         * | Minor    | ADVISORY | Green      | "Advisory"                 |
+         * | Unknown / missing | ADVISORY | - | shown, never notified    |
+         *
+         * Notifications need WARNING or above, so only Orange and Red notify.
+         */
         fun fromCap(s: String?): AlertSeverity = when (s?.trim()?.lowercase()) {
             "extreme"  -> EXTREME
             "severe"   -> WARNING
             "moderate" -> WATCH
-            "minor"    -> ADVISORY
-            else       -> NONE
+            else       -> ADVISORY
         }
 
         /**

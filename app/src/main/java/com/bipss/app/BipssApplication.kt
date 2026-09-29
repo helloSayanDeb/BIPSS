@@ -4,11 +4,6 @@ import android.app.Application
 import androidx.work.Configuration
 import com.bipss.app.di.appModule
 import com.bipss.app.notifications.BipssNotifications
-import com.bipss.app.data.sharing.DataSharingWorker
-import com.bipss.app.worker.AggregationWorker
-import com.bipss.app.worker.EnvDataSyncWorker
-import com.bipss.app.worker.HydrationReminderWorker
-import com.bipss.app.worker.SleepAnalysisWorker
 import org.koin.android.ext.koin.androidContext
 import org.koin.android.ext.koin.androidLogger
 import org.koin.androidx.workmanager.koin.workManagerFactory
@@ -38,23 +33,7 @@ class BipssApplication : Application(), Configuration.Provider, KoinComponent {
         }
 
         BipssNotifications.createChannels(this)
-        schedulePeriodicWork(this)
         startUp()
-    }
-
-    companion object {
-        /**
-         * The app's periodic background work. Idempotent (unique work), so it
-         * is also called after "Delete my data" cancels everything mid-process.
-         */
-        fun schedulePeriodicWork(context: android.content.Context) {
-            EnvDataSyncWorker.schedule(context)
-            // Rolls raw 1 Hz samples into minute aggregates so history views stay queryable.
-            AggregationWorker.schedule(context)
-            HydrationReminderWorker.schedule(context)
-            SleepAnalysisWorker.schedule(context)
-            DataSharingWorker.schedule(context)
-        }
     }
 
     /**
@@ -70,6 +49,8 @@ class BipssApplication : Application(), Configuration.Provider, KoinComponent {
     private fun startUp() {
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             if (SimulationMode.isActive(this@BipssApplication)) seedSimulationProfile()
+            // Only the background work that has something to do (see WorkScheduler).
+            runCatching { getKoin().get<com.bipss.app.worker.WorkScheduler>().reconcile() }
             runCatching { getKoin().get<LegacyDataCleanup>().run() }
             // Persist band readings for the life of the process, not just
             // while a screen happens to be open.

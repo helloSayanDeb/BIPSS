@@ -322,3 +322,35 @@ interface EwmaBaselineDao {
     @Query("DELETE FROM ewma_baselines WHERE `key` LIKE :prefix || '%'")
     suspend fun deleteWithPrefix(prefix: String)
 }
+
+@Dao
+interface EnvSnapshotDao {
+    @Query("SELECT * FROM env_snapshots ORDER BY takenAtMs DESC LIMIT 1")
+    suspend fun latest(): EnvSnapshotEntity?
+
+    /** Oldest first - the order a series is read in. */
+    @Query("SELECT * FROM env_snapshots ORDER BY takenAtMs ASC")
+    suspend fun all(): List<EnvSnapshotEntity>
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insert(row: EnvSnapshotEntity)
+
+    @Query("DELETE FROM env_snapshots WHERE id NOT IN (SELECT id FROM env_snapshots ORDER BY takenAtMs DESC LIMIT :keep)")
+    suspend fun trimTo(keep: Int)
+
+    @Transaction
+    suspend fun insertAndTrim(row: EnvSnapshotEntity) {
+        insert(row)
+        trimTo(KEEP)
+    }
+
+    @Query("DELETE FROM env_snapshots")
+    suspend fun clear()
+
+    companion object {
+        /** 45 rows: a little over 11 hours at one sync per 15 minutes. */
+        const val KEEP = 45
+        /** Rows closer together than this are skipped (a retried or doubled run). */
+        const val MIN_SPACING_MS = 10 * 60_000L
+    }
+}

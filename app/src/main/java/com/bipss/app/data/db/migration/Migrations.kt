@@ -216,3 +216,17 @@ val MIGRATION_8_9 = object : Migration(8, 9) {
         )
     }
 }
+
+/** v9 -> v10: env_snapshots, the ring buffer of environment syncs (see EnvSnapshotEntity). */
+val MIGRATION_9_10 = object : Migration(9, 10) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL(
+            "CREATE TABLE IF NOT EXISTS `env_snapshots` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "`takenAtMs` INTEGER NOT NULL, `aqi` INTEGER, `tempC` REAL, `humidityPct` REAL, `uvIndex` REAL, " +
+                "`pressureHpa` REAL, `windKph` REAL, `maxAlertSeverity` INTEGER NOT NULL, `json` TEXT NOT NULL)"
+        )
+        database.execSQL(
+            "CREATE UNIQUE INDEX IF NOT EXISTS `index_env_snapshots_takenAtMs` ON `env_snapshots` (`takenAtMs`)"
+        )
+    }
+}

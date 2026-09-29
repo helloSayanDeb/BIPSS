@@ -9,6 +9,8 @@ object Routes {
     const val ONBOARDING_LOCATION       = "onboarding_location"
     const val ONBOARDING_SMS            = "onboarding_sms"
     const val ONBOARDING_CONTACTS       = "onboarding_contacts"
+    /** Location setup after a later grant: the onboarding step on its own. */
+    const val LOCATION_SETUP            = "location_setup"
     /** Catch-up only (see OnboardingStep). */
     const val ONBOARDING_GENDER         = "onboarding_gender"
     const val DASHBOARD_TODAY           = "dashboard_today"

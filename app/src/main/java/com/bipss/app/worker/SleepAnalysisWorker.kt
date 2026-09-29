@@ -72,6 +72,10 @@ class SleepAnalysisWorker(
          * and its raw samples are still un-aggregated. The old, unanchored
          * schedule is replaced once (a new unique name, the old one cancelled).
          */
+        fun cancel(context: Context) {
+            WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
+        }
+
         fun schedule(context: Context) {
             val wm = WorkManager.getInstance(context)
             wm.cancelUniqueWork(OLD_WORK_NAME)

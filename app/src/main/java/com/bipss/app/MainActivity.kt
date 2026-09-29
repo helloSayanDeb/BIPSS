@@ -33,6 +33,7 @@ class MainActivity : ComponentActivity() {
             val mainVm:     MainViewModel    = koinViewModel()
             val settingsVm: SettingsViewModel = koinViewModel()
             val deepLink    by mainVm.pendingDeepLink.collectAsStateWithLifecycle()
+            val locationSetup by mainVm.locationSetupPending.collectAsStateWithLifecycle()
 
             val mainState   by mainVm.uiState.collectAsStateWithLifecycle()
             val themePref   by settingsVm.themePreference.collectAsStateWithLifecycle()
@@ -54,13 +55,20 @@ class MainActivity : ComponentActivity() {
                             AppShell(
                                 startDestination   = mainState.startDestination,
                                 deepLink           = deepLink,
-                                onDeepLinkConsumed = mainVm::consumeDeepLink
+                                onDeepLinkConsumed = mainVm::consumeDeepLink,
+                                locationSetupPending = locationSetup,
+                                onLocationSetupConsumed = mainVm::consumeLocationSetup
                             )
                         }
                     }
                 }
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        mainViewModel.onResume()
     }
 
     /** A tap while the activity already exists arrives here (SINGLE_TOP), not in onCreate. */

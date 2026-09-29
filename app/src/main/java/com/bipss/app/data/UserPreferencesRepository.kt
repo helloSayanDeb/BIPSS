@@ -375,6 +375,54 @@ class UserPreferencesRepository(
         runCatching { envJson.decodeFromString(CachedEnvData.serializer(), raw) }.getOrNull()
     }
 
+    /**
+     * Forgets the cached environment. Everything in it is derived from where
+     * the user was, so it goes when location permission does.
+     */
+    suspend fun clearEnvironmentalSnapshot() {
+        dataStore.edit {
+            it.remove(KEY_ENV_SNAPSHOT_JSON)
+            it.remove(KEY_ENV_FETCHED_AT_MS)
+        }
+    }
+
+    // CAP documents behind IMD alerts, by alert identifier (see ImdCapEnricher).
+    private val KEY_CAP_CACHE = stringPreferencesKey("cap_enrichment_cache")
+    private val capCacheSerializer = kotlinx.serialization.builtins.MapSerializer(
+        kotlinx.serialization.serializer<String>(),
+        com.bipss.app.data.environmental.CapEnrichment.serializer()
+    )
+
+    suspend fun capEnrichmentCache(): Map<String, com.bipss.app.data.environmental.CapEnrichment> {
+        val raw = dataStore.data.first()[KEY_CAP_CACHE] ?: return emptyMap()
+        return runCatching { envJson.decodeFromString(capCacheSerializer, raw) }.getOrDefault(emptyMap())
+    }
+
+    suspend fun saveCapEnrichmentCache(cache: Map<String, com.bipss.app.data.environmental.CapEnrichment>) {
+        val encoded = runCatching { envJson.encodeToString(capCacheSerializer, cache) }.getOrNull() ?: return
+        dataStore.edit { it[KEY_CAP_CACHE] = encoded }
+    }
+
+    // Whether location was granted the last time WorkScheduler looked, so a
+    // grant made outside the app (in Android's settings) is noticed on return.
+    private val KEY_LOCATION_GRANTED_LAST_SEEN = booleanPreferencesKey("location_granted_last_seen")
+
+    val locationGrantedLastSeen: Flow<Boolean?> = dataStore.data.map { it[KEY_LOCATION_GRANTED_LAST_SEEN] }
+
+    suspend fun setLocationGrantedLastSeen(granted: Boolean) {
+        dataStore.edit { it[KEY_LOCATION_GRANTED_LAST_SEEN] = granted }
+    }
+
+    // A later location grant waiting for its setup screen. Persisted so a grant
+    // noticed at process start (before any screen exists) is not lost.
+    private val KEY_LOCATION_SETUP_PENDING = booleanPreferencesKey("location_setup_pending")
+
+    val locationSetupPending: Flow<Boolean> = dataStore.data.map { it[KEY_LOCATION_SETUP_PENDING] ?: false }
+
+    suspend fun setLocationSetupPending(pending: Boolean) {
+        dataStore.edit { if (pending) it[KEY_LOCATION_SETUP_PENDING] = true else it.remove(KEY_LOCATION_SETUP_PENDING) }
+    }
+
     // ── Plan 9: Settings ─────────────────────────────────────────────────────
     private val KEY_THEME_PREFERENCE       = intPreferencesKey("theme_preference")
     private val KEY_CLOUD_BACKUP_ENABLED   = booleanPreferencesKey("cloud_backup_enabled")
@@ -486,7 +534,8 @@ class UserPreferencesRepository(
         dataStore.edit { prefs ->
             val keep = listOf<Preferences.Key<*>>(
                 KEY_PENDING_CLOUD_DELETION_UID, KEY_CLOUD_DELETION_STATUS, KEY_CLOUD_DELETION_COUNT,
-                KEY_CLOUD_DELETION_AT, KEY_CLOUD_ACCOUNT_REMOVED, KEY_ONBOARDING_DONE, KEY_MODEL_VERSION,
+                KEY_CLOUD_DELETION_AT, KEY_CLOUD_ACCOUNT_REMOVED, KEY_ONBOARDING_DONE, KEY_ONBOARDING_VERSION,
+                KEY_MODEL_VERSION,
                 KEY_MODEL_FILE_PATH, KEY_MODEL_SIZE_BYTES, KEY_THEME_PREFERENCE
             )
             val saved = keep.mapNotNull { key -> prefs.asMap()[key]?.let { key to it } }

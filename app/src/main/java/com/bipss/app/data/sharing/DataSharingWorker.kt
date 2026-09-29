@@ -61,6 +61,10 @@ class DataSharingWorker(
          * [ExistingPeriodicWorkPolicy.KEEP] so re-launches don't reset the
          * schedule.
          */
+        fun cancel(context: Context) {
+            WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
+        }
+
         fun schedule(context: Context) {
             val request = PeriodicWorkRequestBuilder<DataSharingWorker>(1, TimeUnit.HOURS)
                 .setConstraints(

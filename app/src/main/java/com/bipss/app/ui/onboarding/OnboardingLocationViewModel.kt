@@ -54,6 +54,8 @@ class OnboardingLocationViewModel(
     fun start() {
         if (job?.isActive == true) return
         job = viewModelScope.launch {
+            // This screen is the setup a later grant is waiting for.
+            prefs.setLocationSetupPending(false)
             val approximate = !locationHelper.hasFinePermission()
             _phase.value = Phase.Calibrating(null, approximate)
 
