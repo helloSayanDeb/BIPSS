@@ -263,3 +263,37 @@ val MIGRATION_11_12 = object : Migration(11, 12) {
         )
     }
 }
+
+/** v12 -> v13: daily_summary, detected_workouts, journal_log, vo2_estimates, bioage_history. */
+val MIGRATION_12_13 = object : Migration(12, 13) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL(
+            "CREATE TABLE IF NOT EXISTS `daily_summary` (`epochDay` INTEGER NOT NULL, `validMinutes` INTEGER NOT NULL, " +
+                "`sleepMinutes` INTEGER, `sleepStartMin` INTEGER, `sleepEndMin` INTEGER, `restingHr` REAL, `steps` INTEGER, " +
+                "`zoneMin1` INTEGER NOT NULL, `zoneMin2` INTEGER NOT NULL, `zoneMin3` INTEGER NOT NULL, `zoneMin45` INTEGER NOT NULL, " +
+                "`strengthMin` INTEGER NOT NULL, `workoutCount` INTEGER NOT NULL, `recovery` INTEGER, `sleepScore` INTEGER, " +
+                "`strain` REAL, `waterMl` INTEGER NOT NULL, `updatedAtMs` INTEGER NOT NULL, PRIMARY KEY(`epochDay`))"
+        )
+        database.execSQL(
+            "CREATE TABLE IF NOT EXISTS `detected_workouts` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "`startMs` INTEGER NOT NULL, `endMs` INTEGER NOT NULL, `minutes` INTEGER NOT NULL, `meanHr` REAL NOT NULL, " +
+                "`maxHr` REAL NOT NULL, `meanHrr` REAL NOT NULL, `trimp` REAL NOT NULL, `cadence` REAL, " +
+                "`guessedType` TEXT NOT NULL, `type` TEXT NOT NULL, `status` TEXT NOT NULL)"
+        )
+        database.execSQL(
+            "CREATE UNIQUE INDEX IF NOT EXISTS `index_detected_workouts_startMs` ON `detected_workouts` (`startMs`)"
+        )
+        database.execSQL(
+            "CREATE TABLE IF NOT EXISTS `journal_log` (`epochDay` INTEGER NOT NULL, `habit` TEXT NOT NULL, " +
+                "`yes` INTEGER NOT NULL, PRIMARY KEY(`epochDay`, `habit`))"
+        )
+        database.execSQL(
+            "CREATE TABLE IF NOT EXISTS `vo2_estimates` (`epochDay` INTEGER NOT NULL, `passive` REAL, `active` REAL, " +
+                "`value` REAL NOT NULL, `sigma` REAL NOT NULL, `activeSegments` INTEGER NOT NULL, PRIMARY KEY(`epochDay`))"
+        )
+        database.execSQL(
+            "CREATE TABLE IF NOT EXISTS `bioage_history` (`epochDay` INTEGER NOT NULL, `chronologicalAge` INTEGER NOT NULL, " +
+                "`bioAge` REAL NOT NULL, `pace` REAL, PRIMARY KEY(`epochDay`))"
+        )
+    }
+}

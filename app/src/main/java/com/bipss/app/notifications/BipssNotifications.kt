@@ -43,6 +43,8 @@ object NotificationIds {
     const val COACHING       = 1002
     const val REMINDER       = 1003
     const val BREATHING_SUMMARY  = 1004
+    const val WEEKLY_REPORT      = 1005
+    const val BEDTIME            = 1006
 }
 
 /**
@@ -155,6 +157,32 @@ object BipssNotifications {
             .build()
 
         safeNotify(context, NotificationIds.COACHING, notification)
+    }
+
+    fun showWeeklyReport(context: Context, title: String, body: String) {
+        val notification = NotificationCompat.Builder(context, CH_COACHING)
+            .setSmallIcon(ICON_COACHING)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setAutoCancel(true)
+            .setContentIntent(deepLink(context, com.bipss.app.navigation.DeepLink.Target.WEEKLY, NotificationIds.WEEKLY_REPORT))
+            .build()
+        safeNotify(context, NotificationIds.WEEKLY_REPORT, notification)
+    }
+
+    fun showBedtime(context: Context, title: String, body: String) {
+        val notification = NotificationCompat.Builder(context, CH_REMINDER)
+            .setSmallIcon(ICON_REMINDER)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setAutoCancel(true)
+            .setContentIntent(deepLink(context, com.bipss.app.navigation.DeepLink.Target.SLEEP_PLAN, NotificationIds.BEDTIME))
+            .build()
+        safeNotify(context, NotificationIds.BEDTIME, notification)
     }
 
     fun showReminder(context: Context, title: String, body: String) {

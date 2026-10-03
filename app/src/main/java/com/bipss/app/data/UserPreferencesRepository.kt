@@ -439,6 +439,40 @@ class UserPreferencesRepository(
         require(amountMl in 250..5000)
         dataStore.edit { it[KEY_WATER_GOAL_ML] = amountMl }
     }
+
+    // ── BioAge, sleep planner and weekly report ──────────────────────────────
+    private val KEY_LEAN_MASS_PCT          = floatPreferencesKey("body_lean_mass_pct")
+    private val KEY_BEDTIME_REMINDER       = booleanPreferencesKey("bedtime_reminder_enabled")
+    private val KEY_WEEKLY_REPORT_NOTIFY   = booleanPreferencesKey("weekly_report_notification")
+    private val KEY_LAST_WEEKLY_REPORT_DAY = longPreferencesKey("weekly_report_last_notified_day")
+
+    /** Optional lean body mass as a percentage of body weight, typed in from a scale reading. Never inferred. */
+    val leanMassPct: Flow<Double?> = dataStore.data.map { it[KEY_LEAN_MASS_PCT]?.toDouble()?.takeIf { v -> v in 30.0..100.0 } }
+
+    suspend fun setLeanMassPct(pct: Double?) {
+        require(pct == null || pct in 30.0..100.0)
+        dataStore.edit { if (pct == null) it.remove(KEY_LEAN_MASS_PCT) else it[KEY_LEAN_MASS_PCT] = pct.toFloat() }
+    }
+
+    /** A nudge shortly before the planned bedtime. Off until switched on. */
+    val bedtimeReminderEnabled: Flow<Boolean> = dataStore.data.map { it[KEY_BEDTIME_REMINDER] ?: false }
+
+    suspend fun setBedtimeReminderEnabled(enabled: Boolean) {
+        dataStore.edit { it[KEY_BEDTIME_REMINDER] = enabled }
+    }
+
+    /** The Monday-morning "your week is ready" notification. */
+    val weeklyReportNotification: Flow<Boolean> = dataStore.data.map { it[KEY_WEEKLY_REPORT_NOTIFY] ?: true }
+
+    suspend fun setWeeklyReportNotification(enabled: Boolean) {
+        dataStore.edit { it[KEY_WEEKLY_REPORT_NOTIFY] = enabled }
+    }
+
+    suspend fun lastWeeklyReportDay(): Long? = dataStore.data.map { it[KEY_LAST_WEEKLY_REPORT_DAY] }.first()
+
+    suspend fun setLastWeeklyReportDay(day: Long) {
+        dataStore.edit { it[KEY_LAST_WEEKLY_REPORT_DAY] = day }
+    }
     private val KEY_CLOUD_BACKUP_ENABLED   = booleanPreferencesKey("cloud_backup_enabled")
 
     val themePreference: Flow<ThemePreference> = dataStore.data.map { prefs ->

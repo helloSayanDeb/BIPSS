@@ -29,6 +29,9 @@ import kotlinx.coroutines.sync.withLock
  *  - Data sharing: only while the user has opted in.
  *  - Hydration reminders: always scheduled; the job itself checks the
  *    notification permission and waits for a first logged drink.
+ *  - Insights refresh (daily summary, workouts, VO2 max, BioAge): with a band.
+ *  - Weekly report: always scheduled; acts on Mondays, when enabled.
+ *  - Bedtime reminder: only while the user has switched it on.
  */
 class WorkScheduler(
     private val context:        Context,
@@ -65,10 +68,15 @@ class WorkScheduler(
         if (plan.bandJobs) {
             AggregationWorker.schedule(context)
             SleepAnalysisWorker.schedule(context)
+            InsightsRefreshWorker.schedule(context)
         } else {
             AggregationWorker.cancel(context)
             SleepAnalysisWorker.cancel(context)
+            InsightsRefreshWorker.cancel(context)
         }
+        WeeklyReportWorker.schedule(context)
+        if (prefs.bedtimeReminderEnabled.first()) BedtimeReminderWorker.ensureScheduled(context)
+        else BedtimeReminderWorker.cancel(context)
         if (plan.sharing) DataSharingWorker.schedule(context) else DataSharingWorker.cancel(context)
         HydrationReminderWorker.schedule(context)
         // UPDATE keeps an existing schedule's timing, so calling this on every

@@ -176,6 +176,13 @@ class ScoringRepository(
             .minOrNull()
     }
 
+    /**
+     * Resting heart rate for a day's zone maths: the sleep-derived baseline
+     * once there is one, else the lowest still five minutes in the window.
+     */
+    suspend fun restingHrOrFallback(fromMs: Long, untilMs: Long): Double? =
+        currentBaselines()[RecoveryInput.RESTING_HR]?.mean ?: lowestStillFiveMinutes(fromMs, untilMs)
+
     // -- Recovery ------------------------------------------------------------------
 
     /**

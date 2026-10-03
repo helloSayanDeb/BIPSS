@@ -21,9 +21,14 @@ import com.bipss.app.data.db.entity.*
         EnvSnapshotEntity::class,
         AqiContextSampleEntity::class,
         CyclePeriodEntity::class,
-        CycleDayNoteEntity::class
+        CycleDayNoteEntity::class,
+        DailySummaryEntity::class,
+        DetectedWorkoutEntity::class,
+        JournalEntryEntity::class,
+        Vo2EstimateEntity::class,
+        BioAgeEntity::class
     ],
-    version  = 12,
+    version  = 13,
     // Exported from v6 so every later hand-written migration can be checked
     // against the schema Room actually expects (see app/schemas/).
     exportSchema = true
@@ -44,4 +49,9 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun envSnapshotDao():        EnvSnapshotDao
     abstract fun aqiContextSampleDao():   AqiContextSampleDao
     abstract fun cycleDao():              CycleDao
+    abstract fun dailySummaryDao():       DailySummaryDao
+    abstract fun detectedWorkoutDao():    DetectedWorkoutDao
+    abstract fun journalDao():            JournalDao
+    abstract fun vo2Dao():                Vo2Dao
+    abstract fun bioAgeDao():             BioAgeDao
 }

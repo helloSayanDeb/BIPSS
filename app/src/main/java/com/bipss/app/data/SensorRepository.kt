@@ -32,6 +32,10 @@ object MetricTypes {
     const val ACCEL_MAG  = "ACCEL_MAG"
     const val AMBIENT    = "AMBIENT_TEMP"
     const val HUMIDITY   = "HUMIDITY"
+    /** Steps the band counted since its previous step packet; written only when above zero. */
+    const val STEPS      = "STEPS"
+    /** Phone GPS speed (m/s) during a workout recorded in the app. */
+    const val GPS_SPEED  = "GPS_SPEED"
 
     /** Metrics that have their own detail screen. */
     val displayable = listOf(HR, SPO2, SKIN_TEMP, PRV)
@@ -141,8 +145,13 @@ class SensorRepository(
         }
         signalRepo.start()
         appScope.launch { bleGattManager.bandSteps.collect { event ->
-            runCatching { dailyRepo.recordBandSteps(event) }
-                .onFailure { android.util.Log.e("SensorRepository", "Steps not stored", it) }
+            runCatching {
+                val steps = dailyRepo.recordBandSteps(event)
+                // Per-minute steps (cadence) for workout detection and the VO2 max estimate.
+                if (steps != null && steps > 0) rawReadingDao.insert(RawReadingEntity(
+                    metricType = MetricTypes.STEPS, value = steps.toDouble(), timestampMs = event.receivedMs
+                ))
+            }.onFailure { android.util.Log.e("SensorRepository", "Steps not stored", it) }
         } }
         appScope.launch {
             bleGattManager.sensorReadings.collect { reading ->
@@ -225,7 +234,9 @@ class SensorRepository(
             MetricTypes.ACTIVITY  to 0.0..65_534.0,
             MetricTypes.AMBIENT   to -10.0..55.0,
             MetricTypes.HUMIDITY  to 0.0..100.0,
-            MetricTypes.ACCEL_MAG to 0.0..20.0
+            MetricTypes.ACCEL_MAG to 0.0..20.0,
+            MetricTypes.STEPS     to 0.0..2_000.0,
+            MetricTypes.GPS_SPEED to 0.0..15.0
         )
     }
 

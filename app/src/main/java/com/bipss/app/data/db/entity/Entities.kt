@@ -264,3 +264,88 @@ data class CycleDayNoteEntity(
     val note:        String,
     val updatedAtMs: Long
 )
+
+/**
+ * One local calendar day, boiled down. BioAge looks back six months and raw
+ * readings are only kept for a week (minute averages for ninety days), so the
+ * figures it needs are written here once a day and kept. validMinutes is the
+ * number of minutes with a measured heart rate: a day with few of them is a
+ * day the band was mostly off, and its steps and zone minutes are not trusted.
+ */
+@Entity(tableName = "daily_summary")
+data class DailySummaryEntity(
+    @PrimaryKey val epochDay: Long,
+    val validMinutes:  Int,
+    /** The night that ended on this day. */
+    val sleepMinutes:  Int?,
+    /** Minute of the day the night began and ended (0..1439). */
+    val sleepStartMin: Int?,
+    val sleepEndMin:   Int?,
+    /** Mean heart rate over that night's clean, still epochs. */
+    val restingHr:     Double?,
+    val steps:         Int?,
+    /** Minutes with movement at 40-60 / 60-70 / 70-80 / 80+ percent of heart-rate reserve. */
+    val zoneMin1:      Int,
+    val zoneMin2:      Int,
+    val zoneMin3:      Int,
+    val zoneMin45:     Int,
+    /** Logged or confirmed strength-type sessions (weights, yoga, functional). */
+    val strengthMin:   Int,
+    val workoutCount:  Int,
+    val recovery:      Int?,
+    val sleepScore:    Int?,
+    val strain:        Float?,
+    val waterMl:       Int,
+    val updatedAtMs:   Long
+)
+
+/** A sustained effort found in the heart-rate and movement data, for the user to name or dismiss. */
+@Entity(tableName = "detected_workouts", indices = [Index(value = ["startMs"], unique = true)])
+data class DetectedWorkoutEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val startMs:  Long,
+    val endMs:    Long,
+    val minutes:  Int,
+    val meanHr:   Double,
+    val maxHr:    Double,
+    /** Mean heart-rate reserve over the effort, 0..1. */
+    val meanHrr:  Double,
+    val trimp:    Double,
+    /** Steps per minute over the effort, when the band counted steps. */
+    val cadence:  Double?,
+    /** WALK, RUN or WORKOUT: what the data looks like. */
+    val guessedType: String,
+    /** WALK, RUN, CYCLE, WORKOUT (strength) or YOGA: what it counts as. */
+    val type:     String,
+    /** NEW until the user reviews it, then CONFIRMED or DISMISSED. */
+    val status:   String
+)
+
+/** One yes/no answer in the daily journal. */
+@Entity(tableName = "journal_log", primaryKeys = ["epochDay", "habit"])
+data class JournalEntryEntity(
+    val epochDay: Long,
+    val habit:    String,
+    val yes:      Boolean
+)
+
+/** The day's VO2 max estimate and the two estimates behind it. */
+@Entity(tableName = "vo2_estimates")
+data class Vo2EstimateEntity(
+    @PrimaryKey val epochDay: Long,
+    val passive:        Double?,
+    val active:         Double?,
+    val value:          Double,
+    /** Typical error (one standard deviation) of value, mL/kg/min. */
+    val sigma:          Double,
+    val activeSegments: Int
+)
+
+/** BioAge as it stood on one day, for the trend line and the weekly report. */
+@Entity(tableName = "bioage_history")
+data class BioAgeEntity(
+    @PrimaryKey val epochDay: Long,
+    val chronologicalAge: Int,
+    val bioAge:           Double,
+    val pace:             Double?
+)

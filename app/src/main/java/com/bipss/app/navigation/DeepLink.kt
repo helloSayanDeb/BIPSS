@@ -17,10 +17,12 @@ object DeepLink {
         TODAY("today", Routes.DASHBOARD_TODAY),
         INSIGHTS("insights", Routes.DASHBOARD_INSIGHTS),
         COACH("coach", Routes.DASHBOARD_CHAT),
-        SLEEP("sleep", Routes.SLEEP_DETAIL);
+        SLEEP("sleep", Routes.SLEEP_DETAIL),
+        SLEEP_PLAN("sleep_plan", Routes.SLEEP_PLANNER),
+        WEEKLY("weekly", Routes.WEEKLY_REPORT);
 
-        /** Tab destinations use the bottom bar's navigate options; SLEEP is pushed on top of Home. */
-        val isTab: Boolean get() = this != SLEEP
+        /** Tab destinations use the bottom bar's navigate options; the rest are pushed on top of Home. */
+        val isTab: Boolean get() = this == TODAY || this == INSIGHTS || this == COACH
     }
 
     /**

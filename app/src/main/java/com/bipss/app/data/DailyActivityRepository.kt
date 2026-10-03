@@ -61,19 +61,25 @@ class DailyActivityRepository(private val store: DataStore<Preferences>) {
         return exists
     }
     suspend fun clearHabit() = update { it.copy(weeklyHabit = null) }
-    suspend fun recordBandSteps(event: com.bipss.app.ble.protocol.BandStepEvent) {
+    /** Adds the packet to today count and returns the steps it added (null for a duplicate or reset). */
+    suspend fun recordBandSteps(event: com.bipss.app.ble.protocol.BandStepEvent): Int? {
         val day = LocalDay.epochDay(event.receivedMs)
         val midnight = java.time.LocalDate.ofEpochDay(day).atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        var added: Int? = null
         update { old ->
             val p = event.packet
             val delta = com.bipss.app.ble.protocol.BandStepAccounting.delta(old.bandStepAnchor, event.device,
                 p, day, event.receivedMs, event.receivedMs - midnight)
-            if (delta == null) old else old.copy(
-                bandSteps = old.bandSteps.filterKeys { it >= day - 89 } +
-                    (day to ((old.bandSteps[day] ?: 0).toLong() + delta).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()),
-                bandStepAnchor = com.bipss.app.ble.protocol.BandStepAnchor(event.device, p.bootId, p.uptimeMs,
-                    p.total, day, event.receivedMs))
+            if (delta == null) old else {
+                added = delta.coerceIn(0L, Int.MAX_VALUE.toLong()).toInt()
+                old.copy(
+                    bandSteps = old.bandSteps.filterKeys { it >= day - 89 } +
+                        (day to ((old.bandSteps[day] ?: 0).toLong() + delta).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()),
+                    bandStepAnchor = com.bipss.app.ble.protocol.BandStepAnchor(event.device, p.bootId, p.uptimeMs,
+                        p.total, day, event.receivedMs))
+            }
         }
+        return added
     }
     suspend fun setTracking(enabled: Boolean) = update {
         it.copy(trackingEnabled = enabled, lastCounter = null, lastDay = null, boot = null)

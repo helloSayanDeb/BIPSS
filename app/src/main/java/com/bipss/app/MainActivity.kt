@@ -74,6 +74,10 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         mainViewModel.onResume()
+        // Throttled inside the refresher: at most one pass every ten minutes.
+        lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching { org.koin.core.context.GlobalContext.get().get<com.bipss.app.data.InsightsRefresher>().refresh() }
+        }
         // The one moment Android allows the band service the location type.
         com.bipss.app.ble.BleForegroundService.refreshForegroundTypes(this)
     }

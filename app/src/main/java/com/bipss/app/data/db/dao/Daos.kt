@@ -440,3 +440,93 @@ interface CycleDao {
     @Query("DELETE FROM cycle_day_notes WHERE epochDay = :day")
     suspend fun deleteNote(day: Long)
 }
+
+@Dao
+interface DailySummaryDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(row: DailySummaryEntity)
+
+    @Query("SELECT * FROM daily_summary WHERE epochDay >= :fromDay AND epochDay <= :toDay ORDER BY epochDay ASC")
+    suspend fun between(fromDay: Long, toDay: Long): List<DailySummaryEntity>
+
+    @Query("SELECT * FROM daily_summary WHERE epochDay >= :fromDay AND epochDay <= :toDay ORDER BY epochDay ASC")
+    fun betweenFlow(fromDay: Long, toDay: Long): Flow<List<DailySummaryEntity>>
+
+    @Query("SELECT * FROM daily_summary WHERE epochDay = :day")
+    suspend fun get(day: Long): DailySummaryEntity?
+
+    @Query("SELECT * FROM daily_summary ORDER BY epochDay ASC")
+    suspend fun all(): List<DailySummaryEntity>
+}
+
+@Dao
+interface DetectedWorkoutDao {
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insert(row: DetectedWorkoutEntity): Long
+
+    @Query("SELECT * FROM detected_workouts WHERE status != 'DISMISSED' ORDER BY startMs DESC LIMIT :limit")
+    fun recent(limit: Int): Flow<List<DetectedWorkoutEntity>>
+
+    @Query("SELECT * FROM detected_workouts WHERE status = 'NEW' ORDER BY startMs DESC")
+    fun pending(): Flow<List<DetectedWorkoutEntity>>
+
+    @Query("SELECT * FROM detected_workouts WHERE startMs < :endMs AND endMs > :startMs")
+    suspend fun overlapping(startMs: Long, endMs: Long): List<DetectedWorkoutEntity>
+
+    @Query("SELECT * FROM detected_workouts WHERE startMs >= :fromMs AND startMs < :toMs AND status != 'DISMISSED' ORDER BY startMs ASC")
+    suspend fun between(fromMs: Long, toMs: Long): List<DetectedWorkoutEntity>
+
+    @Query("UPDATE detected_workouts SET type = :type, status = 'CONFIRMED' WHERE id = :id")
+    suspend fun confirm(id: Long, type: String)
+
+    @Query("UPDATE detected_workouts SET status = 'DISMISSED' WHERE id = :id")
+    suspend fun dismiss(id: Long)
+
+    @Query("SELECT * FROM detected_workouts ORDER BY startMs ASC")
+    suspend fun all(): List<DetectedWorkoutEntity>
+}
+
+@Dao
+interface JournalDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(row: JournalEntryEntity)
+
+    @Query("DELETE FROM journal_log WHERE epochDay = :day AND habit = :habit")
+    suspend fun clear(day: Long, habit: String)
+
+    @Query("SELECT * FROM journal_log WHERE epochDay = :day")
+    fun forDay(day: Long): Flow<List<JournalEntryEntity>>
+
+    @Query("SELECT * FROM journal_log ORDER BY epochDay ASC")
+    suspend fun all(): List<JournalEntryEntity>
+
+    @Query("SELECT * FROM journal_log ORDER BY epochDay ASC")
+    fun allFlow(): Flow<List<JournalEntryEntity>>
+}
+
+@Dao
+interface Vo2Dao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(row: Vo2EstimateEntity)
+
+    @Query("SELECT * FROM vo2_estimates ORDER BY epochDay DESC LIMIT 1")
+    suspend fun latest(): Vo2EstimateEntity?
+
+    @Query("SELECT * FROM vo2_estimates ORDER BY epochDay DESC LIMIT 1")
+    fun latestFlow(): Flow<Vo2EstimateEntity?>
+
+    @Query("SELECT * FROM vo2_estimates WHERE epochDay >= :fromDay ORDER BY epochDay ASC")
+    fun sinceFlow(fromDay: Long): Flow<List<Vo2EstimateEntity>>
+}
+
+@Dao
+interface BioAgeDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(row: BioAgeEntity)
+
+    @Query("SELECT * FROM bioage_history WHERE epochDay >= :fromDay ORDER BY epochDay ASC")
+    fun sinceFlow(fromDay: Long): Flow<List<BioAgeEntity>>
+
+    @Query("SELECT * FROM bioage_history WHERE epochDay >= :fromDay ORDER BY epochDay ASC")
+    suspend fun since(fromDay: Long): List<BioAgeEntity>
+}

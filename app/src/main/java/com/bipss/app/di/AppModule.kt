@@ -84,7 +84,8 @@ val appModule = module {
             .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
                 com.bipss.app.data.db.migration.MIGRATION_6_7, com.bipss.app.data.db.migration.MIGRATION_7_8,
                 com.bipss.app.data.db.migration.MIGRATION_8_9, com.bipss.app.data.db.migration.MIGRATION_9_10,
-                com.bipss.app.data.db.migration.MIGRATION_10_11, com.bipss.app.data.db.migration.MIGRATION_11_12)
+                com.bipss.app.data.db.migration.MIGRATION_10_11, com.bipss.app.data.db.migration.MIGRATION_11_12,
+                com.bipss.app.data.db.migration.MIGRATION_12_13)
             .build()
     }
 
@@ -102,6 +103,11 @@ val appModule = module {
     single { get<AppDatabase>().envSnapshotDao() }
     single { get<AppDatabase>().aqiContextSampleDao() }
     single { get<AppDatabase>().cycleDao() }
+    single { get<AppDatabase>().dailySummaryDao() }
+    single { get<AppDatabase>().detectedWorkoutDao() }
+    single { get<AppDatabase>().journalDao() }
+    single { get<AppDatabase>().vo2Dao() }
+    single { get<AppDatabase>().bioAgeDao() }
     single { get<AppDatabase>().dataDayDao() }
     single { get<AppDatabase>().ewmaBaselineDao() }
     single { com.bipss.app.data.CycleRepository(get()) }
@@ -122,6 +128,15 @@ val appModule = module {
     single { com.bipss.app.data.LegacyDataCleanup(get(), get()) }
     single { com.bipss.app.data.WaterRepository(get(), get()) }
     single { com.bipss.app.data.DailyActivityRepository(get()) }
+    single { com.bipss.app.data.MinuteData(get(), get()) }
+    single { com.bipss.app.data.DailySummaryRepository(get(), get(), get(), get(), get(), get(), get(), get()) }
+    single { com.bipss.app.data.WorkoutRepository(get(), get(), get(), get(), get()) }
+    single { com.bipss.app.data.Vo2Repository(get(), get(), get(), get(), get()) }
+    single { com.bipss.app.data.BioAgeRepository(get(), get(), get(), get()) }
+    single { com.bipss.app.data.InsightsRefresher(get(), get(), get(), get()) }
+    single { com.bipss.app.data.SleepPlanRepository(get(), get()) }
+    single { com.bipss.app.data.WeeklyReportRepository(get(), get()) }
+    single { com.bipss.app.data.JournalRepository(get(), get()) }
     viewModel { com.bipss.app.ui.activity.ActivityViewModel(get(), get(), get()) }
     viewModel { com.bipss.app.ui.dashboard.DayOverviewViewModel(get(), get()) }
 

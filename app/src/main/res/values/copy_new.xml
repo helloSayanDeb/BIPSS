@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+  <string name="copy_61373d5ac8a5" formatted="false">"Your week in review"</string>
+  <string name="copy_a0f27f3fd25b" formatted="false">"Be in bed by %1$s for about %2$sh %3$sm of sleep."</string>
+  <string name="copy_ae29a50d063d" formatted="false">"Last week\'s sleep, recovery, strain and steps are ready to look at."</string>
+  <string name="copy_f190b1f7fd28" formatted="false">"Time to wind down"</string>
+</resources>
