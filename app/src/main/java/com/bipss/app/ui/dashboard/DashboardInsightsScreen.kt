@@ -453,7 +453,7 @@ private fun AirContextCard(
             Spacer(Modifier.height(Space.m))
             if (feedbackGiven) {
                 Text(
-                    AppText.text(R.string.copy_58089a03f3d2, "Thanks - recorded. Corrections like this are what the GPS thresholds get tuned against."),
+                    AppText.text(R.string.copy_3994904b63c9, "Thanks, noted."),
                     style = MaterialTheme.typography.labelSmall,
                     color = colors.textTertiary
                 )
@@ -652,16 +652,6 @@ private fun RiskDetailCard(risk: RiskScore) {
             Text(if (expanded) "−" else "+", style = MaterialTheme.typography.titleLarge, color = colors.textSecondary)
         }
         if (expanded) {
-            Spacer(Modifier.height(Space.l))
-            Text(when (risk.type) {
-                com.bipss.app.domain.RiskScoreType.HEAT_STRESS -> AppText.text(R.string.copy_65c46af20d44, "Combines local heat and humidity with available body readings and your drink log. Take breaks and keep cool when conditions are demanding.")
-                com.bipss.app.domain.RiskScoreType.RESPIRATORY -> AppText.text(R.string.copy_e2cdaee27daa, "Local air quality can help you decide when to reduce outdoor exertion or choose an indoor activity.")
-                com.bipss.app.domain.RiskScoreType.FLOOD -> AppText.text(R.string.copy_8e1a7d7540dd, "Local weather and active warnings help you plan around hazardous conditions.")
-                com.bipss.app.domain.RiskScoreType.RECOVERY -> AppText.text(R.string.copy_56b5157b6bac, "Looks at overnight readings against your usual pattern. Balance the score with how you feel.")
-                com.bipss.app.domain.RiskScoreType.SLEEP -> AppText.text(R.string.copy_b47c6ab722e5, "Reflects recorded sleep duration and time asleep during the night.")
-                com.bipss.app.domain.RiskScoreType.STRAIN -> AppText.text(R.string.copy_918e7894dd9b, "Describes cardiovascular effort during your day. A higher number means more effort, not better health.")
-                else -> AppText.text(R.string.copy_2a57701ad4e1, "A summary of the readings available for your day. Tap individual measurements to explore their history.")
-            }, style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary)
             if (risk.provisional) {
                 Spacer(Modifier.height(Space.s))
                 Text(AppText.text(R.string.copy_84ac7d37c118, "Your personal baseline is still building."), style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)

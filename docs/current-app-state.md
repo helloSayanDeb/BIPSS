@@ -15,7 +15,9 @@ Drive setup is deferred by the user; the setup guide remains available.
 | Autonomic Load | Restored, with still-signal coverage gates and personal comparison | Experimental; does not drive emergency decisions or diagnose stress |
 | Band steps | MPU6050 firmware detector, BLE cumulative count and Android persistence | Flash/test physical band; multi-day offline timestamped step history is not implemented |
 | Sleep | Sleep/wake summary plus opt-in wav2sleep Wake/Light/Deep/REM estimates, Unknown sections and nightly timeline | Physical-band validation against reference sleep stages; experimental stages do not alter scores |
-| VO₂ max / fitness age | Jackson profile/activity VO₂ estimate and HUNT3 age-band comparison, saved history and offline Coach answers | These are estimates, not measured VO₂ or biological age; target-population validation remains |
+| BioAge, VO₂ max | BIPSS BioAge and Pace of Aging from nine contributors (sleep, steps, heart-rate zones, resting HR, VO₂ max, optional strength and lean mass); VO₂ max from measured activity plus steady walks and runs | Lifestyle estimates, not medical biological age or measured VO₂; WHOOP's hazard curves are unpublished so ours are documented design choices (`docs/research/bioage-references.md`); needs weeks of band wear and the step firmware |
+| Workouts, planner, report, journal | Workouts found from heart rate and movement for the user to name; sleep planner with bedtime reminder; weekly report (Monday notification, PDF); daily journal with morning-after recovery comparison | Detection and step cadence untested on a physical band; cycling cannot be told apart on a wrist |
+| Export and widget | PDF health report, overnight oxygen record PDF, weekly report PDF and all-data CSV ZIP; home-screen water-log widget | Documents are English-only |
 | Air quality | Outdoor feed/model fallback; ENS160 gas category kept separate | CPCB endpoint last checked refused connection; final ENS160/AHT21 bring-up unverified; no particulate sensor |
 | Foundation models / other wearables | PaPaGei-S frozen encoder in local debug build, tested Android inference and versioned private features | Checkpoint distribution terms, task-specific heads and validation; no cross-vendor account imports |
 | Local chat AI | Optional Download/Skip/install flow | No model has been made/published, as confirmed by the user |
@@ -36,7 +38,7 @@ validation and public-release requirements. 252 JVM and four Android instrumente
 | Integrated date navigation | Date strip/calendar and recorded-day Snapshot |
 | My Day / context windows | Logged events; caffeine, movement, screens, sunlight, hydration, recovery and wind-down windows |
 | Sleep/activity/recovery sections | Snapshot, supporting values and recorded heart-rate chart |
-| Long-term trends | 7/30/90-day Sleep/Recovery/Strain/step trends; saved VO₂/fitness-age estimates and nightly stage history |
+| Long-term trends | 7/30/90-day Sleep/Recovery/Strain/step trends; BioAge and VO₂ max history and nightly stage history |
 | Dedicated insight pages | Separate arrow next to expandable card; score, date selection, 7/30/90-day score/input charts, saved calculation inputs, baselines when available, contributors and interpretation |
 | Workout detail | Timer/log, duration and recorded HR curve/summary |
 | Food and optional modules | Manual food journal, hydration, body measurements, sleep routine and breathing timer; no photo nutrient estimation or medication/supplement module |

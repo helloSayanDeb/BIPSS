@@ -82,7 +82,7 @@ fun OnboardingGenderScreen(
 @Composable
 fun GenderNote() {
     Text(
-        AppText.text(R.string.copy_176108019b2f, "Helps personalize activity insights and cycle tracking. Choose the option that suits you."),
+        AppText.text(R.string.copy_eb1b98960f2a, "Choose the option that suits you."),
         style = MaterialTheme.typography.bodySmall,
         color = BipssTheme.colors.textSecondary
     )
@@ -108,8 +108,7 @@ fun OnboardingSmsScreen(navController: NavController, catchUp: Boolean) {
         step = OnboardingStep.indexOf(OnboardingStep.SMS, catchUp),
         totalSteps = OnboardingStep.TOTAL,
         title = AppText.text(R.string.copy_22923cbda0fa, "Emergency texts"),
-        subtitle = AppText.text(R.string.copy_6587c5ce39f3, "When you trigger SOS, BIPSS texts your emergency contacts, and nearby hospitals that list ") +
-            AppText.text(R.string.copy_c8c995e9db8e, "a mobile number, from this phone."),
+        subtitle = AppText.text(R.string.copy_fe53532d9a5f, "When you trigger SOS, BIPSS texts your contacts and nearby hospitals from this phone."),
         onBack = { navController.popBackStack() },
         footer = {
             when {

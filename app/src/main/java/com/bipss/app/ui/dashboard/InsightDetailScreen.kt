@@ -92,9 +92,9 @@ fun InsightDetailScreen(type: RiskScoreType, nav: NavController,
             Text(input?.let { AppText.display(it.label) + if (it.unit.isNotBlank()) " · ${it.unit}" else "" } ?: if (type == RiskScoreType.AUTONOMIC_LOAD) AppText.text(R.string.copy_030ed29be826, "Recorded load levels") else "${type.displayName} · /${selected?.scale?.takeIf { it > 0 } ?: if (type == RiskScoreType.STRAIN) 21 else 100}", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(Space.m))
             if (type == RiskScoreType.AUTONOMIC_LOAD && chartKey == "score") {
-                Text(AppText.text(R.string.copy_9cf6811f0eed, "Load is recorded as Low, Elevated or High. Choose an input above to see its numeric trend."), color = colors.textSecondary)
+                Text(AppText.text(R.string.copy_a9e54ab09c25, "Choose an input above to see its trend."), color = colors.textSecondary)
             } else if (present.isEmpty()) {
-                Text(AppText.text(R.string.copy_9c1f2440f875, "No values recorded in this period. Your chart will build as readings become available."), color = colors.textSecondary)
+                Text(AppText.text(R.string.copy_16581603ba7b, "No values in this period."), color = colors.textSecondary)
             } else {
                 MetricLineChart(points, null, height = 180.dp, lineColor = MaterialTheme.colorScheme.primary,
                     windowStartMs = LocalDay.startOfDayMs(start), windowEndMs = LocalDay.startOfDayMs(today + 1),
@@ -131,13 +131,6 @@ fun InsightDetailScreen(type: RiskScoreType, nav: NavController,
             Text(AppText.text(R.string.copy_36ffdc3470f3, "How to read this insight"), style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(Space.s))
             Text(selected?.method?.let(AppText::display) ?: type.method, style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary)
-            Spacer(Modifier.height(Space.m))
-            Text(when (type) {
-                RiskScoreType.STRAIN -> AppText.text(R.string.copy_5130ea1679ad, "Higher means more cardiovascular effort, not better health. Compare with your recovery and how you feel.")
-                RiskScoreType.FLOOD -> AppText.text(R.string.copy_1644d017d24e, "This reflects listed warnings, not a prediction of flooding at your exact location. Follow current local instructions.")
-                RiskScoreType.AUTONOMIC_LOAD -> AppText.text(R.string.copy_ea941287fee9, "Several factors can change this experimental indicator. It does not measure emotional stress or diagnose illness.")
-                else -> if (type.higherIsBetter) AppText.text(R.string.copy_c10e3ef1b2bb, "Higher generally indicates a stronger result for this measure. Consider your own pattern and how you feel.") else AppText.text(R.string.copy_82dd7b6d5514, "Higher indicates more concern in the available inputs. This estimate cannot diagnose or rule out illness.")
-            }, style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
         }
         val route = when (type) { RiskScoreType.SLEEP -> Routes.SLEEP_DETAIL; RiskScoreType.RECOVERY -> Routes.RECOVERY_DETAIL; RiskScoreType.STRAIN -> Routes.STRAIN_DETAIL; else -> null }
         if (route != null && day == today) OutlinedButton(onClick = { nav.navigate(route) }, modifier = Modifier.fillMaxWidth()) { Text(AppText.text(R.string.copy_ec53598c022f, "Explore %1\$s readings", type.displayName.lowercase())) }

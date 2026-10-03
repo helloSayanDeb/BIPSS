@@ -2,12 +2,14 @@
 
 ## Delivered scope
 
-- Insights → Cardio fitness: Jackson non-exercise VO₂ max estimate, explicitly selected
-  formula reference, eight PA-R activity categories, profile height/weight/age, saved inputs
-  and up to 90 estimates. No exercise challenge is prescribed. Invalid inputs produce no score.
-- Estimated fitness age: nearest HUNT3 decade mean, shown as an age **band**. Values outside
-  reference means get bounded labels. This is a BIPSS comparison, not NTNU's calculator,
-  a biological-age measurement, a validated composite algorithm or a lifespan forecast.
+- Insights → Cardio fitness: VO₂ max from the band's own data, with nothing to fill in: a
+  passive estimate (Jackson non-exercise equation with its activity rating taken from measured
+  heart-rate-zone minutes and steps, blended under 50 with the Uth heart-rate-ratio estimate)
+  and an active estimate from steady walks and runs (ACSM equations scaled by heart-rate
+  reserve; phone GPS speed when the workout was recorded with it). Shown with its typical error.
+- Insights → BIPSS BioAge: lifestyle "effective age" from nine contributors, after WHOOP's
+  Healthspan approach, with Pace of Aging. Replaces the earlier decade-band fitness age.
+  Sources and design choices: `docs/research/bioage-references.md`.
 - Insights → Sleep stages: opt-in pulse recording, on-device wav2sleep inference, nightly
   timeline, prior-night selection, stage duration totals and explicit Unknown intervals.
 - Offline Coach answers questions about the saved estimates, dates and limitations.
@@ -84,49 +86,14 @@ window selection still require downstream task validation; no task-specific trai
 - Biosignal models are bundled local files and require no network for inference. They are
   separate from the optional Coach language model, which the user has not created/published.
 
-## Fitness references and limits
+## Fitness references and limits (passive VO₂ max)
 
 [NHANES Cardiovascular Fitness Procedures Manual](https://wwwn.cdc.gov/nchs/data/nhanes/public/2003/manuals/cv_99-04.pdf),
 Appendices E/F: `56.363 + 1.921 × PA-R − 0.381 × age − 0.754 × BMI + 10.987 × maleReference`.
 Original [Jackson et al. 1990](https://pubmed.ncbi.nlm.nih.gov/2287267/) reports typical model
 error around 5.6 mL/kg/min. App guards (20–70 years, BMI 15–45, height 120–230 cm, weight
 30–250 kg) are conservative implementation bounds, not a claim of validation across all
-those combinations. Formula reference is separate from gender identity; no silent average.
+those combinations. The activity rating now comes from measured minutes, so no questionnaire is used; for gender other than male or female the sex term is the midpoint.
 
-[HUNT3 published reference means](https://www.ntnu.edu/cerg/fitness-numbers): women
-43/40/38/34/31/27 and men 54/49/47/42/39/34 for decades 20–29 through 70+.
-The comparison cohort is healthy Norwegian adults. Small changes in a non-exercise estimate
-must not be presented as proven longitudinal improvements in fitness.
-
-## Verification
-
-- 252 JVM tests pass, including equation reference values, invalid inputs, activity and
-  body-measurement effects, decade boundaries, pulse gaps, contact loss, normalization,
-  uncertainty handling, and SciPy preprocessing parity.
-- Four Android instrumented tests pass: sleep parity with PyTorch; 8-hour inference;
-  PaPaGei parity with PyTorch; isolated 1-hour capture → both models → saved stage/feature
-  results → fitness persistence → clear-data lifecycle.
-- Eight-hour sleep inference took about 1.2 seconds on the x86 emulator. This is a software
-  benchmark, not a physical-phone battery or performance claim.
-- `:app:testDebugUnitTest :app:connectedDebugAndroidTest :app:assembleDebug` passed.
-- Manual simulator/UI check: eight-hour overnight waveform replay completed, the morning
-  worker saved stages and features, and the nightly timeline rendered with unknown sections.
-  Fitness activity selection and save produced the expected profile-based result. A stale
-  empty-state message discovered when background results arrived was fixed.
-- Debug and minified release builds compile. The release asset set excludes PaPaGei weights.
-- Final debug APK SHA-256: `627045D61EEF671EB69BC6831DFF5D44627567AACC65D05E7DE4361042F02CC5`.
-  The final APK was installed and its corrected timeline inspected. Emulator returned to
-  normal mode; simulated records remain isolated from real records.
-
-## Remaining evidence needed
-
-1. Paired full-band overnight raw recordings and synchronized polysomnography stage labels,
-   held-out by participant/night. Report class-wise precision/recall/F1, confusion matrix,
-   agreement, unknown coverage and subgroup/device failure modes before consumer validation.
-2. Reference cardiopulmonary exercise testing for the intended user population if claiming
-   device-specific VO₂ accuracy. Current estimator is questionnaire/profile based.
-3. Labelled datasets and held-out validation for any PaPaGei downstream task. Embedding
-   extraction alone is not an age, disease, recovery or sleep predictor.
-4. Physical Android/band overnight, disconnect, power, memory and retention testing;
-   public-release checkpoint licensing confirmation. No medical validation is implied by
-   the software tests.
+The earlier decade-band "fitness age" (HUNT3 reference means) was removed: it only matched
+a number computed from typed answers to a population table. BioAge replaces it.

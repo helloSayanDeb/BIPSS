@@ -10,6 +10,7 @@ import java.time.format.FormatStyle
 fun clockText(minuteOfDay: Int): String =
     LocalTime.of((minuteOfDay / 60) % 24, minuteOfDay % 60).format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT))
 
-/** 490 minutes as "8h 10m". */
+/** 490 minutes as "8h 10m"; under an hour, just "55m". */
 fun durationText(minutes: Int): String =
-    AppText.text(R.string.copy_279d04514bff, "%1\$sh %2\$sm", minutes / 60, minutes % 60)
+    if (minutes < 60) AppText.text(R.string.copy_38950f3977f7, "%1\$sm", minutes)
+    else AppText.text(R.string.copy_279d04514bff, "%1\$sh %2\$sm", minutes / 60, minutes % 60)

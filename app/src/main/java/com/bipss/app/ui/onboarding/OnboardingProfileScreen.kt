@@ -134,7 +134,7 @@ fun OnboardingProfileScreen(
 
         Spacer(Modifier.height(Space.xxl))
         InfoBanner(
-            text = AppText.text(R.string.copy_50d5398e16fa, "Your details personalize your activity insights, BMI and hydration goal. You can update them any time."),
+            text = AppText.text(R.string.copy_964c8c78c520, "Used for your heart-rate zones, BMI and hydration goal."),
             icon = Icons.Rounded.Shield,
             tint = colors.bandNormal,
         )

@@ -46,7 +46,6 @@ object Routes {
     const val BREATHING = "breathing"
     const val TRENDS = "trends"
     const val NUTRITION = "nutrition"
-    const val ROUTINE = "sleep_routine"
     const val WORKOUT_LIVE = "workout_live"
     fun snapshot(day: Long) = "snapshot/$day"
     fun workout(id: String) = "workout/$id"

@@ -151,7 +151,6 @@ fun NavGraph(
                 com.bipss.app.ui.dashboard.SnapshotScreen(entry.arguments!!.getLong("day"), navController)
             }
             composable(Routes.TRENDS) { com.bipss.app.ui.dashboard.TrendsScreen(navController) }
-            composable(Routes.ROUTINE) { com.bipss.app.ui.activity.RoutineScreen(navController) }
             composable(Routes.NUTRITION) { com.bipss.app.ui.activity.NutritionScreen(navController) }
             composable(Routes.WORKOUT_LIVE) { com.bipss.app.ui.activity.WorkoutScreen(null, navController) }
             composable("workout/{id}", arguments = listOf(navArgument("id") { type = NavType.StringType })) { entry ->

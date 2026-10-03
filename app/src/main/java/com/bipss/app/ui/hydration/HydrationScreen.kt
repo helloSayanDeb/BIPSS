@@ -104,7 +104,7 @@ fun HydrationDetailScreen(navController: NavController, vm: HydrationViewModel =
                 TextButton(onClick = { editGoal = true }, enabled = ui.loaded) {
                     Text(if (ui.goalMl == null) AppText.text(R.string.copy_ecf5423f8a3b, "Set daily goal") else AppText.text(R.string.copy_9ffdfca0f6aa, "Change daily goal"))
                 }
-                Text(if (ui.suggestedGoal) AppText.text(R.string.copy_081ff23e0925, "A starting goal based on your weight. All drinks count; food provides fluid too. Adjust it to suit you and follow any prescribed fluid limit.")
+                Text(if (ui.suggestedGoal) AppText.text(R.string.copy_18eb7ad3c314, "A starting goal based on your weight.")
                     else AppText.text(R.string.copy_69561f6900bb, "Your daily drinks target. Follow any fluid limit your clinician has given you."),
                     style = MaterialTheme.typography.bodySmall, color = colors.textTertiary)
                 Spacer(Modifier.height(Space.l))

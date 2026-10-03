@@ -140,7 +140,7 @@ fun BodyScreen(nav: NavController, vm: ActivityViewModel = koinViewModel()) {
             Spacer(Modifier.height(Space.s))
             Text(bmi?.let { "%.1f".format(it) } ?: "—", style = MaterialTheme.typography.displayMedium)
             Spacer(Modifier.height(Space.s))
-            Text(if (bmi == null) AppText.text(R.string.copy_6f91d827f359, "Add your height, weight and age to see adult BMI (ages 20+).") else AppText.text(R.string.copy_c822b5846f69, "BMI relates your weight to your height. It doesn't measure body fat or overall fitness."), style = MaterialTheme.typography.bodyMedium, color = BipssTheme.colors.textSecondary)
+            if (bmi == null) Text(AppText.text(R.string.copy_6f91d827f359, "Add your height, weight and age to see adult BMI (ages 20+)."), style = MaterialTheme.typography.bodyMedium, color = BipssTheme.colors.textSecondary)
             Spacer(Modifier.height(Space.l))
             InfoRow(AppText.text(R.string.copy_bfe2eca40179, "Height"), profile?.heightCm?.let { AppText.text(R.string.copy_d17db548b175, "%.0f cm").format(it) } ?: "—")
             InfoRow(AppText.text(R.string.copy_81d27ef6d503, "Weight"), profile?.weightKg?.let { AppText.text(R.string.copy_9007d1e37ece, "%.1f kg").format(it) } ?: "—")

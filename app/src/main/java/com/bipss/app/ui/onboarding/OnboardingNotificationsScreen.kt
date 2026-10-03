@@ -81,7 +81,7 @@ fun OnboardingNotificationsScreen(navController: NavController) {
         FeatureRow(
             icon = Icons.Rounded.Watch, tint = colors.textSecondary,
             title = AppText.text(R.string.copy_20d711b0b08b, "While your band is connected"),
-            body = AppText.text(R.string.copy_ce36d9f60587, "Android requires an ongoing notification so the connection can keep running overnight.")
+            body = AppText.text(R.string.copy_1749a58bf6c2, "Keeps the connection running overnight.")
         )
         Spacer(Modifier.height(Space.l))
         FeatureRow(

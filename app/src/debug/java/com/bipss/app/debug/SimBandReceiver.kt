@@ -50,6 +50,9 @@ private const val TAG = "SimBandReceiver"
  *   adb shell am broadcast -n com.bipss.app/.debug.SimBandReceiver \
  *       -a com.bipss.app.debug.ONBOARDING_VERSION --ei version 1 [--ez clear_gender true]
  *
+ *   # fill the simulated database with past days (BioAge, weekly report, planner, journal)
+ *   adb shell am broadcast -n com.bipss.app/.debug.SimBandReceiver -a com.bipss.app.debug.SEED_HISTORY --ei days 120
+ *
  *   # back to real data (the simulated database is left untouched)
  *   adb shell am broadcast -n com.bipss.app/.debug.SimBandReceiver \
  *       -a com.bipss.app.debug.SIM_MODE --ez enabled false
@@ -100,6 +103,21 @@ class SimBandReceiver : BroadcastReceiver(), KoinComponent {
                     Handler(Looper.getMainLooper()).postDelayed({ exitProcess(0) }, 300)
                 }
             }
+            ACTION_SEED -> {
+                if (!SimulationMode.isActive(context)) {
+                    Log.e(TAG, "Refusing to seed history outside simulation mode")
+                    return
+                }
+                val days = intent.getIntExtra("days", 120)
+                val pending = goAsync()
+                CoroutineScope(Dispatchers.IO).launch {
+                    try {
+                        SimHistorySeeder(get(), get(), get(), get()).seed(days)
+                        get<com.bipss.app.data.InsightsRefresher>().refresh(force = true)
+                        Log.i(TAG, "Seeded $days days of simulated history")
+                    } finally { pending.finish() }
+                }
+            }
             ACTION_ENV_SYNC -> androidx.work.WorkManager.getInstance(context).enqueue(
                 androidx.work.OneTimeWorkRequestBuilder<com.bipss.app.worker.EnvDataSyncWorker>().build()
             )
@@ -117,5 +135,6 @@ class SimBandReceiver : BroadcastReceiver(), KoinComponent {
         const val ACTION_ANALYSE_SLEEP = "com.bipss.app.debug.ANALYSE_SLEEP"
         const val ACTION_ONBOARDING_VERSION = "com.bipss.app.debug.ONBOARDING_VERSION"
         const val ACTION_ENV_SYNC = "com.bipss.app.debug.ENV_SYNC"
+        const val ACTION_SEED = "com.bipss.app.debug.SEED_HISTORY"
     }
 }

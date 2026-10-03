@@ -156,8 +156,7 @@ fun SleepDetailScreen(
                 if (!state.hasAnyNight) {
                     Spacer(Modifier.height(Space.m))
                     Text(
-                        AppText.text(R.string.copy_f51b03b449e0, "Wear the band overnight to start counting. Each night is analysed on ") +
-                            AppText.text(R.string.copy_2f08f1f7d438, "its own and shown here from the first one."),
+                        AppText.text(R.string.copy_62847e193eb1, "Wear the band overnight to start counting."),
                         style = MaterialTheme.typography.bodySmall,
                         color = colors.textTertiary
                     )
@@ -184,8 +183,7 @@ fun SleepDetailScreen(
                         )
                     } else {
                         InfoBanner(
-                            text = AppText.text(R.string.copy_99a8330335d7, "An average appears after %1\$s nights. ", state.nightsRequired) +
-                                AppText.text(R.string.copy_3bc015b2d4ee, "Individual nights are shown above."),
+                            text = AppText.text(R.string.copy_7600e51319f8, "An average appears after %1\$s nights.", state.nightsRequired),
                             icon = Icons.Rounded.Info,
                             tint = colors.textTertiary
                         )
@@ -209,9 +207,7 @@ fun SleepDetailScreen(
 
             Spacer(Modifier.height(Space.m))
             Text(
-                AppText.text(R.string.copy_6cbd050207c4, "This counts drops in blood oxygen during sleep detected from wrist movement - both ") +
-                    AppText.text(R.string.copy_edf81a2f3c95, "estimates from a consumer band. It is not a diagnosis, and BIPSS is not a medical ") +
-                    AppText.text(R.string.copy_d7f73a4cc808, "device. If you are concerned about your breathing during sleep, talk to a doctor."),
+                AppText.text(R.string.copy_9315b6c80433, "Not a diagnosis. If you are worried about your breathing during sleep, talk to a doctor."),
                 style = MaterialTheme.typography.labelSmall,
                 color = colors.textTertiary
             )

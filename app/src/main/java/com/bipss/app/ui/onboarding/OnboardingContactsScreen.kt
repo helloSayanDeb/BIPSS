@@ -110,7 +110,7 @@ fun OnboardingContactsScreen(
         step = OnboardingStep.indexOf(OnboardingStep.CONTACTS, catchUp),
         totalSteps = OnboardingStep.TOTAL,
         title = AppText.text(R.string.copy_9463d00b353e, "Emergency contacts"),
-        subtitle = AppText.text(R.string.copy_2eda52c84b5e, "The people SOS texts. Choosing them now means an emergency isn't the first time you look."),
+        subtitle = AppText.text(R.string.copy_343c937d0135, "The people SOS texts."),
         onBack = { navController.popBackStack() },
         footer = {
             if (contacts.isEmpty()) {
@@ -130,10 +130,7 @@ fun OnboardingContactsScreen(
             FeatureRow(
                 icon = Icons.Rounded.Contacts, tint = colors.bandRisk,
                 title = AppText.text(R.string.copy_78ae9c3e607d, "Picked from your phone's contacts"),
-                body = AppText.text(R.string.copy_0ee6d02d2fbb, "BIPSS asks to read your contacts so you can choose from them. It keeps only the name ") +
-                    AppText.text(R.string.copy_6e6ad6f85c55, "and number of the people you pick (up to %1\$s), on this phone and in ", MAX_EMERGENCY_CONTACTS) +
-                    AppText.text(R.string.copy_894f1274d5a3, "your Drive backup if you turn that on. In an SOS, nearby hospitals that are texted are ") +
-                    AppText.text(R.string.copy_1b718119b211, "given these names and numbers, so they can reach someone who knows you.")
+                body = AppText.text(R.string.copy_6778e302c4b1, "BIPSS reads your contacts only so you can choose. It keeps the name and number of the people you pick.")
             )
         } else {
             BipssCard(contentPadding = PaddingValues(horizontal = Space.l, vertical = Space.xs)) {

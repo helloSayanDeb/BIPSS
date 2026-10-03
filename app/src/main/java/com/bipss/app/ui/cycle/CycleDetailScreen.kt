@@ -144,12 +144,6 @@ fun CycleDetailScreen(navController: NavController, vm: CycleViewModel = koinVie
                     }
                 }
             }
-            Spacer(Modifier.height(Space.l))
-            Text(
-                AppText.text(R.string.copy_3e1ab6af6f83, "Kept in the app's own storage on this phone, and in your Drive backup if you turn that on. ") +
-                    AppText.text(R.string.copy_16f3eb3faea4, "Never part of the optional data sharing. BIPSS doesn't use your calendar."),
-                style = MaterialTheme.typography.bodySmall, color = colors.textTertiary
-            )
             Spacer(Modifier.height(Space.huge))
         }
     }

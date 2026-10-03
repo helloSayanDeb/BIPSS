@@ -361,9 +361,7 @@ private fun PrivacySection(state: SettingsUiState, vm: SettingsViewModel) {
                 Text(AppText.text(R.string.copy_cd9a62e6a1af, "Cloud backup"), style = MaterialTheme.typography.titleMedium, color = colors.textPrimary)
                 Spacer(Modifier.height(Space.xs))
                 Text(
-                    AppText.text(R.string.copy_ccfb9e3e8962, "Your own copy in your Google Drive (a private app folder only BIPSS can read): profile, ") +
-                        AppText.text(R.string.copy_e03f67185f51, "settings, emergency contacts, baselines, water log and cycle log. Raw sensor readings stay ") +
-                        AppText.text(R.string.copy_78544e6b291d, "on this phone. For moving to a new phone - nothing reaches the developer."),
+                    AppText.text(R.string.copy_4acce189856e, "Your own copy of your profile, settings and logs in your Google Drive."),
                     style = MaterialTheme.typography.bodySmall,
                     color = colors.textSecondary
                 )
@@ -441,10 +439,7 @@ private fun PrivacySection(state: SettingsUiState, vm: SettingsViewModel) {
                 )
                 Spacer(Modifier.height(Space.xs))
                 Text(
-                    AppText.text(R.string.copy_28ab74a9e51a, "Optional, to help improve BIPSS: shares minute averages of your band readings and your ") +
-                        AppText.text(R.string.copy_ab79bbd7f023, "sleep summaries, under an anonymous ID, every hour. Not a backup - nothing is ever ") +
-                        AppText.text(R.string.copy_f3ff24765adf, "restored from it. Turning it off stops new uploads; Delete my data also removes ") +
-                        AppText.text(R.string.copy_ef9906a344c9, "what was shared."),
+                    AppText.text(R.string.copy_7e4a3c6078b8, "Optional: shares hourly averages of your readings and sleep, under an anonymous ID. Not a backup."),
                     style = MaterialTheme.typography.bodySmall,
                     color = colors.textSecondary
                 )
@@ -493,7 +488,7 @@ private fun EmergencyContacts(
     val locPerm = rememberLocationPermission()
 
     Text(
-        AppText.text(R.string.copy_d2e7ea72463e, "Contacts here receive an SMS when SOS fires, with your location if BIPSS can get it. Nearby hospitals that list a mobile number are texted too, with these contacts' names and numbers. Stored on this phone, and in your Drive backup if it's on."),
+        AppText.text(R.string.copy_a4ef216f7cbe, "Contacts here get an SMS when SOS fires, with your location if available."),
         style = MaterialTheme.typography.bodySmall,
         color = colors.textSecondary
     )
@@ -588,12 +583,6 @@ private fun AboutCard() {
     BipssCard {
         InfoRow(AppText.text(R.string.copy_dd167905de0d, "Version"), BuildConfig.VERSION_NAME)
         HairlineDivider()
-        Spacer(Modifier.height(Space.m))
-        Text(
-            AppText.text(R.string.copy_8a950d18f78a, "BIPSS analyses your health entirely on-device. Risk scores come from a deterministic engine that keeps working with no model installed and no network available."),
-            style = MaterialTheme.typography.bodySmall,
-            color = colors.textSecondary
-        )
     }
 }
 
@@ -627,11 +616,7 @@ private fun DeleteDataDialog(vm: SettingsViewModel) {
         title = { Text(AppText.text(R.string.copy_5c4653236b30, "Delete my data"), color = colors.textPrimary) },
         text = {
             Text(
-                AppText.text(R.string.copy_e5eb30060d40, "This deletes, from this phone and now: every reading, baseline, sleep record, water log, ") +
-                    AppText.text(R.string.copy_09900759343b, "emergency contact, SOS log, your profile and your settings. If you have shared data with ") +
-                    AppText.text(R.string.copy_1b0138d37770, "BIPSS, that is deleted too - immediately if you are online, otherwise automatically once you ") +
-                    AppText.text(R.string.copy_57242fc3a776, "are. Not touched: your theme, the downloaded AI model file, any backup in your own Google ") +
-                    AppText.text(R.string.copy_b4a663e61bda, "Drive, and height or weight already saved to Health Connect."),
+                AppText.text(R.string.copy_d3c6ada05ae4, "This deletes everything BIPSS holds on this phone: readings, sleep, water, workouts, contacts, SOS log, profile and settings. Shared data is deleted too. Your Google Drive backup is not touched."),
                 color = colors.textSecondary
             )
         },

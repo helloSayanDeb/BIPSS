@@ -28,28 +28,6 @@ import org.koin.compose.koinInject
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
-@Composable fun RoutineScreen(nav: NavController, vm: ActivityViewModel = koinViewModel()) {
-    val ui by vm.ui.collectAsStateWithLifecycle()
-    val error by vm.error.collectAsStateWithLifecycle()
-    var bed by rememberSaveable(ui.data.bedtimeMinutes) { mutableStateOf(LocalTime.ofSecondOfDay(ui.data.bedtimeMinutes * 60L).toString()) }
-    var wake by rememberSaveable(ui.data.wakeMinutes) { mutableStateOf(LocalTime.ofSecondOfDay(ui.data.wakeMinutes * 60L).toString()) }
-    var saved by remember { mutableStateOf(false) }
-    fun minutes(text: String): Int? = runCatching { LocalTime.parse(text.trim()).let { it.hour * 60 + it.minute } }.getOrNull()
-    val valid = minutes(bed) != null && minutes(wake) != null && minutes(bed) != minutes(wake)
-    WellnessPage(AppText.text(R.string.copy_5d98fe8e990e, "Your sleep routine"), nav) {
-        Text(AppText.text(R.string.copy_b53ff8a39753, "Choose the times that fit your life. Your daily rhythm cards will follow this schedule."), style = MaterialTheme.typography.bodyLarge)
-        BipssCard {
-            OutlinedTextField(bed, { bed = it.take(5); saved = false }, label = { Text(AppText.text(R.string.copy_1a9a0e89570b, "Bedtime · 24-hour time")) }, placeholder = { Text("23:00") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            Spacer(Modifier.height(Space.l))
-            OutlinedTextField(wake, { wake = it.take(5); saved = false }, label = { Text(AppText.text(R.string.copy_e79147463356, "Wake time · 24-hour time")) }, placeholder = { Text("07:00") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            Spacer(Modifier.height(Space.l))
-            PrimaryButton(if (saved) AppText.text(R.string.copy_b5c120b316c2, "Saved") else AppText.text(R.string.copy_2eb6ea92d534, "Save routine"), onClick = { vm.sleepTimes(minutes(bed)!!, minutes(wake)!!) { saved = true } }, enabled = valid)
-            error?.let { Text(it, color = BipssTheme.colors.bandRisk) }
-        }
-        Text(AppText.text(R.string.copy_895e43e0deff, "These are planning times, not an alarm. Aim for a regular routine that gives you enough rest."), style = MaterialTheme.typography.bodySmall, color = BipssTheme.colors.textSecondary)
-    }
-}
-
 @Composable fun NutritionScreen(nav: NavController, vm: ActivityViewModel = koinViewModel()) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     val error by vm.error.collectAsStateWithLifecycle()
@@ -138,11 +116,11 @@ import java.time.format.DateTimeFormatter
             Text(AppText.text(R.string.copy_bd97a2841595, "Make time to move"), style = MaterialTheme.typography.headlineMedium)
             Text(AppText.text(R.string.copy_60ef5cef46f2, "Choose an activity. Wear your band to see heart rate during the session."), color = BipssTheme.colors.textSecondary)
             ActivityTypeChooser(type) { type = it }
-            PrimaryButton(AppText.text(R.string.copy_ecd6a6daf701, "Start %1\$s", type), onClick = { vm.startWorkout(type) })
+            PrimaryButton(AppText.text(R.string.copy_ecd6a6daf701, "Start %1\$s", AppText.label(type)), onClick = { vm.startWorkout(type) })
         } else {
             val seconds = ((end - start).coerceAtLeast(0L) / 1000)
             BipssCard {
-                Text(active?.name ?: recorded!!.name, style = MaterialTheme.typography.titleMedium)
+                Text(AppText.label(active?.name ?: recorded!!.name), style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(Space.s))
                 Text("%02d:%02d:%02d".format(seconds / 3600, (seconds / 60) % 60, seconds % 60), style = MaterialTheme.typography.displayMedium, color = BipssTheme.colors.activity)
                 Text(if (active != null) AppText.text(R.string.copy_c1f88e9d6c41, "In progress") else AppText.text(R.string.copy_22a970d2e5b1, "Completed"), style = MaterialTheme.typography.bodyMedium, color = BipssTheme.colors.textSecondary)
@@ -159,6 +137,7 @@ import java.time.format.DateTimeFormatter
                 }
             }
             if (active != null) {
+                WorkoutGps(active.name)
                 PrimaryButton(AppText.text(R.string.copy_b2e6505a803a, "Finish & save"), onClick = { vm.finishWorkout(); nav.popBackStack() })
                 TextButton(onClick = { vm.cancelWorkout(); nav.popBackStack() }) { Text(AppText.text(R.string.copy_228bfd767a78, "Discard session")) }
             } else recorded?.note?.takeIf { it.isNotBlank() }?.let { BipssCard { Text(it) } }

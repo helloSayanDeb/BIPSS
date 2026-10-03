@@ -54,7 +54,7 @@ fun DashboardProfileScreen(navController: NavController, vm: DashboardViewModel 
             HairlineDivider()
             MoreLink(AppText.text(R.string.copy_068863289325, "Your trends"), AppText.text(R.string.copy_63ca6dc4ad05, "Sleep, recovery and activity over time"), Icons.Rounded.Insights) { navController.navigate(Routes.TRENDS) }
             HairlineDivider()
-            MoreLink(AppText.text(R.string.copy_345d1f24f40f, "Sleep routine"), AppText.text(R.string.copy_62ebb1af04c6, "Bedtime, wake time and daily rhythm"), Icons.Rounded.Bedtime) { navController.navigate(Routes.ROUTINE) }
+            MoreLink(AppText.text(R.string.copy_4b2783146693, "Sleep planner"), AppText.text(R.string.copy_250a24300cb8, "Bedtime, wake time and sleep debt"), Icons.Rounded.Bedtime) { navController.navigate(Routes.SLEEP_PLANNER) }
             HairlineDivider()
             MoreLink(AppText.text(R.string.copy_be80ef360690, "Food journal"), if (daily.data.nutritionEnabled) AppText.text(R.string.copy_6e2d0086d1a7, "Meals and nutrition you log") else AppText.text(R.string.copy_50588c9edbcd, "Optional · set up when you're ready"), Icons.Rounded.Restaurant) { navController.navigate(Routes.NUTRITION) }
             HairlineDivider()

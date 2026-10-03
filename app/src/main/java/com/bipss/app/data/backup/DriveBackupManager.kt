@@ -68,6 +68,18 @@ data class BackupWater(val timestampMs: Long, val amountMl: Int)
 data class BackupPeriod(val startEpochDay: Long, val endEpochDay: Long? = null)
 
 @Serializable
+data class BackupDay(
+    val epochDay: Long, val validMinutes: Int, val sleepMinutes: Int? = null, val sleepStartMin: Int? = null,
+    val sleepEndMin: Int? = null, val restingHr: Double? = null, val steps: Int? = null,
+    val zoneMin1: Int = 0, val zoneMin2: Int = 0, val zoneMin3: Int = 0, val zoneMin45: Int = 0,
+    val strengthMin: Int = 0, val workoutCount: Int = 0, val recovery: Int? = null, val sleepScore: Int? = null,
+    val strain: Float? = null, val waterMl: Int = 0
+)
+
+@Serializable
+data class BackupJournal(val epochDay: Long, val habit: String, val yes: Boolean)
+
+@Serializable
 data class BackupNote(val epochDay: Long, val note: String, val updatedAtMs: Long)
 
 /**
@@ -93,7 +105,11 @@ data class BackupPayload(
     val waterLog: List<BackupWater> = emptyList(),
     val cyclePeriods: List<BackupPeriod> = emptyList(),
     val cycleNotes: List<BackupNote> = emptyList(),
-    val waterGoalMl: Int? = null
+    val waterGoalMl: Int? = null,
+    /** The daily rows BioAge is worked out from (raw readings are not kept that long). */
+    val dailySummaries: List<BackupDay> = emptyList(),
+    val journal: List<BackupJournal> = emptyList(),
+    val leanMassPct: Double? = null
 )
 
 sealed class BackupResult {
@@ -124,7 +140,9 @@ class DriveBackupManager(
     private val ewmaDao: EwmaBaselineDao,
     private val dataDayDao: DataDayDao,
     private val waterDao: WaterLogDao,
-    private val cycleDao: CycleDao
+    private val cycleDao: CycleDao,
+    private val dailyDao: com.bipss.app.data.db.dao.DailySummaryDao,
+    private val journalDao: com.bipss.app.data.db.dao.JournalDao
 ) {
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
@@ -229,14 +247,19 @@ class DriveBackupManager(
             themePreferenceOrdinal = theme.ordinal,
             emergencyContacts      = emergencyContactDao.all().first().map { BackupContact(it.name, it.phoneNumber, it.addedAtMs) },
             baselineStats          = baselineStatsDao.all().first().map { BackupBaseline(it.metricType, it.mean, it.m2, it.count, it.stdDev) },
-            schemaVersion          = 2,
+            schemaVersion          = 3,
             profileGender          = profile?.gender?.name,
             ewmaBaselines          = ewmaDao.all().map { BackupEwma(it.key, it.mean, it.variance, it.count, it.lastNightStartMs, it.updatedAtMs) },
             dataDays               = dataDayDao.all().map { BackupDataDay(it.epochDay, it.validMinutes) },
             waterLog               = waterDao.all().map { BackupWater(it.timestampMs, it.amountMl) },
             cyclePeriods           = cycleDao.periodsNow().map { BackupPeriod(it.startEpochDay, it.endEpochDay) },
             cycleNotes             = cycleDao.allNotes().map { BackupNote(it.epochDay, it.note, it.updatedAtMs) },
-            waterGoalMl            = prefsRepo.waterGoalMl.first()
+            waterGoalMl            = prefsRepo.waterGoalMl.first(),
+            dailySummaries         = dailyDao.all().map { d -> BackupDay(d.epochDay, d.validMinutes, d.sleepMinutes, d.sleepStartMin,
+                d.sleepEndMin, d.restingHr, d.steps, d.zoneMin1, d.zoneMin2, d.zoneMin3, d.zoneMin45, d.strengthMin,
+                d.workoutCount, d.recovery, d.sleepScore, d.strain, d.waterMl) },
+            journal                = journalDao.all().map { BackupJournal(it.epochDay, it.habit, it.yes) },
+            leanMassPct            = prefsRepo.leanMassPct.first()
         )
     }
 
@@ -303,6 +326,19 @@ class DriveBackupManager(
                 cycleDao.upsertNote(CycleDayNoteEntity(n.epochDay, n.note, n.updatedAtMs)); notes++
             }
         }
+
+        // BioAge's daily rows and the journal: only days and answers this phone does not already have.
+        val daysHere = dailyDao.all().map { it.epochDay }.toHashSet()
+        payload.dailySummaries.filter { it.epochDay !in daysHere }.forEach { d ->
+            dailyDao.upsert(com.bipss.app.data.db.entity.DailySummaryEntity(d.epochDay, d.validMinutes, d.sleepMinutes, d.sleepStartMin,
+                d.sleepEndMin, d.restingHr, d.steps, d.zoneMin1, d.zoneMin2, d.zoneMin3, d.zoneMin45, d.strengthMin,
+                d.workoutCount, d.recovery, d.sleepScore, d.strain, d.waterMl, System.currentTimeMillis()))
+        }
+        val answersHere = journalDao.all().map { it.epochDay to it.habit }.toHashSet()
+        payload.journal.filter { (it.epochDay to it.habit) !in answersHere }.forEach {
+            journalDao.upsert(com.bipss.app.data.db.entity.JournalEntryEntity(it.epochDay, it.habit, it.yes))
+        }
+        if (prefsRepo.leanMassPct.first() == null) payload.leanMassPct?.takeIf { it in 30.0..100.0 }?.let { prefsRepo.setLeanMassPct(it) }
 
         val taken = SimpleDateFormat("d MMM yyyy, HH:mm", Locale.getDefault()).format(Date(payload.backedUpAtMs))
         return "Restored your backup of $taken: profile, $contactsAdded new contact(s), baselines, " +

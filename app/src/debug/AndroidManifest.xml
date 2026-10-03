@@ -16,6 +16,7 @@
                 <action android:name="com.bipss.app.debug.ANALYSE_SLEEP" />
                 <action android:name="com.bipss.app.debug.ONBOARDING_VERSION" />
                 <action android:name="com.bipss.app.debug.ENV_SYNC" />
+                <action android:name="com.bipss.app.debug.SEED_HISTORY" />
             </intent-filter>
         </receiver>
     </application>

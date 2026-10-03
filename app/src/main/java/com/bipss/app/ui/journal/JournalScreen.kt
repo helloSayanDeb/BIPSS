@@ -63,6 +63,9 @@ private fun EffectRow(e: HabitEffect) {
             Text(if (d < 0) AppText.text(R.string.copy_ecdc5dfd7464, "Recovery averaged %1\$s points lower the next morning (%2\$s days with, %3\$s without)", points, e.yesDays, e.noDays)
                 else AppText.text(R.string.copy_e1096e446b4b, "Recovery averaged %1\$s points higher the next morning (%2\$s days with, %3\$s without)", points, e.yesDays, e.noDays),
                 style = MaterialTheme.typography.bodySmall, color = if (d < 0) colors.bandMonitor else colors.bandNormal)
+        } else if (e.yesDays >= JournalInsights.MIN_DAYS_EACH && e.noDays >= JournalInsights.MIN_DAYS_EACH) {
+            Text(AppText.text(R.string.copy_dc50f66eee45, "No clear difference yet (%1\$s days with, %2\$s without)", e.yesDays, e.noDays),
+                style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
         } else {
             Text(AppText.text(R.string.copy_30f08a7fdd25, "Keep logging: %1\$s days with, %2\$s without. It needs %3\$s of each.", e.yesDays, e.noDays, JournalInsights.MIN_DAYS_EACH),
                 style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)

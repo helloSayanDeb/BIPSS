@@ -62,7 +62,7 @@ fun NearbyHospitalsCard(vm: NearbyHospitalsViewModel = koinViewModel()) {
     BipssCard {
         Text(AppText.text(R.string.copy_59452dc9627b, "Nearby hospitals"), style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.height(Space.s))
-        Text(AppText.text(R.string.copy_8fc4b5ef483d, "SOS automatically looks for nearby hospital contacts. Preview the list here; no message is sent."), style = MaterialTheme.typography.bodyMedium)
+        Text(AppText.text(R.string.copy_f5a371dab09f, "Preview the hospitals SOS would text. Nothing is sent."), style = MaterialTheme.typography.bodyMedium)
         Spacer(Modifier.height(Space.m))
         OutlinedButton(onClick = { if (vm.hasPermission()) vm.find() else launcher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)) }, enabled = !state.busy) {
             Text(if (state.busy) AppText.text(R.string.copy_74b458e8d162, "Finding hospitals…") else AppText.text(R.string.copy_633d8edc3a0d, "Find nearby hospitals"))

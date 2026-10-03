@@ -105,7 +105,7 @@ fun ContactPickerScreen(
                 }
                 else -> {
                     Text(
-                        AppText.text(R.string.copy_d408602bdf7e, "Select up to %1\$s contact(s). They'll get an SMS if you trigger SOS, with your location if BIPSS can get it.", state.totalSelectable),
+                        AppText.text(R.string.copy_dc365658e876, "Select up to %1\$s contact(s) to text if you trigger SOS.", state.totalSelectable),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)

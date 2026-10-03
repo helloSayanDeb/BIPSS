@@ -82,14 +82,14 @@ fun OnboardingWelcomeScreen(navController: NavController) {
                 icon = Icons.Rounded.Sensors,
                 tint = colors.air,
                 title = AppText.text(R.string.copy_09918727725c, "Works offline"),
-                body = AppText.text(R.string.copy_b7b51c2b65ba, "Your band's readings and scores work without a connection. Weather, air quality and alerts refresh when you're back online.")
+                body = AppText.text(R.string.copy_3ebc7757f2d9, "Readings and scores work without a connection.")
             )
             Spacer(Modifier.height(Space.xl))
             FeatureRow(
                 icon = Icons.Rounded.Shield,
                 tint = colors.bandNormal,
                 title = AppText.text(R.string.copy_f52e06762e6a, "Private by default"),
-                body = AppText.text(R.string.copy_7ee31d35c99c, "Analysis runs on your phone. Your health data leaves it only if you switch on sharing or backup.")
+                body = AppText.text(R.string.copy_c808f4868e0c, "Analysis runs on your phone.")
             )
 
             Spacer(Modifier.weight(1f))

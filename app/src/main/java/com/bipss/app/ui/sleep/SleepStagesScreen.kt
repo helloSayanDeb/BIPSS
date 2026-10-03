@@ -45,13 +45,13 @@ fun SleepStagesScreen(nav: NavController, repo: SleepStageRepository = koinInjec
         BipssCard {
             Text(AppText.text(R.string.copy_8c9107f9972e, "Explore your sleep"), style = MaterialTheme.typography.titleLarge)
             Spacer(Modifier.height(Space.s))
-            Text(AppText.text(R.string.copy_8d6818e8ea59, "Estimated Wake, Light, Deep and REM. Experimental: accuracy on your band is not yet validated."), color = colors.textSecondary)
+            Text(AppText.text(R.string.copy_86f6dfde0a23, "Estimated Wake, Light, Deep and REM."), color = colors.textSecondary)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(AppText.text(R.string.copy_acf287aed9e2, "Record for sleep estimates"), Modifier.weight(1f).padding(top = Space.m))
                 Switch(checked = enabled, enabled = !busy, modifier = Modifier.semantics { contentDescription = AppText.text(R.string.copy_acf287aed9e2, "Record for sleep estimates") },
                     onCheckedChange = { value -> scope.launch { repo.setEnabled(value) } })
             }
-            Text(AppText.text(R.string.copy_3f236e710422, "Keep your band connected overnight. Pulse recordings stay on this phone for up to 72 hours."), style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
+            Text(AppText.text(R.string.copy_7b78c8edc446, "Keep your band connected overnight."), style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
         }
         PrimaryButton(if (busy) AppText.text(R.string.copy_095f29344cae, "Analysing…") else AppText.text(R.string.copy_9f5367a9d5af, "Analyse latest night"), enabled = enabled && !busy, onClick = {
             scope.launch {

@@ -100,16 +100,6 @@ fun StrainDetailScreen(
                         InfoRow(AppText.text(R.string.copy_9a5ee2f36204, "Maximum heart rate"), AppText.text(R.string.copy_5d7a5ff864cd, "%1\$s bpm (from age)", r.hrMax.roundToInt()))
                         HairlineDivider()
                         InfoRow(AppText.text(R.string.copy_5918a2970b58, "Exertion bouts"), "${r.bouts.size}")
-                        Spacer(Modifier.height(Space.s))
-                        Text(
-                            buildString {
-                                append(AppText.text(R.string.copy_73512958b7b7, "Only minutes with enough movement count: a raised heart rate while you are still is not training load. "))
-                                append(AppText.text(R.string.copy_3dd9a58e2609, "Each bout is scored by Banister's TRIMP from its duration and heart-rate reserve, and the total is shown on a 0-21 scale. "))
-                                if (outcome.restIsEstimate) append(AppText.text(R.string.copy_c27d530b4320, "Your resting heart rate is estimated from your lowest five-minute heart rate while still today, until the band has recorded a night's sleep. "))
-                                if (r.sex == TrimpSex.UNSPECIFIED) append(AppText.text(R.string.copy_4c38bd2a0f99, "It uses the average of the published male and female weightings."))
-                            },
-                            style = MaterialTheme.typography.bodySmall, color = colors.textSecondary
-                        )
                     }
                     if (r.bouts.isNotEmpty()) BipssCard {
                         SectionLabel(AppText.text(R.string.copy_8b5a625e3141, "Bouts"))

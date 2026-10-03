@@ -196,23 +196,3 @@ fun metricMeta(metricType: String): MetricMeta = when (metricType) {
     MetricTypes.HUMIDITY  -> MetricMeta(AppText.text(R.string.copy_46819ccb5e6d, "Humidity"), "%")
     else                  -> MetricMeta(metricType, "")
 }
-
-/**
- * How each reading is made, in plain words - shown on the detail page in
- * place of a badge. Measured values are described as measured; the caveats
- * are the real ones for this band.
- */
-fun metricMethodNote(metricType: String): String? = when (metricType) {
-    MetricTypes.HR -> AppText.text(R.string.copy_320a7b485d9b, "Measured from your pulse by the band's optical sensor.")
-    MetricTypes.SPO2 ->
-        AppText.text(R.string.copy_747651ee9556, "Measured by the band's red and infrared light sensor. It uses the standard conversion and has not been ") +
-            AppText.text(R.string.copy_5748dd03f77e, "calibrated for this band, so it can differ from a clinical pulse oximeter by a few percent; the trend ") +
-            AppText.text(R.string.copy_d3322a62cb54, "is more reliable than a single number.")
-    // The only place the older term appears: to say what PRV stands in for.
-    MetricTypes.PRV ->
-        AppText.text(R.string.copy_896f97f532b6, "The variation in time between your pulse beats, measured at the wrist (a proxy for HRV). It's most ") +
-            AppText.text(R.string.copy_97f16b4bcff9, "meaningful when you're still; movement makes it jump.")
-    MetricTypes.SKIN_TEMP ->
-        AppText.text(R.string.copy_429c462b4e28, "Measured on your skin by the band's temperature sensor. Skin runs cooler than your core temperature.")
-    else -> null
-}

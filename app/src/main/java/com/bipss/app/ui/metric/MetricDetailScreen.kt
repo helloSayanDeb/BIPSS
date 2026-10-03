@@ -102,12 +102,6 @@ fun MetricDetailScreen(
                 }
             }
 
-            metricMethodNote(metricType)?.let { note ->
-                item {
-                    Text(note, style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
-                }
-            }
-
             item {
                 TimeRangeSelector(
                     selected = state.range,
@@ -135,7 +129,7 @@ fun MetricDetailScreen(
                 if (!state.hasData && !state.isLoading) {
                     InfoBanner(
                         text = if (state.range == TimeRange.LIVE)
-                            AppText.text(R.string.copy_8564f621c585, "No readings in the last 5 minutes. This view fills in, second by second, while your band is streaming.")
+                            AppText.text(R.string.copy_0f62cb64d173, "No readings in the last 5 minutes.")
                         else AppText.text(R.string.copy_671564f7f8af, "No data recorded in this period. Wear the band to start building history."),
                         icon = Icons.Rounded.Info,
                         tint = colors.textTertiary

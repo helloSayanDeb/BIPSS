@@ -55,14 +55,14 @@
             android:id="@+id/widget_add_small"
             style="@style/WidgetButton"
             android:layout_width="0dp"
-            android:layout_height="match_parent"
+            android:layout_height="48dp"
             android:layout_weight="1" />
 
         <TextView
             android:id="@+id/widget_add_medium"
             style="@style/WidgetButton"
             android:layout_width="0dp"
-            android:layout_height="match_parent"
+            android:layout_height="48dp"
             android:layout_marginStart="6dp"
             android:layout_weight="1" />
 
@@ -70,7 +70,7 @@
             android:id="@+id/widget_add_large"
             style="@style/WidgetButton"
             android:layout_width="0dp"
-            android:layout_height="match_parent"
+            android:layout_height="48dp"
             android:layout_marginStart="6dp"
             android:layout_weight="1" />
 
@@ -78,7 +78,7 @@
             android:id="@+id/widget_undo"
             style="@style/WidgetButton"
             android:layout_width="0dp"
-            android:layout_height="match_parent"
+            android:layout_height="48dp"
             android:layout_marginStart="6dp"
             android:layout_weight="1" />
     </LinearLayout>

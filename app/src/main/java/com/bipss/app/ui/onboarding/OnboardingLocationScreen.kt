@@ -92,7 +92,7 @@ fun OnboardingLocationScreen(
             FeatureRow(Icons.Rounded.Sms, colors.bandRisk, AppText.text(R.string.copy_28c0e8f3cb4c, "Help contacts find you"),
                 AppText.text(R.string.copy_4158c0d53abe, "Include a map link when you send an SOS."))
             Spacer(Modifier.height(Space.l))
-            Text(AppText.text(R.string.copy_be08929abdef, "Your location is shared with weather and nearby-place services to provide these features. Precise location improves local results."),
+            Text(AppText.text(R.string.copy_eb585193feb7, "Your location is shared with weather and nearby-place services."),
                 style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
             if (permission.isPermanentlyDenied) {
                 Spacer(Modifier.height(Space.l))

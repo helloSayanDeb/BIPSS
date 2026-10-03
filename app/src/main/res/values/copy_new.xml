@@ -135,4 +135,37 @@
   <string name="copy_d43fdce41454" formatted="false">"Add %1$s millilitres"</string>
   <string name="copy_db896ea3ada1" formatted="false">"%1$s / %2$s mL"</string>
   <string name="copy_f8e9cdf007a8" formatted="false">"Take back the last 250 millilitres"</string>
+  <string name="copy_0f62cb64d173" formatted="false">"No readings in the last 5 minutes."</string>
+  <string name="copy_16581603ba7b" formatted="false">"No values in this period."</string>
+  <string name="copy_1749a58bf6c2" formatted="false">"Keeps the connection running overnight."</string>
+  <string name="copy_18eb7ad3c314" formatted="false">"A starting goal based on your weight."</string>
+  <string name="copy_1d96333b4deb" formatted="false">"Wear the band to bed to see your recovery."</string>
+  <string name="copy_250a24300cb8" formatted="false">"Bedtime, wake time and sleep debt"</string>
+  <string name="copy_343c937d0135" formatted="false">"The people SOS texts."</string>
+  <string name="copy_3994904b63c9" formatted="false">"Thanks, noted."</string>
+  <string name="copy_3ebc7757f2d9" formatted="false">"Readings and scores work without a connection."</string>
+  <string name="copy_4acce189856e" formatted="false">"Your own copy of your profile, settings and logs in your Google Drive."</string>
+  <string name="copy_62847e193eb1" formatted="false">"Wear the band overnight to start counting."</string>
+  <string name="copy_6778e302c4b1" formatted="false">"BIPSS reads your contacts only so you can choose. It keeps the name and number of the people you pick."</string>
+  <string name="copy_7600e51319f8" formatted="false">"An average appears after %1$s nights."</string>
+  <string name="copy_7b78c8edc446" formatted="false">"Keep your band connected overnight."</string>
+  <string name="copy_7e4a3c6078b8" formatted="false">"Optional: shares hourly averages of your readings and sleep, under an anonymous ID. Not a backup."</string>
+  <string name="copy_86f6dfde0a23" formatted="false">"Estimated Wake, Light, Deep and REM."</string>
+  <string name="copy_9315b6c80433" formatted="false">"Not a diagnosis. If you are worried about your breathing during sleep, talk to a doctor."</string>
+  <string name="copy_964c8c78c520" formatted="false">"Used for your heart-rate zones, BMI and hydration goal."</string>
+  <string name="copy_a4ef216f7cbe" formatted="false">"Contacts here get an SMS when SOS fires, with your location if available."</string>
+  <string name="copy_a9e54ab09c25" formatted="false">"Choose an input above to see its trend."</string>
+  <string name="copy_c808f4868e0c" formatted="false">"Analysis runs on your phone."</string>
+  <string name="copy_d3c6ada05ae4" formatted="false">"This deletes everything BIPSS holds on this phone: readings, sleep, water, workouts, contacts, SOS log, profile and settings. Shared data is deleted too. Your Google Drive backup is not touched."</string>
+  <string name="copy_dc365658e876" formatted="false">"Select up to %1$s contact(s) to text if you trigger SOS."</string>
+  <string name="copy_eb1b98960f2a" formatted="false">"Choose the option that suits you."</string>
+  <string name="copy_eb585193feb7" formatted="false">"Your location is shared with weather and nearby-place services."</string>
+  <string name="copy_f5a371dab09f" formatted="false">"Preview the hospitals SOS would text. Nothing is sent."</string>
+  <string name="copy_fe53532d9a5f" formatted="false">"When you trigger SOS, BIPSS texts your contacts and nearby hospitals from this phone."</string>
+  <string name="copy_38950f3977f7" formatted="false">"%1$sm"</string>
+  <string name="copy_dc50f66eee45" formatted="false">"No clear difference yet (%1$s days with, %2$s without)"</string>
+  <string name="copy_076886bfb3ed" formatted="false">"Add your phone\'s GPS speed for a better VO₂ max estimate."</string>
+  <string name="copy_2981b2aa998a" formatted="false">"GPS speed"</string>
+  <string name="copy_30f69a08e7e5" formatted="false">"Allow precise location"</string>
+  <string name="copy_f3e212fd58b4" formatted="false">"Recording your speed while this screen is open, for a better VO₂ max estimate."</string>
 </resources>

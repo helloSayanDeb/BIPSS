@@ -67,7 +67,7 @@ fun RecoveryDetailScreen(
                 else EmptyState(
                     icon = Icons.Rounded.Bedtime,
                     title = AppText.text(R.string.copy_e176d08f27e2, "No night recorded yet"),
-                    body = AppText.text(R.string.copy_80e7b149f578, "Recovery is worked out from a night's sleep. Wear the band to bed and it will appear the next morning.")
+                    body = AppText.text(R.string.copy_1d96333b4deb, "Wear the band to bed to see your recovery.")
                 )
             } else {
                 BipssCard {

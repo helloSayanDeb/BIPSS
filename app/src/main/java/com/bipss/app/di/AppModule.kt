@@ -67,7 +67,7 @@ val appModule = module {
     single { HealthConnectRepository(androidContext()) }
 
     // ── Google Drive appDataFolder backup (see class doc re: OAuth client requirement) ──
-    single { DriveBackupManager(androidContext(), get(), get(), get(), get(), get(), get(), get(), get()) }
+    single { DriveBackupManager(androidContext(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
 
     // ── Firebase (data sharing) ───────────────────────────────────────────────
     single { FirebaseFirestore.getInstance() }
