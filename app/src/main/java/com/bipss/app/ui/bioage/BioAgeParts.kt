@@ -54,7 +54,7 @@ private fun PaceGauge(pace: Double, tint: Color) {
     val fraction = ((pace + 1.0) / 4.0).toFloat().coerceIn(0f, 1f)
     BoxWithConstraints(Modifier.fillMaxWidth().height(18.dp)) {
         val w = maxWidth
-        Box(Modifier.align(Alignment.Center).fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).background(colors.field))
+        Box(Modifier.align(Alignment.Center).fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).background(colors.raised))
         Box(Modifier.align(Alignment.CenterStart).offset(x = w * 0.5f - 1.dp).width(2.dp).height(14.dp).background(colors.textTertiary))
         Box(Modifier.align(Alignment.CenterStart).offset(x = w * fraction - 8.dp).size(16.dp).clip(RoundedCornerShape(8.dp)).background(tint))
     }

@@ -105,13 +105,10 @@ fun HydrationDetailScreen(navController: NavController, vm: HydrationViewModel =
                     Text(if (ui.goalMl == null) AppText.text(R.string.copy_ecf5423f8a3b, "Set daily goal") else AppText.text(R.string.copy_9ffdfca0f6aa, "Change daily goal"))
                 }
                 Text(if (ui.suggestedGoal) AppText.text(R.string.copy_18eb7ad3c314, "A starting goal based on your weight.")
-                    else AppText.text(R.string.copy_69561f6900bb, "Your daily drinks target. Follow any fluid limit your clinician has given you."),
+                    else AppText.text(R.string.copy_3a9d5da83acc, "Your daily drinks target."),
                     style = MaterialTheme.typography.bodySmall, color = colors.textTertiary)
                 Spacer(Modifier.height(Space.l))
                 WaterStepper(ui.loaded, ui.totalMl > 0, vm::subtract, vm::add)
-                Spacer(Modifier.height(Space.m))
-                Text(AppText.text(R.string.copy_a846785ede94, "− removes up to 250 mL from today's most recent drinks."),
-                    style = MaterialTheme.typography.bodySmall, color = colors.textTertiary)
                 error?.let { Text(it, color = colors.bandRisk, modifier = Modifier.padding(top = Space.s)) }
             }
             BipssCard {
