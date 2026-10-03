@@ -1,6 +1,6 @@
 # BIPSS
 
-Privacy-preserving personal health companion — Android app (v1.0.4).
+Privacy-preserving personal health companion — Android app (v0.7.0, pre-release).
 
 Reads vitals from a companion wearable band over BLE, fuses them with
 environmental data (AQI, weather, disaster alerts), and produces explainable
