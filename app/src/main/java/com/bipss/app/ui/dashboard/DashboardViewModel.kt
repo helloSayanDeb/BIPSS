@@ -1,5 +1,8 @@
 package com.bipss.app.ui.dashboard
 
+import com.bipss.app.localization.AppText
+import com.bipss.app.R
+
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -126,7 +129,8 @@ class DashboardViewModel(
     private val signalEpochDao: com.bipss.app.data.db.dao.SignalEpochDao,
     private val scoring:    com.bipss.app.data.ScoringRepository,
     private val aqiContext: com.bipss.app.data.environmental.AqiContextRepository,
-    private val context:    Context
+    private val context:    Context,
+    private val dailyActivity: com.bipss.app.data.DailyActivityRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DashboardUiState())
@@ -138,6 +142,8 @@ class DashboardViewModel(
     // Null until the first load completes: until then the scores are simply
     // not shown, rather than computed from placeholder "day 0, no night" inputs.
     @Volatile private var scoringInputs: com.bipss.app.data.ScoringRepository.Snapshot? = null
+    private var lastDayHealth: com.bipss.app.data.DayHealth? = null
+    private var lastHealthDay: Long? = null
 
     init {
         observeSensorData()
@@ -220,7 +226,7 @@ class DashboardViewModel(
         viewModelScope.launch {
             while (true) {
                 runCatching { scoringInputs = loadScoringInputs() }
-                    .onFailure { android.util.Log.w("DashboardViewModel", "Scoring inputs failed", it) }
+                    .onFailure { android.util.Log.w(AppText.text(R.string.copy_019fdbaec6de, "DashboardViewModel"), AppText.text(R.string.copy_5afa4f7edd47, "Scoring inputs failed"), it) }
                 recomputeRiskScores()
                 kotlinx.coroutines.delay(60_000L)
             }
@@ -284,6 +290,7 @@ class DashboardViewModel(
             combine(waterRepo.lastLogMs, waterRepo.todayTotals) { last, today -> last to today.totalMl }
                 .collect { (last, totalMl) ->
                     _uiState.update { it.copy(lastWaterLogMs = last, waterLogTotalMlToday = totalMl) }
+                    recomputeRiskScores()
                 }
         }
     }
@@ -361,6 +368,10 @@ class DashboardViewModel(
 
         val env = s.env.takeIf { it.fetchedAtMs > 0L }
 
+        val currentDay = com.bipss.app.domain.time.LocalDay.epochDay(System.currentTimeMillis())
+        val latestSleep = sleepRepo.sessionsNewestLast().filter {
+            com.bipss.app.domain.time.LocalDay.epochDay(it.endMs) == currentDay
+        }.maxByOrNull { it.totalSleepMs }
         val scores = calculator.computeAll(
             hr              = s.heartRate,
             spo2            = s.spO2,
@@ -368,12 +379,30 @@ class DashboardViewModel(
             personal        = inputs.personal,
             env             = env,
             hoursSinceWater = hoursSinceWater,
-            sleepScore      = sleepRepo.lastNightScore(),
+            sleepScore      = latestSleep?.let(com.bipss.app.data.SleepRepository::score),
             recovery        = inputs.recovery,
             strain          = inputs.strain,
             ali             = inputs.ali,
             dataMode        = dataMode
-        )
+        ).map { score ->
+            if (score.type != RiskScoreType.SLEEP || !score.hasNumber || latestSleep == null) score else score.copy(inputs = listOf(
+                com.bipss.app.domain.InsightInput("duration", AppText.text(R.string.copy_f44280e29037, "Time asleep"), latestSleep.totalSleepMs / 60000.0, "min", AppText.text(R.string.copy_1751830938cb, "60% of the score, up to 8 hours")),
+                com.bipss.app.domain.InsightInput("efficiency", AppText.text(R.string.copy_9a3252beb466, "Sleep efficiency"), latestSleep.efficiencyPct.toDouble(), "%", AppText.text(R.string.copy_187c4c07be68, "40% of the score")),
+                com.bipss.app.domain.InsightInput("interruptions", AppText.text(R.string.copy_5f1f15d3b632, "Interruptions"), latestSleep.awakenings.toDouble(), detail = AppText.text(R.string.copy_110e4664d1fc, "Supporting sleep context")),
+                com.bipss.app.domain.InsightInput("awake", AppText.text(R.string.copy_6da9a0e51e28, "Awake after falling asleep"), latestSleep.wakeAfterOnsetMs / 60000.0, "min", AppText.text(R.string.copy_110e4664d1fc, "Supporting sleep context")),
+                com.bipss.app.domain.InsightInput("session", AppText.text(R.string.copy_74d324f6bca8, "Sleep ended"), isNumeric = false, detail = java.time.Instant.ofEpochMilli(latestSleep.endMs)
+                    .atZone(java.time.ZoneId.systemDefault()).format(java.time.format.DateTimeFormatter.ofPattern("d MMM, h:mm a")))
+            ))
+        }
+        dailyActivity.recordInsights(currentDay, scores.map(com.bipss.app.domain.InsightRecord::from))
+        fun value(type: RiskScoreType) = scores.firstOrNull { it.type == type && it.hasNumber }
+        val health = com.bipss.app.data.DayHealth(value(RiskScoreType.SLEEP)?.score,
+            value(RiskScoreType.RECOVERY)?.score, value(RiskScoreType.STRAIN)?.valueLabel?.let(com.bipss.app.localization.LocalNumbers::floatOrNull))
+        if (lastDayHealth != health || lastHealthDay != currentDay) {
+            dailyActivity.recordHealth(currentDay, health)
+            lastDayHealth = health
+            lastHealthDay = currentDay
+        }
 
         // Personalised alert ranking. Only scores the app could actually
         // compute feed the vulnerability weighting.

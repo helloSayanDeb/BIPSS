@@ -1,5 +1,8 @@
 package com.bipss.app.ui.strain
 
+import com.bipss.app.localization.AppText
+import com.bipss.app.R
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -40,10 +43,10 @@ fun StrainDetailScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Strain") },
+                title = { Text(AppText.text(R.string.copy_fcde25fd44fb, "Strain")) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = AppText.text(R.string.copy_76900f1bfd16, "Back"))
                     }
                 }
             )
@@ -63,60 +66,60 @@ fun StrainDetailScreen(
                 null -> if (state.isLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
                 is StrainOutcome.Unavailable -> EmptyState(
                     icon = Icons.Rounded.DirectionsWalk,
-                    title = "No strain score today",
+                    title = AppText.text(R.string.copy_66af2cba9e6d, "No strain score today"),
                     body = outcome.reason
                 )
                 is StrainOutcome.Available -> {
                     val r = outcome.result
                     BipssCard {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Today", style = MaterialTheme.typography.titleMedium,
+                            Text(AppText.text(R.string.copy_2b065c7c9ce4, "Today"), style = MaterialTheme.typography.titleMedium,
                                  color = colors.textPrimary, modifier = Modifier.weight(1f))
                         }
                         Spacer(Modifier.height(Space.s))
                         Row(verticalAlignment = Alignment.Bottom) {
                             Text("%.1f".format(r.display), style = MetricValue, color = colors.textPrimary)
                             Spacer(Modifier.width(Space.s))
-                            Text("of ${StrainScale.MAX_DISPLAY.roundToInt()}", style = MaterialTheme.typography.bodyMedium,
+                            Text(AppText.text(R.string.copy_25c8122ba463, "of %1\$s", StrainScale.MAX_DISPLAY.roundToInt()), style = MaterialTheme.typography.bodyMedium,
                                  color = colors.textTertiary, modifier = Modifier.padding(bottom = 6.dp))
                         }
                         Spacer(Modifier.height(Space.s))
                         Text(
-                            "Based on ${r.scoredMinutes} of ${r.activeMinutes} active minutes" +
-                                if (r.scoredMinutes < r.activeMinutes) " (the rest had no usable heart rate)." else ".",
+                            AppText.text(R.string.copy_05d8d625137c, "Based on %1\$s of %2\$s active minutes", r.scoredMinutes, r.activeMinutes) +
+                                if (r.scoredMinutes < r.activeMinutes) AppText.text(R.string.copy_8bf4afea2e8f, " (the rest had no usable heart rate).") else ".",
                             style = MaterialTheme.typography.bodySmall, color = colors.textSecondary
                         )
                     }
                     BipssCard {
-                        SectionLabel("How it's worked out")
+                        SectionLabel(AppText.text(R.string.copy_1efabce5b38a, "How it's worked out"))
                         Spacer(Modifier.height(Space.s))
-                        InfoRow("Training impulse (TRIMP)", "%.0f".format(r.trimp))
+                        InfoRow(AppText.text(R.string.copy_bc931395daad, "Training impulse (TRIMP)"), "%.0f".format(r.trimp))
                         HairlineDivider()
-                        InfoRow("Resting heart rate", "${r.hrRest.roundToInt()} bpm" + if (outcome.restIsEstimate) " (your stillest stretch today; no sleep recorded yet)" else " (from last night's sleep)")
+                        InfoRow(AppText.text(R.string.copy_3fc0fe1697ca, "Resting heart rate"), AppText.text(R.string.copy_b8300f6c066e, "%1\$s bpm", r.hrRest.roundToInt()) + if (outcome.restIsEstimate) AppText.text(R.string.copy_fccf0ff7de2d, " (your stillest stretch today; no sleep recorded yet)") else AppText.text(R.string.copy_a0eedc34bb26, " (from last night's sleep)"))
                         HairlineDivider()
-                        InfoRow("Maximum heart rate", "${r.hrMax.roundToInt()} bpm (from age)")
+                        InfoRow(AppText.text(R.string.copy_9a5ee2f36204, "Maximum heart rate"), AppText.text(R.string.copy_5d7a5ff864cd, "%1\$s bpm (from age)", r.hrMax.roundToInt()))
                         HairlineDivider()
-                        InfoRow("Exertion bouts", "${r.bouts.size}")
+                        InfoRow(AppText.text(R.string.copy_5918a2970b58, "Exertion bouts"), "${r.bouts.size}")
                         Spacer(Modifier.height(Space.s))
                         Text(
                             buildString {
-                                append("Only minutes with enough movement count: a raised heart rate while you are still is not training load. ")
-                                append("Each bout is scored by Banister's TRIMP from its duration and heart-rate reserve, and the total is shown on a 0-21 scale. ")
-                                if (outcome.restIsEstimate) append("Your resting heart rate is estimated from your lowest five-minute heart rate while still today, until the band has recorded a night's sleep. ")
-                                if (r.sex == TrimpSex.UNSPECIFIED) append("It uses the average of the published male and female weightings.")
+                                append(AppText.text(R.string.copy_73512958b7b7, "Only minutes with enough movement count: a raised heart rate while you are still is not training load. "))
+                                append(AppText.text(R.string.copy_3dd9a58e2609, "Each bout is scored by Banister's TRIMP from its duration and heart-rate reserve, and the total is shown on a 0-21 scale. "))
+                                if (outcome.restIsEstimate) append(AppText.text(R.string.copy_c27d530b4320, "Your resting heart rate is estimated from your lowest five-minute heart rate while still today, until the band has recorded a night's sleep. "))
+                                if (r.sex == TrimpSex.UNSPECIFIED) append(AppText.text(R.string.copy_4c38bd2a0f99, "It uses the average of the published male and female weightings."))
                             },
                             style = MaterialTheme.typography.bodySmall, color = colors.textSecondary
                         )
                     }
                     if (r.bouts.isNotEmpty()) BipssCard {
-                        SectionLabel("Bouts")
+                        SectionLabel(AppText.text(R.string.copy_8b5a625e3141, "Bouts"))
                         Spacer(Modifier.height(Space.s))
                         val fmt = SimpleDateFormat("HH:mm", Locale.getDefault())
                         r.bouts.forEachIndexed { i, b ->
                             if (i > 0) HairlineDivider()
                             InfoRow(
-                                "${fmt.format(Date(b.startMs))} · ${b.minutes} min",
-                                "${(b.meanHrReserve * 100).roundToInt()}% HRR · TRIMP ${"%.0f".format(b.trimp)}"
+                                AppText.text(R.string.copy_a1572e58740c, "%1\$s · %2\$s min", fmt.format(Date(b.startMs)), b.minutes),
+                                AppText.text(R.string.copy_e945975a0b97, "%1\$s% HRR · TRIMP %2\$s", (b.meanHrReserve * 100).roundToInt(), "%.0f".format(b.trimp))
                             )
                         }
                     }

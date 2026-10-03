@@ -97,11 +97,12 @@ data class EnvironmentalSnapshot(
  * a 1-5 index of the air around the wearer, a different quantity, shown beside
  * the station by context (AqiDisplay) and never in its place.
  */
-enum class AqiSource(val label: String) {
+enum class AqiSource(private val englishLabel: String) {
     CPCB   ("CPCB station"),
     /** CAMS model via Open-Meteo: only when no station reading is available, and always labelled. */
     MODEL  ("modelled"),
-    NONE   ("Unavailable")
+    NONE   ("Unavailable");
+    val label: String get() = com.bipss.app.localization.AppText.label(englishLabel)
 }
 
 // -- Alerts -----------------------------------------------------------------
@@ -166,12 +167,14 @@ data class ImdAlert(
  * green = all clear, yellow = watch, orange = alert, red = warning.
  * [fromSachet] maps that; [fromCap] maps genuine CAP feeds.
  */
-enum class AlertSeverity(val rank: Int, val label: String) {
+enum class AlertSeverity(val rank: Int, private val englishLabel: String) {
     NONE    (0, "No alert"),
     ADVISORY(1, "Advisory"),
     WATCH   (2, "Watch"),
     WARNING (3, "Alert"),
     EXTREME (4, "Warning");
+    val label: String get() = com.bipss.app.localization.AppText.label(englishLabel)
+
 
     companion object {
         /**
@@ -221,10 +224,11 @@ enum class AlertSeverity(val rank: Int, val label: String) {
 }
 
 /** How close an alert is to the user. Ordinal is the sort key - DIRECT first. */
-enum class Relevance(val label: String) {
+enum class Relevance(private val englishLabel: String) {
     DIRECT  ("Your district"),
     NEARBY  ("Your state"),
-    REGIONAL("Nearby")
+    REGIONAL("Nearby");
+    val label: String get() = com.bipss.app.localization.AppText.label(englishLabel)
 }
 
 /** An alert plus the personalisation the app computed for it. */
@@ -268,13 +272,15 @@ data class AqiSnapshot(
 }
 
 /** CPCB national AQI bands. Boundaries are the published ones. */
-enum class AqiRiskLevel(val label: String) {
+enum class AqiRiskLevel(private val englishLabel: String) {
     GOOD        ("good"),
     SATISFACTORY("satisfactory"),
     MODERATE    ("moderate"),
     POOR        ("poor"),
     VERY_POOR   ("very poor"),
     SEVERE      ("severe");
+    val label: String get() = com.bipss.app.localization.AppText.label(englishLabel)
+
 
     companion object {
         fun fromAqi(aqi: Int): AqiRiskLevel = when {
@@ -321,13 +327,14 @@ data class HealthAdvisory(
 )
 
 @Serializable
-enum class AdvisoryScope(val label: String) {
+enum class AdvisoryScope(private val englishLabel: String) {
     GLOBAL  ("Worldwide"),
     NATIONAL("India"),
     REGIONAL("Your state"),
     LOCAL   ("Your district"),
     /** An outbreak confined to another country. */
-    ABROAD  ("Outside India")
+    ABROAD  ("Outside India");
+    val label: String get() = com.bipss.app.localization.AppText.label(englishLabel)
 }
 
 // -- Geo --------------------------------------------------------------------

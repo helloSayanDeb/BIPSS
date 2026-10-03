@@ -64,8 +64,9 @@ fun NavGraph(
                 OnboardingConnectBandScreen(navController = navController, isRePairMode = rePairMode)
             }
 
-            composable(Routes.ONBOARDING_DOWNLOAD_MODEL) {
-                OnboardingDownloadModelScreen(navController = navController)
+            composable(Routes.ONBOARDING_DOWNLOAD_MODEL + "?standalone={standalone}",
+                arguments = listOf(navArgument("standalone") { type = NavType.BoolType; defaultValue = false })) { entry ->
+                OnboardingDownloadModelScreen(navController, standalone = entry.arguments?.getBoolean("standalone") == true)
             }
 
             composable(Routes.ONBOARDING_NOTIFICATIONS) {
@@ -112,6 +113,10 @@ fun NavGraph(
             composable(Routes.DASHBOARD_INSIGHTS) {
                 DashboardInsightsScreen(navController = navController)
             }
+            composable(Routes.INSIGHT_DETAIL_PATTERN, arguments = listOf(navArgument("type") { type = NavType.StringType })) { entry ->
+                val type = com.bipss.app.domain.RiskScoreType.entries.firstOrNull { it.name == entry.arguments?.getString("type") }
+                if (type != null) InsightDetailScreen(type, navController)
+            }
 
             composable(Routes.DASHBOARD_CHAT) {
                 DashboardChatScreen(navController = navController)
@@ -127,6 +132,25 @@ fun NavGraph(
 
             composable(Routes.CYCLE_DETAIL) {
                 com.bipss.app.ui.cycle.CycleDetailScreen(navController = navController)
+            }
+
+            composable(Routes.HYDRATION_DETAIL) {
+                com.bipss.app.ui.hydration.HydrationDetailScreen(navController = navController)
+            }
+            composable(Routes.ACTIVITY_DETAIL) { com.bipss.app.ui.activity.ActivityScreen(navController) }
+            composable(Routes.BODY_DETAIL) { com.bipss.app.ui.activity.BodyScreen(navController) }
+            composable(Routes.FITNESS) { com.bipss.app.ui.activity.FitnessScreen(navController) }
+            composable(Routes.SLEEP_STAGES) { com.bipss.app.ui.sleep.SleepStagesScreen(navController) }
+            composable(Routes.BREATHING) { com.bipss.app.ui.activity.BreathingScreen(navController) }
+            composable("snapshot/{day}", arguments = listOf(navArgument("day") { type = NavType.LongType })) { entry ->
+                com.bipss.app.ui.dashboard.SnapshotScreen(entry.arguments!!.getLong("day"), navController)
+            }
+            composable(Routes.TRENDS) { com.bipss.app.ui.dashboard.TrendsScreen(navController) }
+            composable(Routes.ROUTINE) { com.bipss.app.ui.activity.RoutineScreen(navController) }
+            composable(Routes.NUTRITION) { com.bipss.app.ui.activity.NutritionScreen(navController) }
+            composable(Routes.WORKOUT_LIVE) { com.bipss.app.ui.activity.WorkoutScreen(null, navController) }
+            composable("workout/{id}", arguments = listOf(navArgument("id") { type = NavType.StringType })) { entry ->
+                com.bipss.app.ui.activity.WorkoutScreen(entry.arguments?.getString("id"), navController)
             }
 
             composable(Routes.RECOVERY_DETAIL) {

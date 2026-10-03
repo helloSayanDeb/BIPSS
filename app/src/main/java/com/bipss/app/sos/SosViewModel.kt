@@ -1,5 +1,8 @@
 package com.bipss.app.sos
 
+import com.bipss.app.localization.AppText
+import com.bipss.app.R
+
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.bipss.app.data.UserPreferencesRepository
@@ -35,7 +38,8 @@ sealed class SosUiState {
         val blockers:     Set<SosBlocker>  = emptySet(),
         val contactCount: Int              = 0,
         /** Whether any location permission is granted, i.e. whether the SMS can say where the user is. */
-        val locationAllowed: Boolean       = true
+        val locationAllowed: Boolean       = true,
+        val deadlineElapsedMs: Long = android.os.SystemClock.elapsedRealtime() + totalSeconds * 1000L
     ) : SosUiState() {
         val fraction: Float get() = secondsLeft.toFloat() / totalSeconds.toFloat()
     }
@@ -120,20 +124,23 @@ class SosViewModel(
         if (_state.value is SosUiState.Countdown || _state.value is SosUiState.Sending) return
         // Claim the state synchronously: a double tap must not start two
         // countdowns (and send the SMS twice) before the coroutine's first tick.
+        val deadline = android.os.SystemClock.elapsedRealtime() + SOS_COUNTDOWN_SECONDS * 1000L
         _state.value = SosUiState.Countdown(SOS_COUNTDOWN_SECONDS, source = source,
-            locationAllowed = locationHelper.hasAnyPermission())
+            locationAllowed = locationHelper.hasAnyPermission(), deadlineElapsedMs = deadline)
 
         triggerStartMs = System.currentTimeMillis()
         locationJob = viewModelScope.async { locationHelper.getCurrentFix(timeoutMs = 20_000L) }
         hospitalJob = viewModelScope.async { lookUpHospitals() }
         countdownJob = viewModelScope.launch {
-            for (remaining in SOS_COUNTDOWN_SECONDS downTo 1) {
+            while (android.os.SystemClock.elapsedRealtime() < deadline) {
                 val (blockers, contacts) = checkBlockers()
+                val remainingMs = (deadline - android.os.SystemClock.elapsedRealtime()).coerceAtLeast(0L)
+                if (remainingMs == 0L) break
                 _state.value = SosUiState.Countdown(
-                    remaining, source = source, blockers = blockers, contactCount = contacts,
-                    locationAllowed = locationHelper.hasAnyPermission()
+                    CountdownClock.secondsLeft(remainingMs), source = source, blockers = blockers, contactCount = contacts,
+                    locationAllowed = locationHelper.hasAnyPermission(), deadlineElapsedMs = deadline
                 )
-                delay(1_000L)
+                delay(minOf(250L, remainingMs))
                 if (_state.value !is SosUiState.Countdown) return@launch
             }
             dispatchSos(source)
@@ -157,7 +164,7 @@ class SosViewModel(
                 source         = current.source.name,
                 outcome        = SosOutcome.CANCELLED.name,
                 lat            = null, lng = null, recipientCount = 0,
-                notes          = "Cancelled at $cancelledAt s remaining"
+                notes          = AppText.text(R.string.copy_44a40862d91f, "Cancelled at %1\$s s remaining", cancelledAt)
             ))
             delay(2_000L)
             if (_state.value is SosUiState.FalseAlarm) _state.value = SosUiState.Idle
@@ -208,8 +215,8 @@ class SosViewModel(
         val location = resolveLocation()
         val contacts = emergencyContactDao.all().first()
         val recipients = contacts.map { SmsRecipient(it.name, it.phoneNumber) }
-        val userName  = prefsRepo.userProfile.first()?.name?.takeIf { it.isNotBlank() } ?: "A BIPSS user"
-        val timestamp = SimpleDateFormat("dd MMM yyyy, HH:mm z", Locale.ENGLISH).format(Date(triggerStartMs))
+        val userName  = prefsRepo.userProfile.first()?.name?.takeIf { it.isNotBlank() } ?: AppText.text(R.string.copy_dce812ce68b1, "A BIPSS user")
+        val timestamp = SimpleDateFormat("dd MMM yyyy, HH:mm z", Locale.getDefault()).format(Date(triggerStartMs))
 
         // Hospitals: whatever the lookup started with the countdown has found,
         // given until HOSPITAL_WAIT_MS after the countdown ended. The contacts
@@ -290,7 +297,7 @@ class SosViewModel(
         val (lat, lon) = if (fix != null) fix.lat to fix.lon else {
             val cached = prefsRepo.cachedLocation.first() ?: return null
             val atMs = cached.atMs ?: return null
-            if (triggerStartMs - atMs !in 0..MAX_LAST_KNOWN_AGE_MS) return null
+            if (triggerStartMs - atMs !in 0..HOSPITAL_LOCATION_MAX_AGE_MS) return null
             cached.lat to cached.lon
         }
         return hospitalLocator.nearest(lat, lon)
@@ -301,10 +308,10 @@ class SosViewModel(
     private fun sendVerdict(h: Hospital, results: List<SmsSendResult>): String {
         val r = results.firstOrNull { it.recipient.phoneNumber == h.mobile }
         return when {
-            r == null      -> "not texted"
+            r == null      -> AppText.text(R.string.copy_baa006375565, "not texted")
             r.sent         -> "texted"
-            r.unconfirmed  -> "text not confirmed yet"
-            else           -> "text failed"
+            r.unconfirmed  -> AppText.text(R.string.copy_b9266d248ed8, "text not confirmed yet")
+            else           -> AppText.text(R.string.copy_7a6734ba8e11, "text failed")
         }
     }
 
@@ -315,27 +322,27 @@ class SosViewModel(
         results: List<SmsSendResult>,
         hadLocation: Boolean
     ): List<String> = when {
-        lookup == null && !hadLocation -> listOf("Nearby hospitals could not be looked up without your location.")
-        lookup == null -> listOf("The nearby-hospital lookup did not finish in time.")
-        lookup.status == HospitalLookup.Status.FAILED -> listOf("The nearby-hospital lookup failed (map service unreachable).")
-        lookup.status == HospitalLookup.Status.NONE_NEARBY -> listOf("No hospital is mapped within 15 km of you.")
+        lookup == null && !hadLocation -> listOf(AppText.text(R.string.copy_26c266e702fe, "Nearby hospitals could not be looked up without your location."))
+        lookup == null -> listOf(AppText.text(R.string.copy_3d5f2db8fdf4, "The nearby-hospital lookup did not finish in time."))
+        lookup.status == HospitalLookup.Status.FAILED -> listOf(AppText.text(R.string.copy_8a42d69572a6, "The nearby-hospital lookup failed (map service unreachable)."))
+        lookup.status == HospitalLookup.Status.NONE_NEARBY -> listOf(AppText.text(R.string.copy_6fc6072148f4, "No hospital is mapped within 15 km of you."))
         lookup.status == HospitalLookup.Status.NONE_WITH_NUMBER ->
-            listOf("${lookup.found} hospital(s) are mapped near you, but none lists a phone number.")
+            listOf(AppText.text(R.string.copy_6ad7384ae9d1, "%1\$s hospital(s) are mapped near you, but none lists a phone number.", lookup.found))
         else -> hospitals.map { h ->
             val km = "%.1f".format(Locale.ROOT, h.distanceKm)
-            if (h.mobile != null) "${h.name} ($km km): ${sendVerdict(h, results)}"
-            else "${h.name} ($km km): no mobile number listed, given to your contacts to call"
+            if (h.mobile != null) AppText.text(R.string.copy_fc4c6f22a123, "%1\$s (%2\$s km): %3\$s", h.name, km, sendVerdict(h, results))
+            else AppText.text(R.string.copy_c2ec085b7316, "%1\$s (%2\$s km): no mobile number listed, given to your contacts to call", h.name, km)
         }
     }
 
     /** For sos_events.notes: the hospital attempts, in the same terms. */
     private fun hospitalAudit(lookup: HospitalLookup?, hospitals: List<Hospital>, results: List<SmsSendResult>): List<String> =
         when (lookup?.status) {
-            null -> listOf("hospitals: no lookup result")
+            null -> listOf(AppText.text(R.string.copy_a9a63765feea, "hospitals: no lookup result"))
             HospitalLookup.Status.FOUND -> hospitals.map { h ->
-                "hospital ${h.name} " + (h.mobile?.let { "$it: ${sendVerdict(h, results)}" } ?: "${h.callNumber}: listed to call")
+                AppText.text(R.string.copy_78c8d8d798bc, "hospital %1\$s ", h.name) + (h.mobile?.let { "$it: ${sendVerdict(h, results)}" } ?: AppText.text(R.string.copy_e6298f17c288, "%1\$s: listed to call", h.callNumber))
             }
-            else -> listOf("hospitals: ${lookup.status.name.lowercase()} (${lookup.found} mapped)")
+            else -> listOf(AppText.text(R.string.copy_5994325791ec, "hospitals: %1\$s (%2\$s mapped)", lookup.status.name.lowercase(), lookup.found))
         }
 
     /**
@@ -361,6 +368,7 @@ class SosViewModel(
     }
 
     private companion object {
+        const val HOSPITAL_LOCATION_MAX_AGE_MS = 15 * 60_000L
         const val MAX_LAST_KNOWN_AGE_MS = 24 * 3_600_000L
         /** How long the contacts may wait for the hospital lookup and its sends after the countdown. */
         const val HOSPITAL_WAIT_MS = 3_000L

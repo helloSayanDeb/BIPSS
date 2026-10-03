@@ -11,6 +11,8 @@ local.properties
 .idea/
 **/.idea/
 *.class
+__pycache__/
+*.pyc
 
 # Android Studio / IntelliJ
 *.keystore

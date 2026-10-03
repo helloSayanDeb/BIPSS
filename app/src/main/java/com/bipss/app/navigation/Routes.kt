@@ -15,6 +15,8 @@ object Routes {
     const val ONBOARDING_GENDER         = "onboarding_gender"
     const val DASHBOARD_TODAY           = "dashboard_today"
     const val DASHBOARD_INSIGHTS        = "dashboard_insights"
+    const val INSIGHT_DETAIL_PATTERN    = "insight/{type}"
+    fun insightDetail(type: com.bipss.app.domain.RiskScoreType) = "insight/${type.name}"
     const val DASHBOARD_CHAT            = "dashboard_chat"
     const val DASHBOARD_PROFILE         = "dashboard_profile"
     const val SETTINGS                  = "settings"
@@ -31,6 +33,18 @@ object Routes {
     
     /** Period tracking (Female profiles). */
     const val CYCLE_DETAIL = "cycle_detail"
+    const val HYDRATION_DETAIL = "hydration_detail"
+    const val ACTIVITY_DETAIL = "activity_detail"
+    const val BODY_DETAIL = "body_detail"
+    const val FITNESS = "cardio_fitness"
+    const val SLEEP_STAGES = "sleep_stages"
+    const val BREATHING = "breathing"
+    const val TRENDS = "trends"
+    const val NUTRITION = "nutrition"
+    const val ROUTINE = "sleep_routine"
+    const val WORKOUT_LIVE = "workout_live"
+    fun snapshot(day: Long) = "snapshot/$day"
+    fun workout(id: String) = "workout/$id"
 
     /** Recovery detail. */
     const val RECOVERY_DETAIL = "recovery_detail"

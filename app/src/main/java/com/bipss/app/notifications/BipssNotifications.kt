@@ -1,5 +1,8 @@
 package com.bipss.app.notifications
 
+import com.bipss.app.localization.AppText
+import com.bipss.app.R
+
 import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
@@ -76,27 +79,27 @@ object BipssNotifications {
         }
 
         val alerts = NotificationChannel(
-            CH_ALERTS, "Disaster & health alerts", NotificationManager.IMPORTANCE_HIGH
+            CH_ALERTS, AppText.text(R.string.copy_bac9339bf154, "Disaster & health alerts"), NotificationManager.IMPORTANCE_HIGH
         ).apply {
-            description = "Cyclone, flood, heatwave and air quality warnings for your area."
+            description = AppText.text(R.string.copy_dd6408d1d33e, "Cyclone, flood, heatwave and air quality warnings for your area.")
         }
 
         val coaching = NotificationChannel(
-            CH_COACHING, "Daily coaching", NotificationManager.IMPORTANCE_DEFAULT
+            CH_COACHING, AppText.text(R.string.copy_183b639e79a0, "Daily coaching"), NotificationManager.IMPORTANCE_DEFAULT
         ).apply {
-            description = "Readiness, recovery and sleep guidance based on your own trends."
+            description = AppText.text(R.string.copy_a76f2a3c0c37, "Readiness, recovery and sleep guidance based on your own trends.")
         }
 
         val reminders = NotificationChannel(
-            CH_REMINDER, "Reminders", NotificationManager.IMPORTANCE_LOW
+            CH_REMINDER, AppText.text(R.string.copy_7971dd752669, "Reminders"), NotificationManager.IMPORTANCE_LOW
         ).apply {
-            description = "Gentle nudges to wear the band, log a reading or check in."
+            description = AppText.text(R.string.copy_94b6e43ef3c2, "Gentle nudges to wear the band, log a reading or check in.")
         }
 
         val service = NotificationChannel(
-            CH_SERVICE, "Band connection", NotificationManager.IMPORTANCE_MIN
+            CH_SERVICE, AppText.text(R.string.copy_96929b66956d, "Band connection"), NotificationManager.IMPORTANCE_MIN
         ).apply {
-            description = "The quiet ongoing notice Android requires while the band stays connected."
+            description = AppText.text(R.string.copy_f50ab4911a57, "The quiet ongoing notice Android requires while the band stays connected.")
             setShowBadge(false)
         }
 
@@ -182,12 +185,12 @@ object BipssNotifications {
         nightsCollected: Int,
         nightsRequired: Int
     ) {
-        val body = "$eventCount oxygen dips counted last night. " +
-                   "$nightsCollected of $nightsRequired nights collected."
+        val body = AppText.text(R.string.copy_483048335267, "%1\$s oxygen dips counted last night. ", eventCount) +
+                   AppText.text(R.string.copy_f2a6991c77c7, "%1\$s of %2\$s nights collected.", nightsCollected, nightsRequired)
 
         val notification = NotificationCompat.Builder(context, CH_COACHING)
             .setSmallIcon(ICON_COACHING)
-            .setContentTitle("Overnight oxygen summary")
+            .setContentTitle(AppText.text(R.string.copy_4795a7408610, "Overnight oxygen summary"))
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
@@ -208,11 +211,11 @@ object BipssNotifications {
      */
     fun buildServiceNotification(context: Context, connected: Boolean): Notification {
         val text = if (com.bipss.app.SimulationMode.isActive(context)) {
-            "Simulated band - not real data."
+            AppText.text(R.string.copy_b96546997330, "Simulated band - not real data.")
         } else if (connected) {
-            "Band connected. Readings are being recorded."
+            AppText.text(R.string.copy_acd39b45e01c, "Band connected. Readings are being recorded.")
         } else {
-            "Band not connected. Waiting to reconnect."
+            AppText.text(R.string.copy_13bd1c9bd30e, "Band not connected. Waiting to reconnect.")
         }
 
         return NotificationCompat.Builder(context, CH_SERVICE)

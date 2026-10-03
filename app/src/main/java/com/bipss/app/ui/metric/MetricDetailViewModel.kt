@@ -1,5 +1,8 @@
 package com.bipss.app.ui.metric
 
+import com.bipss.app.localization.AppText
+import com.bipss.app.R
+
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.bipss.app.ble.SensorReading
@@ -184,13 +187,13 @@ internal fun liveValue(metricType: String, r: SensorReading): Float? = when (met
 data class MetricMeta(val label: String, val unit: String)
 
 fun metricMeta(metricType: String): MetricMeta = when (metricType) {
-    MetricTypes.HR        -> MetricMeta("Heart rate", "bpm")
-    MetricTypes.SPO2      -> MetricMeta("Blood oxygen", "%")
-    MetricTypes.SKIN_TEMP -> MetricMeta("Skin temperature", "°C")
-    MetricTypes.PRV       -> MetricMeta("Pulse rate variability", "ms")
-    MetricTypes.ACTIVITY  -> MetricMeta("Activity", "mg·s")
-    MetricTypes.AMBIENT   -> MetricMeta("Ambient temperature", "°C")
-    MetricTypes.HUMIDITY  -> MetricMeta("Humidity", "%")
+    MetricTypes.HR        -> MetricMeta(AppText.text(R.string.copy_1447897ca9f5, "Heart rate"), "bpm")
+    MetricTypes.SPO2      -> MetricMeta(AppText.text(R.string.copy_c8b3907ee6a2, "Blood oxygen"), "%")
+    MetricTypes.SKIN_TEMP -> MetricMeta(AppText.text(R.string.copy_57ddfe470eac, "Skin temperature"), "°C")
+    MetricTypes.PRV       -> MetricMeta(AppText.text(R.string.copy_73bf2d3e3d42, "Pulse rate variability"), "ms")
+    MetricTypes.ACTIVITY  -> MetricMeta(AppText.text(R.string.copy_38da1505ca83, "Activity"), AppText.text(R.string.copy_90f264cd44d2, "mg·s"))
+    MetricTypes.AMBIENT   -> MetricMeta(AppText.text(R.string.copy_17988f163090, "Ambient temperature"), "°C")
+    MetricTypes.HUMIDITY  -> MetricMeta(AppText.text(R.string.copy_46819ccb5e6d, "Humidity"), "%")
     else                  -> MetricMeta(metricType, "")
 }
 
@@ -200,16 +203,16 @@ fun metricMeta(metricType: String): MetricMeta = when (metricType) {
  * are the real ones for this band.
  */
 fun metricMethodNote(metricType: String): String? = when (metricType) {
-    MetricTypes.HR -> "Measured from your pulse by the band's optical sensor."
+    MetricTypes.HR -> AppText.text(R.string.copy_320a7b485d9b, "Measured from your pulse by the band's optical sensor.")
     MetricTypes.SPO2 ->
-        "Measured by the band's red and infrared light sensor. It uses the standard conversion and has not been " +
-            "calibrated for this band, so it can differ from a clinical pulse oximeter by a few percent; the trend " +
-            "is more reliable than a single number."
+        AppText.text(R.string.copy_747651ee9556, "Measured by the band's red and infrared light sensor. It uses the standard conversion and has not been ") +
+            AppText.text(R.string.copy_5748dd03f77e, "calibrated for this band, so it can differ from a clinical pulse oximeter by a few percent; the trend ") +
+            AppText.text(R.string.copy_d3322a62cb54, "is more reliable than a single number.")
     // The only place the older term appears: to say what PRV stands in for.
     MetricTypes.PRV ->
-        "The variation in time between your pulse beats, measured at the wrist (a proxy for HRV). It's most " +
-            "meaningful when you're still; movement makes it jump."
+        AppText.text(R.string.copy_896f97f532b6, "The variation in time between your pulse beats, measured at the wrist (a proxy for HRV). It's most ") +
+            AppText.text(R.string.copy_97f16b4bcff9, "meaningful when you're still; movement makes it jump.")
     MetricTypes.SKIN_TEMP ->
-        "Measured on your skin by the band's temperature sensor. Skin runs cooler than your core temperature."
+        AppText.text(R.string.copy_429c462b4e28, "Measured on your skin by the band's temperature sensor. Skin runs cooler than your core temperature.")
     else -> null
 }

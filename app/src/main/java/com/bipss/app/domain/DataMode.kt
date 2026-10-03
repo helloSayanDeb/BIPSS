@@ -9,7 +9,7 @@ package com.bipss.app.domain
  * carries the mode it was computed under, so the UI can never present a
  * fabricated number as a measurement.
  */
-enum class DataMode(val label: String) {
+enum class DataMode(private val englishLabel: String) {
     /** Band streaming and network up. */
     FULL("Live"),
 
@@ -20,7 +20,9 @@ enum class DataMode(val label: String) {
     BAND_ONLY("Offline - band only"),
 
     /** Nothing live; last known values. */
-    CACHED("Offline - cached")
+    CACHED("Offline - cached");
+
+    val label: String get() = com.bipss.app.localization.AppText.label(englishLabel)
 }
 
 /**

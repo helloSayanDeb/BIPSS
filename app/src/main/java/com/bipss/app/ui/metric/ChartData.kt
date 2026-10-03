@@ -1,5 +1,8 @@
 package com.bipss.app.ui.metric
 
+import com.bipss.app.localization.AppText
+import com.bipss.app.R
+
 import com.bipss.app.data.db.dao.MetricBucket
 import com.bipss.app.data.db.dao.MetricStats
 
@@ -62,7 +65,7 @@ fun timeTicks(range: TimeRange, endMs: Long, zone: java.time.ZoneId = java.time.
     val start = java.time.Instant.ofEpochMilli(startMs).atZone(zone)
     if (range == TimeRange.LIVE) {
         // A tick each minute back from now: "4 min", "3 min", ... "Now".
-        return (4 downTo 1).map { m -> (endMs - m * 60_000L) to "$m min" } + (endMs to "Now")
+        return (4 downTo 1).map { m -> (endMs - m * 60_000L) to AppText.text(R.string.copy_3e16be5f4e1d, "%1\$s min", m) } + (endMs to AppText.text(R.string.copy_fe18013d93d2, "Now"))
     }
     val (first, step, pattern, clearanceMs) = when (range) {
         TimeRange.LIVE -> error("handled above")
@@ -74,14 +77,14 @@ fun timeTicks(range: TimeRange, endMs: Long, zone: java.time.ZoneId = java.time.
         TimeRange.WEEK -> Quad(start.toLocalDate().plusDays(1).atStartOfDay(zone), java.time.Duration.ofDays(2), "EEE", 18 * 3_600_000L)
         TimeRange.MONTH -> Quad(start.toLocalDate().plusDays(1).atStartOfDay(zone), java.time.Duration.ofDays(7), "d MMM", 3 * 86_400_000L)
     }
-    val fmt = java.time.format.DateTimeFormatter.ofPattern(pattern, java.util.Locale.ENGLISH)
+    val fmt = java.time.format.DateTimeFormatter.ofPattern(pattern, java.util.Locale.getDefault())
     val out = mutableListOf<Pair<Long, String>>()
     var t = first
     while (t.toInstant().toEpochMilli() < endMs - clearanceMs) {
         out += t.toInstant().toEpochMilli() to fmt.format(t)
         t = t.plus(step)
     }
-    out += endMs to "Now"
+    out += endMs to AppText.text(R.string.copy_fe18013d93d2, "Now")
     return out
 }
 

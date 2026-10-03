@@ -23,6 +23,7 @@ class SleepAnalysisWorker(
 ) : CoroutineWorker(appContext, workerParams), KoinComponent {
 
     private val sleepRepo: SleepRepository by inject()
+    private val sleepStages: com.bipss.app.data.SleepStageRepository by inject()
     private val scoring: com.bipss.app.data.ScoringRepository by inject()
     private val legacyCleanup: com.bipss.app.data.LegacyDataCleanup by inject()
 
@@ -33,6 +34,7 @@ class SleepAnalysisWorker(
         // Fold the new night into the recovery baselines exactly once.
         runCatching { scoring.processNewNights() }
         if (session != null) {
+            runCatching { sleepStages.analyse(session.startMs, session.endMs) }
             val nights = sleepRepo.nightCount()
             val screenings = sleepRepo.nightlyScreenings()
             val lastNight = screenings.lastOrNull()

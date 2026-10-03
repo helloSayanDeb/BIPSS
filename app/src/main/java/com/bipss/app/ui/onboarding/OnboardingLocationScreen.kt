@@ -1,5 +1,8 @@
 package com.bipss.app.ui.onboarding
 
+import com.bipss.app.localization.AppText
+import com.bipss.app.R
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Cancel
@@ -47,7 +50,7 @@ fun OnboardingLocationScreen(
         if (standalone) navController.popBackStack()
         else navController.goToNextOnboardingStep(OnboardingStep.LOCATION, catchUp)
     }
-    val continueLabel = if (standalone) "Done" else "Continue"
+    val continueLabel = if (standalone) AppText.text(R.string.copy_11a6767d5674, "Done") else AppText.text(R.string.copy_31fbef162594, "Continue")
     val permission = rememberLocationPermission()
 
     // Runs setup once location is allowed: from the dialog, from Android's
@@ -60,65 +63,45 @@ fun OnboardingLocationScreen(
     OnboardingScaffold(
         step = if (standalone) null else OnboardingStep.indexOf(OnboardingStep.LOCATION, catchUp),
         totalSteps = OnboardingStep.TOTAL,
-        title = if (permission.isGranted) "Setting up your local data" else "Your location",
+        title = if (permission.isGranted) AppText.text(R.string.copy_d0287803f2cb, "Setting up your local data") else AppText.text(R.string.copy_036b2d390f89, "Your location"),
         subtitle = if (permission.isGranted) null
-                   else "Optional. Everything else in BIPSS works without it.",
+                   else AppText.text(R.string.copy_0ef73640b2d3, "See local conditions and share your location in an SOS. You can skip this."),
         onBack = if (setupRunning) null else ({ navController.popBackStack() }),
         footer = {
             val p = phase
             when {
                 !permission.isGranted -> {
-                    PrimaryButton("Allow location", onClick = { permission.request() })
+                    PrimaryButton(AppText.text(R.string.copy_843d87d29be6, "Allow location"), onClick = { permission.request() })
                     Spacer(Modifier.height(Space.s))
-                    GhostButton("Not now", onClick = next, modifier = Modifier.fillMaxWidth())
+                    GhostButton(AppText.text(R.string.copy_a0e63d7c7125, "Not now"), onClick = next, modifier = Modifier.fillMaxWidth())
                 }
                 p is OnboardingLocationViewModel.Phase.Done && p.anyFailed -> {
-                    PrimaryButton("Try again", onClick = { vm.start() })
+                    PrimaryButton(AppText.text(R.string.copy_d8b8392e2c54, "Try again"), onClick = { vm.start() })
                     Spacer(Modifier.height(Space.s))
-                    GhostButton(if (standalone) "Done" else "Continue anyway", onClick = next, modifier = Modifier.fillMaxWidth())
+                    GhostButton(if (standalone) AppText.text(R.string.copy_11a6767d5674, "Done") else AppText.text(R.string.copy_873567be309f, "Continue anyway"), onClick = next, modifier = Modifier.fillMaxWidth())
                 }
                 p is OnboardingLocationViewModel.Phase.Done -> PrimaryButton(continueLabel, onClick = next)
-                else -> PrimaryButton("Setting up…", onClick = {}, enabled = false, loading = true)
+                else -> PrimaryButton(AppText.text(R.string.copy_c894bba9c3e7, "Setting up…"), onClick = {}, enabled = false, loading = true)
             }
         }
     ) {
         if (!permission.isGranted) {
-            FeatureRow(
-                icon = Icons.Rounded.Sms, tint = colors.bandRisk,
-                title = "In an SOS",
-                body = "Your emergency contacts get a map link to where you are, and BIPSS looks up the " +
-                    "nearest hospitals to alert."
-            )
+            FeatureRow(Icons.Rounded.LocationOn, colors.air, AppText.text(R.string.copy_5930a6113c3e, "Know what's around you"),
+                AppText.text(R.string.copy_cfd8d05f7c7f, "Weather, air quality and nearby safety alerts."))
             Spacer(Modifier.height(Space.l))
-            FeatureRow(
-                icon = Icons.Rounded.Thermostat, tint = colors.temp,
-                title = "Local weather, air quality and alerts",
-                body = "For heat stress and air-quality scores, and official warnings that apply to you."
-            )
+            FeatureRow(Icons.Rounded.Sms, colors.bandRisk, AppText.text(R.string.copy_28c0e8f3cb4c, "Help contacts find you"),
+                AppText.text(R.string.copy_4158c0d53abe, "Include a map link when you send an SOS."))
             Spacer(Modifier.height(Space.l))
-            FeatureRow(
-                icon = Icons.Rounded.Home, tint = colors.air,
-                title = "Indoors or outdoors",
-                body = "While your band is connected, BIPSS checks GPS signal strength every 10 minutes to " +
-                    "tell whether the station's or the band's air reading applies to you. Needs precise location."
-            )
-            Spacer(Modifier.height(Space.xl))
-            Text(
-                "For weather, your coordinates are sent to Open-Meteo, and in an SOS to public OpenStreetMap " +
-                    "(Overpass) servers to find the nearest hospitals; for air quality, your state is sent to the " +
-                    "government's open-data portal; Android's geocoder looks up your district. BIPSS keeps your " +
-                    "last position on this phone, and records where you were in any SOS it sends.",
-                style = MaterialTheme.typography.bodySmall,
-                color = colors.textTertiary
-            )
+            Text(AppText.text(R.string.copy_be08929abdef, "Your location is shared with weather and nearby-place services to provide these features. Precise location improves local results."),
+                style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
             if (permission.isPermanentlyDenied) {
                 Spacer(Modifier.height(Space.l))
                 InfoBanner(
-                    text = "Location was turned off for BIPSS. You can allow it in Android's settings.",
+                    text = AppText.text(R.string.copy_98be3fe9afca, "Location was turned off for BIPSS. You can allow it in Android's settings."),
                     icon = Icons.Rounded.Info,
                     tint = colors.bandMonitor,
                     action = {
-                        GhostButton("Settings", onClick = { com.bipss.app.sos.openAppSettings(navController.context) },
+                        GhostButton(AppText.text(R.string.copy_74a883a037bc, "Settings"), onClick = { com.bipss.app.sos.openAppSettings(navController.context) },
                                     color = colors.bandMonitor)
                     }
                 )
@@ -128,14 +111,14 @@ fun OnboardingLocationScreen(
 
         when (val p = phase) {
             OnboardingLocationViewModel.Phase.Idle ->
-                Progress("Starting…")
+                Progress(AppText.text(R.string.copy_bbe5fc3b9ef3, "Starting…"))
             is OnboardingLocationViewModel.Phase.Calibrating ->
                 Progress(
-                    "Finding your position" + (p.accuracyM?.let { " · accurate to ±$it m" } ?: "…"),
-                    note = if (p.approximate) "Approximate location only, so a rough fix is expected." else null
+                    AppText.text(R.string.copy_f286794cc0ac, "Finding your position") + (p.accuracyM?.let { AppText.text(R.string.copy_2019300cf6e7, " · accurate to ±%1\$s m", it) } ?: "…"),
+                    note = if (p.approximate) AppText.text(R.string.copy_f34a4185f31c, "Approximate location only, so a rough fix is expected.") else null
                 )
             OnboardingLocationViewModel.Phase.Fetching ->
-                Progress("Checking weather, air quality and alerts for your area…")
+                Progress(AppText.text(R.string.copy_3c4597b509e0, "Checking weather, air quality and alerts for your area…"))
             is OnboardingLocationViewModel.Phase.Done -> {
                 BipssCard {
                     p.sources.forEachIndexed { i, s ->
@@ -146,7 +129,7 @@ fun OnboardingLocationScreen(
                 if (p.approximate) {
                     Spacer(Modifier.height(Space.l))
                     InfoBanner(
-                        text = "BIPSS has approximate location only. SOS texts will say the location is approximate.",
+                        text = AppText.text(R.string.copy_b395807bf183, "BIPSS has approximate location only. SOS texts will say the location is approximate."),
                         icon = Icons.Rounded.LocationOn,
                         tint = colors.bandMonitor
                     )

@@ -1,5 +1,8 @@
 package com.bipss.app.ui.components
 
+import com.bipss.app.localization.AppText
+import com.bipss.app.R
+
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border

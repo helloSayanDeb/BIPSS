@@ -1,5 +1,8 @@
 package com.bipss.app.sos
 
+import com.bipss.app.localization.AppText
+import com.bipss.app.R
+
 import kotlinx.coroutines.channels.awaitClose
 
 import android.annotation.SuppressLint
@@ -67,7 +70,8 @@ class LocationHelper(private val context: Context) {
                 suspendCancellableCoroutine { cont ->
                     val cts = CancellationTokenSource()
                     val priority = if (approximate) Priority.PRIORITY_BALANCED_POWER_ACCURACY else Priority.PRIORITY_HIGH_ACCURACY
-                    fusedLocationClient.getCurrentLocation(priority, cts.token)
+                    val request = CurrentLocationRequest.Builder().setPriority(priority).setMaxUpdateAgeMillis(0).build()
+                    fusedLocationClient.getCurrentLocation(request, cts.token)
                         .addOnSuccessListener { location: Location? ->
                             if (cont.isActive) cont.resume(location?.let {
                                 LocationFix(it.latitude, it.longitude,
@@ -82,6 +86,7 @@ class LocationHelper(private val context: Context) {
             }
         } catch (e: TimeoutCancellationException) {
             null
+        } catch (e: CancellationException) { throw e
         } catch (e: Exception) {
             null
         }
@@ -152,7 +157,7 @@ class LocationHelper(private val context: Context) {
      * call that cannot be cut short.
      */
     private suspend fun geocode(lat: Double, lon: Double): Address? = try {
-        val geocoder = Geocoder(context, Locale("en", "IN"))
+        val geocoder = Geocoder(context, Locale.getDefault())
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             suspendCancellableCoroutine { cont ->
                 geocoder.getFromLocation(lat, lon, 1, object : Geocoder.GeocodeListener {
@@ -318,18 +323,18 @@ class SmsSender(private val context: Context) {
                     codes[r] != null  -> SmsSendResult(recipient, sent = false, error = describeResultCode(codes[r]!!))
                     // No verdict before the timeout: neither sent nor failed.
                     else              -> SmsSendResult(recipient, sent = false, unconfirmed = true,
-                                                       error = "no confirmation within ${timeoutMs / 1000} s")
+                                                       error = AppText.text(R.string.copy_5fb98e3ebcca, "no confirmation within %1\$s s", timeoutMs / 1000))
                 }
             }
         }
     }
 
     private fun describeResultCode(code: Int): String = when (code) {
-        SmsManager.RESULT_ERROR_RADIO_OFF       -> "mobile radio is off"
-        SmsManager.RESULT_ERROR_NO_SERVICE      -> "no mobile service"
-        SmsManager.RESULT_ERROR_NULL_PDU        -> "message could not be encoded"
-        SmsManager.RESULT_ERROR_GENERIC_FAILURE -> "the network rejected it"
-        else                                    -> "SMS error $code"
+        SmsManager.RESULT_ERROR_RADIO_OFF       -> AppText.text(R.string.copy_1f45bc903a43, "mobile radio is off")
+        SmsManager.RESULT_ERROR_NO_SERVICE      -> AppText.text(R.string.copy_c653f9e3bf1f, "no mobile service")
+        SmsManager.RESULT_ERROR_NULL_PDU        -> AppText.text(R.string.copy_31d0b56e8db2, "message could not be encoded")
+        SmsManager.RESULT_ERROR_GENERIC_FAILURE -> AppText.text(R.string.copy_48dc39dd494c, "the network rejected it")
+        else                                    -> AppText.text(R.string.copy_dd2f56641be7, "SMS error %1\$s", code)
     }
 
     private companion object {

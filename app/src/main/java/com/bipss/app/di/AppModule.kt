@@ -112,11 +112,18 @@ val appModule = module {
     single { BleGattManager(androidContext()) }
 
     // ── Sensor Pipeline ───────────────────────────────────────────────────────
-    single { com.bipss.app.data.SignalRepository(get(), get(), get()) }
-    single { SensorRepository(get(), get(), get(), get(), get()) }
+    single { com.bipss.app.data.PpgArchive(androidContext(), get()) }
+    single { com.bipss.app.data.FoundationEncoder(androidContext()) }
+    single { com.bipss.app.data.SleepStageRepository(androidContext(), get(), get(), get(), get()) }
+    single { com.bipss.app.data.FitnessRepository(get()) }
+    single { com.bipss.app.data.SignalRepository(get(), get(), get(), get(), get()) }
+    single { SensorRepository(get(), get(), get(), get(), get(), get()) }
     single { com.bipss.app.data.ScoringRepository(get(), get()) }
     single { com.bipss.app.data.LegacyDataCleanup(get(), get()) }
     single { com.bipss.app.data.WaterRepository(get(), get()) }
+    single { com.bipss.app.data.DailyActivityRepository(get()) }
+    viewModel { com.bipss.app.ui.activity.ActivityViewModel(get(), get(), get()) }
+    viewModel { com.bipss.app.ui.dashboard.DayOverviewViewModel(get(), get()) }
 
     // ── Sleep ─────────────────────────────────────────────────────────────────
     single {
@@ -125,7 +132,8 @@ val appModule = module {
             sleepDao = get(),
             desatDao = get(),
             epochDao = get(),
-            scoring  = get()
+            scoring  = get(),
+            db = get()
         )
     }
 
@@ -163,16 +171,18 @@ val appModule = module {
     single { com.bipss.app.worker.WorkScheduler(androidContext(), get(), get(), get(), get()) }
     single { SmsSender(androidContext()) }
     single { com.bipss.app.sos.HospitalLocator(get()) }
+    viewModel { com.bipss.app.ui.settings.NearbyHospitalsViewModel(get(), get()) }
 
     // ── ViewModels ────────────────────────────────────────────────────────────
     viewModel { MainViewModel(get(), get()) }
 
     viewModel {
-        DashboardViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), androidContext())
+        DashboardViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), androidContext(), get())
     }
 
     viewModel { com.bipss.app.ui.recovery.RecoveryDetailViewModel(get()) }
     viewModel { com.bipss.app.ui.cycle.CycleViewModel(get(), get(), get()) }
+    viewModel { com.bipss.app.ui.hydration.HydrationViewModel(get(), get(), get()) }
     viewModel { com.bipss.app.ui.strain.StrainDetailViewModel(get()) }
 
     viewModel {
@@ -184,7 +194,11 @@ val appModule = module {
             envRepo       = get(),
             calculator    = get(),
             waterRepo     = get(),
-            scoring       = get()
+            scoring       = get(),
+            dailyRepo     = get(),
+            cycleRepo     = get(),
+            fitnessRepo   = get(),
+            stageRepo     = get()
         )
     }
 
@@ -206,7 +220,7 @@ val appModule = module {
     viewModel { com.bipss.app.ui.onboarding.OnboardingContactsViewModel(get(), get(), get()) }
 
     viewModel {
-        SettingsViewModel(get(), get(), get(), get(), get(), get(), get(), androidContext(), get())
+        SettingsViewModel(get(), get(), get(), get(), get(), get(), get(), androidContext(), get(), get())
     }
 
     viewModel {

@@ -8,7 +8,7 @@ package com.bipss.app.domain
  * Raw readings (skin and ambient temperature, humidity, band battery) carry
  * none: they are what the sensor reported.
  */
-enum class Fidelity(val label: String, val explanation: String) {
+enum class Fidelity(private val englishLabel: String, private val englishExplanation: String) {
     /** A standard method applied to this band's signal, with its limits reported (signal quality, coverage). */
     PRODUCTION(
         "Production",
@@ -31,5 +31,8 @@ enum class Fidelity(val label: String, val explanation: String) {
     ROADMAP(
         "Roadmap",
         "Not available yet."
-    )
+    );
+
+    val label: String get() = com.bipss.app.localization.AppText.label(englishLabel)
+    val explanation: String get() = com.bipss.app.localization.AppText.label(englishExplanation)
 }

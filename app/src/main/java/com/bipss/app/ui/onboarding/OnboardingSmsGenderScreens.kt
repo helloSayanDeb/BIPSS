@@ -1,5 +1,8 @@
 package com.bipss.app.ui.onboarding
 
+import com.bipss.app.localization.AppText
+import com.bipss.app.R
+
 import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -54,11 +57,11 @@ fun OnboardingGenderScreen(
     OnboardingScaffold(
         step = null,
         totalSteps = OnboardingStep.TOTAL,
-        title = "A few new things",
-        subtitle = "BIPSS has changed since you set it up. First: how do you describe yourself?",
+        title = AppText.text(R.string.copy_325fe17087c7, "A few new things"),
+        subtitle = AppText.text(R.string.copy_119bd896b6fb, "BIPSS has changed since you set it up. First: how do you describe yourself?"),
         footer = {
             PrimaryButton(
-                text = "Continue",
+                text = AppText.text(R.string.copy_31fbef162594, "Continue"),
                 enabled = selected != null,
                 onClick = {
                     scope.launch {
@@ -79,9 +82,7 @@ fun OnboardingGenderScreen(
 @Composable
 fun GenderNote() {
     Text(
-        "Used to weight the strain calculation, which differs between men and women in the published " +
-            "method, and to offer cycle tracking. \"Non-binary\" and \"Prefer not to say\" use the " +
-            "average of the two weightings.",
+        AppText.text(R.string.copy_176108019b2f, "Helps personalize activity insights and cycle tracking. Choose the option that suits you."),
         style = MaterialTheme.typography.bodySmall,
         color = BipssTheme.colors.textSecondary
     )
@@ -106,36 +107,36 @@ fun OnboardingSmsScreen(navController: NavController, catchUp: Boolean) {
     OnboardingScaffold(
         step = OnboardingStep.indexOf(OnboardingStep.SMS, catchUp),
         totalSteps = OnboardingStep.TOTAL,
-        title = "Emergency texts",
-        subtitle = "When you trigger SOS, BIPSS texts your emergency contacts, and nearby hospitals that list " +
-            "a mobile number, from this phone.",
+        title = AppText.text(R.string.copy_22923cbda0fa, "Emergency texts"),
+        subtitle = AppText.text(R.string.copy_6587c5ce39f3, "When you trigger SOS, BIPSS texts your emergency contacts, and nearby hospitals that list ") +
+            AppText.text(R.string.copy_c8c995e9db8e, "a mobile number, from this phone."),
         onBack = { navController.popBackStack() },
         footer = {
             when {
-                !canSendSms || granted -> PrimaryButton("Continue", onClick = next)
+                !canSendSms || granted -> PrimaryButton(AppText.text(R.string.copy_31fbef162594, "Continue"), onClick = next)
                 else -> {
-                    PrimaryButton("Allow SMS", onClick = { launcher.launch(Manifest.permission.SEND_SMS) })
+                    PrimaryButton(AppText.text(R.string.copy_b4b197323259, "Allow SMS"), onClick = { launcher.launch(Manifest.permission.SEND_SMS) })
                     Spacer(Modifier.height(Space.s))
-                    GhostButton("Not now", onClick = next, modifier = Modifier.fillMaxWidth())
+                    GhostButton(AppText.text(R.string.copy_a0e63d7c7125, "Not now"), onClick = next, modifier = Modifier.fillMaxWidth())
                 }
             }
         }
     ) {
         FeatureRow(
             icon = Icons.Rounded.Sms, tint = colors.bandRisk,
-            title = "Only when you press SOS",
-            body = "BIPSS sends no other texts. A 15-second countdown lets you cancel a mistaken tap. " +
-                "Your carrier's normal SMS charges apply."
+            title = AppText.text(R.string.copy_eb6370907fd3, "Only when you press SOS"),
+            body = AppText.text(R.string.copy_295824db1e3f, "BIPSS sends no other texts. A 15-second countdown lets you cancel a mistaken tap. ") +
+                AppText.text(R.string.copy_5c6d0f5a559e, "Your carrier's normal SMS charges apply.")
         )
         Spacer(Modifier.height(Space.xl))
         if (!canSendSms) {
             InfoBanner(
-                text = "This device can't send SMS, so SOS can only offer to call 112.",
+                text = AppText.text(R.string.copy_9c4192c5428d, "This device can't send SMS, so SOS can only offer to call 112."),
                 icon = Icons.Rounded.Info,
                 tint = colors.bandMonitor
             )
         } else if (granted) {
-            InfoBanner(text = "SMS is already allowed.", icon = Icons.Rounded.Info, tint = colors.bandNormal)
+            InfoBanner(text = AppText.text(R.string.copy_4d677f631de2, "SMS is already allowed."), icon = Icons.Rounded.Info, tint = colors.bandNormal)
         }
     }
 }

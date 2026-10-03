@@ -44,11 +44,11 @@ class SleepAnalysisTest {
     }
 
     @Test
-    fun `heart rate gate applies from day 3 only`() {
+    fun `heart rate gate waits for shared day 14 baseline`() {
         // Lying still but with a racing pulse: awake, once a sleeping rate is known.
         val epochs = night(120, hr = { 90.0 })
-        assertTrue(SleepDetector.score(epochs, sleepingHr = 55.0, dayN = 2).all { it })
-        assertTrue(SleepDetector.score(epochs, sleepingHr = 55.0, dayN = 3).none { it })
+        assertTrue(SleepDetector.score(epochs, sleepingHr = 55.0, dayN = 13).all { it })
+        assertTrue(SleepDetector.score(epochs, sleepingHr = 55.0, dayN = 14).none { it })
     }
 
     @Test

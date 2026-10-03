@@ -11,6 +11,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -35,6 +37,7 @@ sealed class DownloadProgress {
         val totalMb:      Int get() = (totalBytes     / 1_048_576L).toInt()
     }
     object Verifying      : DownloadProgress()
+    object Preparing      : DownloadProgress()
     object Success        : DownloadProgress()
     object AlreadyUpToDate : DownloadProgress()
     data class Failure(val reason: String) : DownloadProgress()
@@ -50,10 +53,14 @@ class ModelDownloadManager(
     private val prefsRepo:     com.bipss.app.data.UserPreferencesRepository
 ) {
     private val modelDir = File(context.filesDir, "models").also { it.mkdirs() }
+    private val downloadLock = Mutex()
 
     /** Returns the currently installed model file, or null if none. */
-    fun installedModelFile(): File? {
-        return modelDir.listFiles()?.firstOrNull { it.extension == "bin" }
+    suspend fun installedModelFile(): File? {
+        val path = prefsRepo.installedModelFilePath.first() ?: return null
+        val size = prefsRepo.installedModelSizeBytes.first() ?: return null
+        return File(path).takeIf { it.parentFile?.canonicalFile == modelDir.canonicalFile &&
+            it.extension == "bin" && it.isFile && it.length() == size && size > 0 }
     }
 
     /**
@@ -61,14 +68,15 @@ class ModelDownloadManager(
      * Returns null on network failure.
      */
     suspend fun fetchManifest(): ModelManifest? = withContext(Dispatchers.IO) {
-        if (!isModelDownloadConfigured) return@withContext null
+        if (!MODEL_MANIFEST_URL.startsWith("https://")) return@withContext null
         try {
             val request  = Request.Builder().url(MODEL_MANIFEST_URL).build()
             val body = okHttpClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return@withContext null
                 response.body?.string()
             } ?: return@withContext null
-            Json { ignoreUnknownKeys = true }.decodeFromString<ModelManifest>(body)
+            Json { ignoreUnknownKeys = true }.decodeFromString<ModelManifest>(body).takeIf { it.isValid() }
+        } catch (e: CancellationException) { throw e
         } catch (e: Exception) {
             Log.w(TAG, "Manifest fetch failed: ${e.message}")
             null
@@ -88,22 +96,23 @@ class ModelDownloadManager(
      * download threw, and the failure it tried to emit threw again.
      */
     fun downloadModelIfNeeded(): Flow<DownloadProgress> = flow {
+      downloadLock.withLock {
         emit(DownloadProgress.Initializing)
 
         val manifest = fetchManifest()
         if (manifest == null) {
-            emit(DownloadProgress.Failure("Could not reach the model server. Check your connection."))
-            return@flow
+            emit(DownloadProgress.Failure(if (!isModelDownloadConfigured) "No model found. You can skip for now and try again later." else "No model found at the moment. Check your connection or try again later."))
+            return@withLock
         }
 
         // Check if already up to date
         val installedVersion = prefsRepo.installedModelVersion.first()
         if (installedVersion == manifest.version && installedModelFile()?.exists() == true) {
             emit(DownloadProgress.AlreadyUpToDate)
-            return@flow
+            return@withLock
         }
 
-        val targetFile = File(modelDir, "bipss_model_${manifest.version}.bin")
+        val targetFile = File(modelDir, "bipss_model_${manifest.version}.part")
         val failure = try {
             downloadTo(targetFile, manifest.downloadUrl, manifest.sizeBytes) { emit(it) }
         } catch (e: CancellationException) {
@@ -113,26 +122,32 @@ class ModelDownloadManager(
         }
         if (failure != null) {
             emit(DownloadProgress.Failure(failure))
-            return@flow
+            return@withLock
         }
 
         // Verify SHA-256
         emit(DownloadProgress.Verifying)
         val actualHash = sha256(targetFile)
-        if (actualHash != manifest.sha256) {
+        if (!actualHash.equals(manifest.sha256, ignoreCase = true)) {
             targetFile.delete()
             emit(DownloadProgress.Failure("Checksum mismatch. Download may be corrupted."))
-            return@flow
+            return@withLock
+        }
+        val installedFile = File(modelDir, "bipss_model_${manifest.version}.bin")
+        if (!targetFile.renameTo(installedFile)) {
+            emit(DownloadProgress.Failure("Couldn't save the download. Check your phone's storage and try again."))
+            return@withLock
         }
 
         // Persist install metadata — sizeBytes comes from the manifest that
         // was actually fetched, never a hardcoded constant.
         prefsRepo.saveInstalledModel(
             version = manifest.version,
-            filePath = targetFile.absolutePath,
+            filePath = installedFile.absolutePath,
             sizeBytes = manifest.sizeBytes
         )
         emit(DownloadProgress.Success)
+      }
     }.flowOn(Dispatchers.IO)
 
     /**
@@ -159,6 +174,8 @@ class ModelDownloadManager(
             if (response.code != 200 && response.code != 206) return "Download failed: HTTP ${response.code}"
             val body = response.body ?: return "Empty response"
             val append = response.code == 206
+            if (append && !response.header("Content-Range").orEmpty().startsWith("bytes $existing-"))
+                return "The server couldn't resume this download. Try again later."
             var downloaded = if (append) existing else 0L
             val sessionStart = downloaded
             val startMs = System.currentTimeMillis()
@@ -170,6 +187,7 @@ class ModelDownloadManager(
                         currentCoroutineContext().ensureActive()
                         val n = input.read(buffer)
                         if (n == -1) break
+                        if (downloaded + n > totalBytes) return "The download size doesn't match. Try again later."
                         output.write(buffer, 0, n)
                         downloaded += n
                         val now = System.currentTimeMillis()

@@ -1,5 +1,8 @@
 package com.bipss.app.ui.components
 
+import com.bipss.app.localization.AppText
+import com.bipss.app.R
+
 import androidx.compose.animation.core.EaseOutCubic
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -201,7 +204,7 @@ fun MetricTile(
             }
             Spacer(Modifier.height(Space.s))
             Text(
-                caption ?: "Waiting for readings",
+                caption ?: AppText.text(R.string.copy_080eedddd5c4, "Waiting for readings"),
                 style = MaterialTheme.typography.bodySmall,
                 color = colors.textTertiary,
                 maxLines = 1
@@ -236,7 +239,7 @@ fun RiskHeroCard(
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("$score", style = MetricHero.copy(fontSize = 34.sp), color = colors.textPrimary)
-                    Text("of 100", style = MaterialTheme.typography.labelSmall, color = colors.textTertiary)
+                    Text(AppText.text(R.string.copy_43405af2966a, "of 100"), style = MaterialTheme.typography.labelSmall, color = colors.textTertiary)
                 }
             }
             Spacer(Modifier.width(Space.xl))
@@ -255,7 +258,7 @@ fun RiskHeroCard(
             HairlineDivider()
             Spacer(Modifier.height(Space.m))
             Text(
-                "WHAT'S DRIVING IT",
+                AppText.text(R.string.copy_34c63b2ce77a, "WHAT'S DRIVING IT"),
                 style = com.bipss.app.ui.theme.SectionLabelStyle,
                 color = colors.textTertiary
             )

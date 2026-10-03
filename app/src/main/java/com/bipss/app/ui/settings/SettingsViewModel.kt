@@ -1,5 +1,8 @@
 package com.bipss.app.ui.settings
 
+import com.bipss.app.localization.AppText
+import com.bipss.app.R
+
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -34,6 +37,8 @@ data class SettingsUiState(
     val legacyFramesTruncated: Boolean = false,
 
     val modelVersion:    String? = null,
+    val modelLoadFailed: Boolean = false,
+    val modelUpdateMessage: String? = null,
     val modelFilePath:   String? = null,
     /** From the manifest actually fetched at install time — null until known. */
     val modelSizeMb:     Int?    = null,
@@ -42,6 +47,7 @@ data class SettingsUiState(
     val downloadPhase:   DownloadProgress = DownloadProgress.Idle,
 
     val cloudBackupEnabled:    Boolean = false,
+    val isConnectingDrive:     Boolean = false,
     val isBackingUp:           Boolean = false,
     val isRestoring:           Boolean = false,
     val backupStatusMessage:   String? = null,
@@ -82,7 +88,8 @@ class SettingsViewModel(
     private val db:                   AppDatabase,
     val driveBackupManager:           DriveBackupManager,
     private val appContext:           Context,
-    private val workScheduler:        com.bipss.app.worker.WorkScheduler
+    private val workScheduler:        com.bipss.app.worker.WorkScheduler,
+    private val sleepStages:          com.bipss.app.data.SleepStageRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -99,6 +106,9 @@ class SettingsViewModel(
     }
 
     private fun observeAll() {
+        viewModelScope.launch {
+            prefsRepo.chatbotEngineFailedFlag.collect { failed -> _uiState.update { it.copy(modelLoadFailed = failed) } }
+        }
         viewModelScope.launch {
             combine(
                 prefsRepo.userProfile,
@@ -215,7 +225,8 @@ class SettingsViewModel(
                 val manifest = modelDownloadManager.fetchManifestPublic()
                 val installed = prefsRepo.installedModelVersion.first()
                 _uiState.update {
-                    it.copy(isCheckingUpdate = false,
+                    it.copy(isCheckingUpdate = false, modelUpdateMessage = if (manifest == null) AppText.text(R.string.copy_01feaa1a6451, "Couldn't check for a model. Try again later.")
+                        else if (manifest.version == installed) AppText.text(R.string.copy_03c9dea7a093, "You have the latest version.") else AppText.text(R.string.copy_da182893f0c2, "An update is available."),
                             updateAvailable = manifest != null && manifest.version != installed)
                 }
             } catch (e: Exception) {
@@ -224,14 +235,18 @@ class SettingsViewModel(
         }
     }
 
+    private var modelDownloadJob: kotlinx.coroutines.Job? = null
     fun onDownloadModelTap() {
-        viewModelScope.launch {
+        if (modelDownloadJob?.isActive == true) return
+        modelDownloadJob = viewModelScope.launch {
             modelDownloadManager.downloadModelIfNeeded().collect { progress ->
-                _uiState.update { it.copy(downloadPhase = progress) }
-                if (progress is DownloadProgress.Success) {
+                if (progress is DownloadProgress.Success || progress is DownloadProgress.AlreadyUpToDate) {
+                    _uiState.update { it.copy(downloadPhase = DownloadProgress.Preparing) }
                     val path = prefsRepo.installedModelFilePath.first()
                     if (path != null) chatbotEngine.initialize(path)
-                }
+                    _uiState.update { it.copy(downloadPhase = if (chatbotEngine.isModelAvailable) DownloadProgress.Success
+                        else DownloadProgress.Failure(AppText.text(R.string.copy_2ad6b0c5231f, "This download couldn't run on this phone. You can still use Coach."))) }
+                } else _uiState.update { it.copy(downloadPhase = progress) }
             }
         }
     }
@@ -249,10 +264,11 @@ class SettingsViewModel(
         }
     }
 
-    private enum class DriveAction { BACKUP, RESTORE }
+    private enum class DriveAction { CONNECT, BACKUP, RESTORE }
     /** The action waiting on the Google consent screen, repeated once the user allows it. */
     private var pendingDriveAction: DriveAction? = null
 
+    fun onConnectDriveTap(onNeedsConsent: (android.app.PendingIntent) -> Unit) = runDrive(DriveAction.CONNECT, onNeedsConsent)
     fun onBackupNowTap(onNeedsConsent: (android.app.PendingIntent) -> Unit) = runDrive(DriveAction.BACKUP, onNeedsConsent)
     fun onRestoreTap(onNeedsConsent: (android.app.PendingIntent) -> Unit) = runDrive(DriveAction.RESTORE, onNeedsConsent)
 
@@ -260,24 +276,29 @@ class SettingsViewModel(
     fun onDriveConsentResult(allowed: Boolean, onNeedsConsent: (android.app.PendingIntent) -> Unit) {
         val action = pendingDriveAction ?: return
         pendingDriveAction = null
-        if (allowed) runDrive(action, onNeedsConsent)
-        else _uiState.update { it.copy(backupStatusMessage = "Drive access wasn't allowed, so nothing was " +
-            (if (action == DriveAction.BACKUP) "backed up." else "restored.")) }
+        if (allowed) runDrive(action, onNeedsConsent, afterConsent = true)
+        else _uiState.update { it.copy(backupStatusMessage = AppText.text(R.string.copy_d2f2429e4d9c, "Drive access wasn't allowed, so nothing was ") +
+            (when (action) { DriveAction.BACKUP -> AppText.text(R.string.copy_86a6aec998f5, "backed up."); DriveAction.RESTORE -> "restored."; DriveAction.CONNECT -> "connected." })) }
     }
 
-    private fun runDrive(action: DriveAction, onNeedsConsent: (android.app.PendingIntent) -> Unit) {
+    private fun runDrive(action: DriveAction, onNeedsConsent: (android.app.PendingIntent) -> Unit, afterConsent: Boolean = false) {
+        if (_uiState.value.isConnectingDrive || _uiState.value.isBackingUp || _uiState.value.isRestoring || pendingDriveAction != null) return
         viewModelScope.launch {
             _uiState.update {
-                it.copy(isBackingUp = action == DriveAction.BACKUP, isRestoring = action == DriveAction.RESTORE,
+                it.copy(isConnectingDrive = action == DriveAction.CONNECT, isBackingUp = action == DriveAction.BACKUP, isRestoring = action == DriveAction.RESTORE,
                         backupStatusMessage = null)
             }
-            val result = if (action == DriveAction.BACKUP) driveBackupManager.backupNow() else driveBackupManager.restoreLatest()
-            _uiState.update { it.copy(isBackingUp = false, isRestoring = false) }
+            val result = when (action) {
+                DriveAction.CONNECT -> driveBackupManager.connect()
+                DriveAction.BACKUP -> driveBackupManager.backupNow()
+                DriveAction.RESTORE -> driveBackupManager.restoreLatest()
+            }
+            _uiState.update { it.copy(isConnectingDrive = false, isBackingUp = false, isRestoring = false) }
             when (result) {
                 is BackupResult.Success -> _uiState.update { it.copy(backupStatusMessage = result.detail) }
                 is BackupResult.NeedsConsent -> {
-                    pendingDriveAction = action
-                    onNeedsConsent(result.pendingIntent)
+                    if (afterConsent) _uiState.update { it.copy(backupStatusMessage = AppText.text(R.string.copy_81f5ea2d2fbb, "Google didn't finish granting access. Try Connect Google Drive again.")) }
+                    else { pendingDriveAction = action; onNeedsConsent(result.pendingIntent) }
                 }
                 is BackupResult.Failure -> _uiState.update { it.copy(backupStatusMessage = result.message) }
             }
@@ -325,6 +346,7 @@ class SettingsViewModel(
             }
             // Room's clearAllTables() blocks; it must not run on the main thread.
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { db.clearAllTables() }
+            sleepStages.clear()
             prefsRepo.clearLocalDataPrefs()
             if (sharedUid != null) {
                 com.bipss.app.data.sharing.CloudDeletionWorker.enqueue(appContext, replace = true)

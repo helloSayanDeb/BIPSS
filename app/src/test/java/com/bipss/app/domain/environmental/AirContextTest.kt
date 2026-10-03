@@ -124,7 +124,9 @@ class AirContextTest {
 
     @Test
     fun `the context decides which reading leads - the readings never decide the context`() {
-        val rec = AqiReconciler.build(listOf(120, 130, 140, 150, 160).mapIndexed { i, a -> out(i, 3, a) }, zone)
+        val early = AqiReconciler.build((0 until 13).map { out(it, 3, 140) }, zone)
+        assertNull((AqiDisplay.decide(outdoors, 60_000L, 3, 142, early) as AqiDisplay.Outdoor).expected)
+        val rec = AqiReconciler.build((0 until 14).map { out(it, 3, 140) }, zone)
         val o = AqiDisplay.decide(outdoors, 60_000L, 3, 142, rec)
         assertTrue(o is AqiDisplay.Outdoor)
         assertEquals(140.0, (o as AqiDisplay.Outdoor).expected!!.median, 1e-9)

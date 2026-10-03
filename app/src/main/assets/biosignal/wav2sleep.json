@@ -1,0 +1,35 @@
+{
+  "name": "wav2sleep PPG",
+  "sha256": "f6534197f46c8dcf01a683fcd07963d1342ef1816260c5c12f5080238025792c",
+  "bytes": 7001116,
+  "labels": [
+    "Wake",
+    "Light",
+    "Deep",
+    "REM"
+  ],
+  "samples_per_epoch": 1024,
+  "epoch_seconds": 30,
+  "checks": [
+    {
+      "epochs": 16,
+      "max_absolute_error": 7.987022399902344e-06
+    },
+    {
+      "epochs": 60,
+      "max_absolute_error": 5.245208740234375e-06
+    },
+    {
+      "epochs": 240,
+      "max_absolute_error": 1.1205673217773438e-05
+    },
+    {
+      "epochs": 960,
+      "max_absolute_error": 7.355213165283203e-05
+    }
+  ],
+  "checkpoint_revision": "8b6e46ab3ef6e3945282b81f631933c59db0b205",
+  "source_revision": "278e30463c8149c4e6899b8784da492fec695bd9",
+  "torch_version": "2.14.1+cpu",
+  "onnxruntime_version": "1.30.0"
+}

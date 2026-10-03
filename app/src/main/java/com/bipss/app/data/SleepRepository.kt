@@ -1,6 +1,8 @@
 package com.bipss.app.data
 
 import android.util.Log
+import androidx.room.withTransaction
+import com.bipss.app.data.db.AppDatabase
 import com.bipss.app.data.db.dao.DesaturationEventDao
 import com.bipss.app.data.db.dao.RawReadingDao
 import com.bipss.app.data.db.dao.SignalEpochDao
@@ -29,7 +31,8 @@ class SleepRepository(
     private val sleepDao: SleepSessionDao,
     private val desatDao: DesaturationEventDao,
     private val epochDao: SignalEpochDao,
-    private val scoring:  ScoringRepository
+    private val scoring:  ScoringRepository,
+    private val db: AppDatabase
 ) {
     /**
      * Analyses the window ending now and covering [lookbackMs]. Returns the
@@ -85,7 +88,8 @@ class SleepRepository(
             minHr            = detected.minHr,
             avgSpo2          = spo2.takeIf { it.isNotEmpty() }?.map { it.value }?.average()?.toFloat()
         )
-        // Re-analysing a night replaces any overlapping session and its events.
+        // Replace the session and its events together: observers never see half a night.
+        val sessionId = db.withTransaction {
         val stale = sleepDao.overlappingIds(entity.startMs, entity.endMs)
         if (stale.isNotEmpty()) {
             desatDao.deleteForSessions(stale)
@@ -115,21 +119,18 @@ class SleepRepository(
             })
             Log.i(TAG, "Night analysed: ${events.size} candidate oxygen dips")
         }
+        sessionId
+        }
         return entity.copy(id = sessionId)
     }
 
     /** Per-night rows, oldest first. */
     suspend fun nightlyScreenings(): List<NightScreening> =
-        sleepDao.all().map { session ->
+        sleepDao.all().mapNotNull { session ->
+            if (session.avgSpo2 == null || session.totalSleepMs <= 0L) return@mapNotNull null
             val valid = desatDao.validCountForSession(session.id)
             val all = desatDao.forSession(session.id).size
-            NightScreening(
-                sessionStartMs        = session.startMs,
-                sessionEndMs          = session.endMs,
-                eventCount            = valid,
-                rejectedArtefactCount = all - valid,
-                odi                   = DesaturationScreening.computeOdi(valid, session.totalSleepMs)
-            )
+            recordedScreening(session, valid, all - valid)
         }
 
     suspend fun lastNight(): SleepSessionEntity? = sleepDao.mostRecent()
@@ -168,8 +169,8 @@ class SleepRepository(
             appendLine()
             appendLine("Date        Start  End    TST      Eff.  Counted  Excluded  ODI")
             appendLine("-".repeat(64))
-            sessions.forEachIndexed { i, s ->
-                val sc = screenings.getOrNull(i)
+            sessions.forEach { s ->
+                val sc = screenings.firstOrNull { it.sessionStartMs == s.startMs && it.sessionEndMs == s.endMs }
                 val tst = "${s.totalSleepMs / 3_600_000}h ${(s.totalSleepMs % 3_600_000) / 60_000}m"
                 appendLine(
                     dayFmt.format(java.util.Date(s.startMs)).padEnd(12) +
@@ -224,14 +225,19 @@ class SleepRepository(
      * short night does not score well. An estimate, like the detection under it.
      */
     suspend fun lastNightScore(): Int? {
-        val s = sleepDao.mostRecent() ?: return null
+        val today = com.bipss.app.domain.time.LocalDay.epochDay(System.currentTimeMillis())
+        val s = sleepDao.all().filter { com.bipss.app.domain.time.LocalDay.epochDay(it.endMs) == today }
+            .maxByOrNull { it.totalSleepMs } ?: return null
+        return score(s)
+    }
+
+    companion object {
+        private const val MIN_SAMPLES_PER_MINUTE = 30
+        fun score(s: SleepSessionEntity): Int {
         val hours = s.totalSleepMs / 3_600_000f
         val durationScore = (hours / 8f).coerceIn(0f, 1f) * 60f
         val efficiencyScore = (s.efficiencyPct / 100f).coerceIn(0f, 1f) * 40f
         return (durationScore + efficiencyScore).toInt().coerceIn(0, 100)
-    }
-
-    private companion object {
-        const val MIN_SAMPLES_PER_MINUTE = 30
+        }
     }
 }

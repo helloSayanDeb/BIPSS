@@ -1,5 +1,8 @@
 package com.bipss.app.ui.components
 
+import com.bipss.app.localization.AppText
+import com.bipss.app.R
+
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -8,7 +11,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
-import com.bipss.app.R
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -66,7 +68,7 @@ fun OnboardingScaffold(
             if (onBack != null) {
                 IconButton(onClick = onBack) {
                     Icon(
-                        Icons.AutoMirrored.Rounded.ArrowBack, "Back",
+                        Icons.AutoMirrored.Rounded.ArrowBack, AppText.text(R.string.copy_76900f1bfd16, "Back"),
                         tint = colors.textSecondary
                     )
                 }
@@ -218,7 +220,7 @@ fun ScanPulse(
                         animation = tween(2400, easing = LinearEasing),
                         initialStartOffset = StartOffset(index * 800)
                     ),
-                    label = "ring$index"
+                    label = "ring${index}"
                 )
                 Canvas(Modifier.fillMaxSize()) {
                     val maxR = this.size.minDimension / 2f

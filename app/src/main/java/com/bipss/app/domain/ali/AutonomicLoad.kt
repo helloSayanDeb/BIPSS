@@ -38,9 +38,8 @@ data class AliResult(
 object AutonomicLoad {
 
     const val TOOLTIP =
-        "A newer measure, still being evaluated. It combines pulse rate variability and heart rate while you're still. " +
-            "It does not detect heart-rhythm problems and does not measure stress — this band " +
-            "has no skin-conductance sensor."
+        "An experimental wellness indicator comparing pulse variability and heart rate while still with your usual range. " +
+            "Several factors can change it; it cannot identify the cause or diagnose stress or illness."
 
     /** Recent window, and how much still signal it needs (5 minutes). */
     const val RECENT_MS = 30 * 60_000L
@@ -56,19 +55,26 @@ object AutonomicLoad {
     private const val MIN_MAD_HR_BPM = 2.0
 
     fun evaluate(recent: List<StillEpoch>, reference: List<StillEpoch>, dayN: Int): AliResult {
+        // Both components need the promised amount of usable signal. Counting
+        // HR-only epochs toward the PRV requirement could publish a label from
+        // just three valid pulse-variability windows.
+        fun usable(e: StillEpoch) = e.meanHr?.let { it.isFinite() && it in 30.0..230.0 } == true &&
+            e.rmssdMs?.let { it.isFinite() && it in 1.0..300.0 } == true
+        val pairedRecent = recent.filter(::usable).distinctBy { it.startMs }
+        val pairedReference = reference.filter(::usable).distinctBy { it.startMs }
         if (!BaselineSchedule.isUsable(dayN)) {
             return AliResult(null, null, null, recent.size, BaselineSchedule.missingLabel(dayN))
         }
-        if (recent.size < MIN_RECENT_EPOCHS) {
-            return AliResult(null, null, null, recent.size, "Needs a few minutes of sitting or lying still")
+        if (pairedRecent.size < MIN_RECENT_EPOCHS) {
+            return AliResult(null, null, null, pairedRecent.size, "Needs a few minutes of sitting or lying still")
         }
-        if (reference.size < MIN_REFERENCE_EPOCHS) {
-            return AliResult(null, null, null, recent.size, "Needs more still time over the past two weeks")
+        if (pairedReference.size < MIN_REFERENCE_EPOCHS) {
+            return AliResult(null, null, null, pairedRecent.size, "Needs more still time over the past two weeks")
         }
 
-        val prvZ = robustZ(recent.mapNotNull { it.rmssdMs }, reference.mapNotNull { it.rmssdMs }, MIN_MAD_PRV_MS)
+        val prvZ = robustZ(pairedRecent.mapNotNull { it.rmssdMs }, pairedReference.mapNotNull { it.rmssdMs }, MIN_MAD_PRV_MS)
             ?.let { -it }      // suppression: lower PRV is positive
-        val hrZ = robustZ(recent.mapNotNull { it.meanHr }, reference.mapNotNull { it.meanHr }, MIN_MAD_HR_BPM)
+        val hrZ = robustZ(pairedRecent.mapNotNull { it.meanHr }, pairedReference.mapNotNull { it.meanHr }, MIN_MAD_HR_BPM)
 
         val load = listOfNotNull(prvZ, hrZ).takeIf { it.isNotEmpty() }?.average()
             ?: return AliResult(null, prvZ, hrZ, recent.size, "Not enough clean still signal")

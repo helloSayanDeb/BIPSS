@@ -37,4 +37,8 @@ data class ModelManifest(
     // parse (fetchManifest() catches it and reports "unavailable") rather
     // than silently substituting a guessed number.
     @SerialName("size_bytes") val sizeBytes: Long
-)
+) {
+    fun isValid(): Boolean = version.matches(Regex("[A-Za-z0-9._-]{1,64}")) &&
+        downloadUrl.startsWith("https://") && sha256.matches(Regex("[A-Fa-f0-9]{64}")) &&
+        sizeBytes in 1..8_589_934_592L
+}

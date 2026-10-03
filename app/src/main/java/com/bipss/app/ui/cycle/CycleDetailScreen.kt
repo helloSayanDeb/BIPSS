@@ -1,5 +1,8 @@
 package com.bipss.app.ui.cycle
 
+import com.bipss.app.localization.AppText
+import com.bipss.app.R
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -69,10 +72,10 @@ fun CycleDetailScreen(navController: NavController, vm: CycleViewModel = koinVie
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text("Cycle") },
+                title = { Text(AppText.text(R.string.copy_518653530449, "Cycle")) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = AppText.text(R.string.copy_76900f1bfd16, "Back"))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
@@ -108,16 +111,16 @@ fun CycleDetailScreen(navController: NavController, vm: CycleViewModel = koinVie
                     if (day <= ui.todayDay) {
                         Row(horizontalArrangement = Arrangement.spacedBy(Space.s)) {
                             if (inPeriod == null) {
-                                SecondaryButton("Period started", { vm.logStart(day) }, Modifier.weight(1f))
+                                SecondaryButton(AppText.text(R.string.copy_11d07cdc5418, "Period started"), { vm.logStart(day) }, Modifier.weight(1f))
                             }
-                            SecondaryButton("Period ended", { vm.logEnd(day) }, Modifier.weight(1f))
+                            SecondaryButton(AppText.text(R.string.copy_123a900313e9, "Period ended"), { vm.logEnd(day) }, Modifier.weight(1f))
                         }
                         if (inPeriod != null) {
                             Spacer(Modifier.height(Space.s))
-                            GhostButton("Remove this period", { vm.removePeriod(inPeriod.id) }, color = colors.bandRisk)
+                            GhostButton(AppText.text(R.string.copy_75f58171ad0c, "Remove this period"), { vm.removePeriod(inPeriod.id) }, color = colors.bandRisk)
                         }
                     } else {
-                        Text("This day hasn't happened yet.", style = MaterialTheme.typography.bodySmall, color = colors.textTertiary)
+                        Text(AppText.text(R.string.copy_1c16ed944855, "This day hasn't happened yet."), style = MaterialTheme.typography.bodySmall, color = colors.textTertiary)
                     }
                     message?.let {
                         Spacer(Modifier.height(Space.s))
@@ -128,13 +131,13 @@ fun CycleDetailScreen(navController: NavController, vm: CycleViewModel = koinVie
                         OutlinedTextField(
                             value = note,
                             onValueChange = vm::onNoteChange,
-                            label = { Text("Note for this day") },
-                            placeholder = { Text("Mood, symptoms, energy - anything you want to remember") },
+                            label = { Text(AppText.text(R.string.copy_4c5e9f24a85c, "Note for this day")) },
+                            placeholder = { Text(AppText.text(R.string.copy_6d8b792c9fb5, "Mood, symptoms, energy - anything you want to remember")) },
                             modifier = Modifier.fillMaxWidth(),
                             minLines = 3
                         )
                         Text(
-                            if (noteSaved) "Saved" else "Saving…",
+                            if (noteSaved) AppText.text(R.string.copy_b5c120b316c2, "Saved") else AppText.text(R.string.copy_23e39291d613, "Saving…"),
                             style = MaterialTheme.typography.labelSmall, color = colors.textTertiary,
                             modifier = Modifier.padding(top = 4.dp)
                         )
@@ -143,8 +146,8 @@ fun CycleDetailScreen(navController: NavController, vm: CycleViewModel = koinVie
             }
             Spacer(Modifier.height(Space.l))
             Text(
-                "Kept in the app's own storage on this phone, and in your Drive backup if you turn that on. " +
-                    "Never part of the optional data sharing. BIPSS doesn't use your calendar.",
+                AppText.text(R.string.copy_3e1ab6af6f83, "Kept in the app's own storage on this phone, and in your Drive backup if you turn that on. ") +
+                    AppText.text(R.string.copy_16f3eb3faea4, "Never part of the optional data sharing. BIPSS doesn't use your calendar."),
                 style = MaterialTheme.typography.bodySmall, color = colors.textTertiary
             )
             Spacer(Modifier.height(Space.huge))
@@ -159,15 +162,15 @@ private fun SummaryCard(ui: CycleUi) {
     val date = DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())
     BipssCard {
         if (t == null) {
-            Text("No period logged yet", style = MaterialTheme.typography.titleMedium, color = colors.textPrimary)
+            Text(AppText.text(R.string.copy_a00f7ba43755, "No period logged yet"), style = MaterialTheme.typography.titleMedium, color = colors.textPrimary)
             Spacer(Modifier.height(Space.xs))
-            Text("Tap the day your last period started, then \"Period started\".",
+            Text(AppText.text(R.string.copy_7a17a79d9e48, "Tap the day your last period started, then \"Period started\"."),
                  style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary)
             return@BipssCard
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("Day ${t.cycleDay} of your cycle", style = MaterialTheme.typography.titleLarge, color = colors.textPrimary)
+                Text(AppText.text(R.string.copy_58e481681cca, "Day %1\$s of your cycle", t.cycleDay), style = MaterialTheme.typography.titleLarge, color = colors.textPrimary)
                 Spacer(Modifier.height(Space.xs))
                 Text(t.phase.label, style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary)
             }
@@ -175,22 +178,22 @@ private fun SummaryCard(ui: CycleUi) {
         Spacer(Modifier.height(Space.m))
         val next = LocalDate.ofEpochDay(t.nextStartDay).format(date)
         Text(
-            if (t.isLate) "Your next period was predicted for $next (${-t.daysUntilNext} day(s) ago)."
-            else "Next period: in about ${t.daysUntilNext} day(s), around $next.",
+            if (t.isLate) AppText.text(R.string.copy_00967d17e71c, "Your next period was predicted for %1\$s (%2\$s day(s) ago).", next, -t.daysUntilNext)
+            else AppText.text(R.string.copy_6db75146e910, "Next period: in about %1\$s day(s), around %2\$s.", t.daysUntilNext, next),
             style = MaterialTheme.typography.bodyMedium, color = colors.textPrimary
         )
         Spacer(Modifier.height(Space.xs))
         Text(
-            if (t.stats.usedDefault) "Using a typical 28-day cycle until you've logged two periods."
-            else "Your cycle averages ${t.stats.cycleLengthDays} days over your last ${t.stats.cyclesUsed} cycle(s)" +
+            if (t.stats.usedDefault) AppText.text(R.string.copy_f12d3db44b99, "Using a typical 28-day cycle until you've logged two periods.")
+            else AppText.text(R.string.copy_a10b44be8e33, "Your cycle averages %1\$s days over your last %2\$s cycle(s)", t.stats.cycleLengthDays, t.stats.cyclesUsed) +
                 (if (t.stats.excludedGaps.isNotEmpty())
-                    " (left out: ${t.stats.excludedGaps.joinToString { "$it days" }} - possibly a missed log)." else "."),
+                    AppText.text(R.string.copy_a7bc19fb9292, " (left out: %1\$s - possibly a missed log).", t.stats.excludedGaps.joinToString { "$it days" }) else "."),
             style = MaterialTheme.typography.bodySmall, color = colors.textSecondary
         )
         Spacer(Modifier.height(Space.m))
         InfoBanner(
-            text = "Predicted fertile window: ${LocalDate.ofEpochDay(t.fertileStartDay).format(date)} - " +
-                "${LocalDate.ofEpochDay(t.fertileEndDay).format(date)}. Not a method of contraception.",
+            text = AppText.text(R.string.copy_03d88d6ce38a, "Predicted fertile window: %1\$s - ", LocalDate.ofEpochDay(t.fertileStartDay).format(date)) +
+                AppText.text(R.string.copy_e1adfb837c40, "%1\$s. Not a method of contraception.", LocalDate.ofEpochDay(t.fertileEndDay).format(date)),
             icon = Icons.Rounded.Info,
             tint = colors.sleep
         )
@@ -201,13 +204,13 @@ private fun SummaryCard(ui: CycleUi) {
 private fun MonthHeader(ui: CycleUi, onPrev: () -> Unit, onNext: () -> Unit) {
     val colors = BipssTheme.colors
     Row(verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = onPrev) { Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, contentDescription = "Previous month") }
+        IconButton(onClick = onPrev) { Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, contentDescription = AppText.text(R.string.copy_6a2769502a5d, "Previous month")) }
         Text(
             ui.month.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault())),
             style = MaterialTheme.typography.titleMedium, color = colors.textPrimary,
             textAlign = TextAlign.Center, modifier = Modifier.weight(1f)
         )
-        IconButton(onClick = onNext) { Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = "Next month") }
+        IconButton(onClick = onNext) { Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = AppText.text(R.string.copy_74e53211fef4, "Next month")) }
     }
 }
 
@@ -252,9 +255,9 @@ private fun DayCell(day: CycleDayUi, selected: Boolean, onClick: () -> Unit) {
         else -> colors.textPrimary
     }
     val what = when (day.kind) {
-        DayKind.LOGGED_PERIOD    -> "period logged"
-        DayKind.PREDICTED_PERIOD -> "period predicted"
-        DayKind.FERTILE          -> "fertile window, estimated"
+        DayKind.LOGGED_PERIOD    -> AppText.text(R.string.copy_83e48cc407fe, "period logged")
+        DayKind.PREDICTED_PERIOD -> AppText.text(R.string.copy_1682910c20ed, "period predicted")
+        DayKind.FERTILE          -> AppText.text(R.string.copy_cce9cd42a1ca, "fertile window, estimated")
         DayKind.NONE             -> ""
     }
     Box(
@@ -265,7 +268,7 @@ private fun DayCell(day: CycleDayUi, selected: Boolean, onClick: () -> Unit) {
             .then(if (day.kind == DayKind.PREDICTED_PERIOD) Modifier.border(1.5.dp, period, CircleShape) else Modifier)
             .then(if (selected) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, CircleShape) else Modifier)
             .clickable(onClick = onClick)
-            .semantics { contentDescription = listOf("${day.dayOfMonth}", what, if (day.hasNote) "has a note" else "")
+            .semantics { contentDescription = listOf("${day.dayOfMonth}", what, if (day.hasNote) AppText.text(R.string.copy_b54f3e887bf8, "has a note") else "")
                 .filter { it.isNotEmpty() }.joinToString(", ") },
         contentAlignment = Alignment.Center
     ) {
@@ -288,9 +291,9 @@ private fun Legend() {
         }
     }
     Row(horizontalArrangement = Arrangement.spacedBy(Space.m)) {
-        item("Logged") { Box(Modifier.size(10.dp).clip(CircleShape).background(colors.heart)) }
-        item("Predicted") { Box(Modifier.size(10.dp).border(1.5.dp, colors.heart, CircleShape)) }
-        item("Fertile (predicted)") { Box(Modifier.size(10.dp).clip(CircleShape).background(colors.sleep.copy(alpha = 0.4f))) }
+        item(AppText.text(R.string.copy_3fbb039bb986, "Logged")) { Box(Modifier.size(10.dp).clip(CircleShape).background(colors.heart)) }
+        item(AppText.text(R.string.copy_044f92b316fe, "Predicted")) { Box(Modifier.size(10.dp).border(1.5.dp, colors.heart, CircleShape)) }
+        item(AppText.text(R.string.copy_bed619591e7d, "Fertile (predicted)")) { Box(Modifier.size(10.dp).clip(CircleShape).background(colors.sleep.copy(alpha = 0.4f))) }
     }
 }
 
@@ -307,13 +310,13 @@ fun CycleQuickCard(onOpen: () -> Unit, vm: CycleViewModel = koinViewModel()) {
     QuickLogCard(
         icon = Icons.Rounded.Favorite,
         tint = colors.heart,
-        title = "Cycle",
+        title = AppText.text(R.string.copy_518653530449, "Cycle"),
         subtitle = when {
             !ui.loaded -> "…"
-            t == null -> "Log your period to see where you are in your cycle."
-            t.isLate -> "Day ${t.cycleDay} · period expected ${-t.daysUntilNext} day(s) ago"
-            t.phase == CyclePhase.FERTILE -> "Day ${t.cycleDay} of your cycle · predicted fertile window"
-            else -> "Day ${t.cycleDay} of your cycle · ${t.phase.label}"
+            t == null -> AppText.text(R.string.copy_8ae3895c0595, "Log your period to see where you are in your cycle.")
+            t.isLate -> AppText.text(R.string.copy_a4c6483b2a3e, "Day %1\$s · period expected %2\$s day(s) ago", t.cycleDay, -t.daysUntilNext)
+            t.phase == CyclePhase.FERTILE -> AppText.text(R.string.copy_b42474638003, "Day %1\$s of your cycle · predicted fertile window", t.cycleDay)
+            else -> AppText.text(R.string.copy_98f9ebe8ff09, "Day %1\$s of your cycle · %2\$s", t.cycleDay, t.phase.label)
         },
         onOpen = onOpen,
         footnote = message
@@ -323,7 +326,7 @@ fun CycleQuickCard(onOpen: () -> Unit, vm: CycleViewModel = koinViewModel()) {
             onClick = { if (ongoing != null) vm.logEnd(ui.todayDay) else vm.logStart(ui.todayDay) },
             modifier = Modifier.weight(1f)
         ) {
-            Text(if (ongoing != null) "Period ended today" else "Period started today")
+            Text(if (ongoing != null) AppText.text(R.string.copy_2ac16f9ccb88, "Period ended today") else AppText.text(R.string.copy_a1690a420d82, "Period started today"))
         }
     }
 }

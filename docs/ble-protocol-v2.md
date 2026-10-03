@@ -132,6 +132,31 @@ Any thresholds the phone applies will be in these units, so a firmware change
 to this definition needs the same change on the phone. (The signal pipeline's
 own motion gate uses the raw waveform accelerometer, not this count.)
 
+## Optional band step extension (20 bytes, `6E400003`)
+
+The updated firmware multiplexes a step packet after a normal status notification
+every five seconds while connected. It continues counting on the MPU6050 while
+disconnected. Existing `0x21` status and `0x11` waveform layouts are unchanged.
+
+Little-endian format: `<BBIIIB5x>`.
+
+| Offset | Bytes | Meaning |
+| --- | --- | --- |
+| 0 | 1 | Header `0x31` |
+| 1 | 1 | Extension version `1` |
+| 2 | 4 | Random boot/session ID |
+| 6 | 4 | Band uptime in milliseconds, uint32 wrapping |
+| 10 | 4 | Cumulative band steps since boot, uint32 wrapping |
+| 14 | 1 | `1` when MPU samples are current, `0` when invalid |
+| 15 | 5 | Reserved, all zero |
+
+The app rejects invalid/version-mismatched packets, deduplicates by device/session
+and uptime, handles counter wraps and retains its last anchor across app restarts.
+Counts from phone sensors are kept out of the new band history. Same-day cumulative
+increments recover missed notifications. A disconnected interval crossing local
+midnight cannot be split by this protocol and is excluded; a per-day firmware
+history/clock-sync extension is needed for full offline multi-day recovery.
+
 ## Legacy v1 frame (24 bytes, `6E400003`)
 
 `<IIhhhhhhhBB>`, in this order:

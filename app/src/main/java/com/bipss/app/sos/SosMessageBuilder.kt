@@ -1,5 +1,8 @@
 package com.bipss.app.sos
 
+import com.bipss.app.localization.AppText
+import com.bipss.app.R
+
 import java.util.Locale
 
 /** Where the SOS says the user is, and how much that position can be trusted. */
@@ -25,14 +28,14 @@ object SosMessageBuilder {
 
     /** "Location: <link>" with the caveats that apply, or an explicit "unavailable". */
     fun locationClause(loc: SosLocation?): String = when {
-        loc == null -> "Location unavailable."
+        loc == null -> AppText.text(R.string.copy_9ef8cbf4fd7a, "Location unavailable.")
         else -> buildString {
-            append(if (loc.isLastKnown) "Last known location" else "Location")
+            append(if (loc.isLastKnown) AppText.text(R.string.copy_27d88ee3b551, "Last known location") else AppText.text(R.string.copy_15b61974b270, "Location"))
             // A reused fix says how old it is: someone acting on a map link
             // needs to know whether it shows where the user is or was.
             val notes = listOfNotNull(
                 "approximate".takeIf { loc.isApproximate },
-                loc.ageMinutes?.takeIf { loc.isLastKnown }?.let { "about ${ageLabel(it)} old" }
+                loc.ageMinutes?.takeIf { loc.isLastKnown }?.let { AppText.text(R.string.copy_861c1e60a008, "about %1\$s old", ageLabel(it)) }
             )
             if (notes.isNotEmpty()) append(" (").append(notes.joinToString(", ")).append(")")
             append(": ").append(mapsLink(loc)).append(".")
@@ -40,9 +43,9 @@ object SosMessageBuilder {
     }
 
     fun ageLabel(minutes: Long): String = when {
-        minutes < 60      -> "${minutes.coerceAtLeast(1)} min"
+        minutes < 60      -> AppText.text(R.string.copy_3e16be5f4e1d, "%1\$s min", minutes.coerceAtLeast(1))
         minutes < 48 * 60 -> "${(minutes + 30) / 60} h"
-        else              -> "${minutes / 1440} days"
+        else              -> AppText.text(R.string.copy_debd3794fc2c, "%1\$s days", minutes / 1440)
     }
 
     /**
@@ -66,11 +69,11 @@ object SosMessageBuilder {
         location: SosLocation?,
         hospitals: HospitalNotice? = null
     ): String =
-        "EMERGENCY: ${gsm(userName)} triggered an SOS alert at $timestamp. " +
+        AppText.text(R.string.copy_8453a836a161, "EMERGENCY: %1\$s triggered an SOS alert at %2\$s. ", gsm(userName), timestamp) +
             locationClause(location) + " " +
-            "They may need help. " +
+            AppText.text(R.string.copy_2713071eec6b, "They may need help. ") +
             hospitalClause(hospitals) +
-            "Automated alert from the BIPSS app."
+            AppText.text(R.string.copy_4b38e583d245, "Automated alert from the BIPSS app.")
 
     /**
      * The message sent to nearby hospitals: the same alert, plus the user's
@@ -82,25 +85,25 @@ object SosMessageBuilder {
         location: SosLocation?,
         contacts: List<SmsRecipient>
     ): String =
-        "EMERGENCY: ${gsm(userName)} triggered an SOS alert at $timestamp. " +
+        AppText.text(R.string.copy_8453a836a161, "EMERGENCY: %1\$s triggered an SOS alert at %2\$s. ", gsm(userName), timestamp) +
             locationClause(location) + " " +
-            "This number is listed for a hospital near them. " +
+            AppText.text(R.string.copy_72bbcf122ca7, "This number is listed for a hospital near them. ") +
             (if (contacts.isEmpty()) "" else
-                "Their emergency contacts: " + contacts.joinToString(", ") { "${gsm(it.name)} ${it.phoneNumber}" } + ". " +
-                    "Please also contact these people if you're able to assist, as the user may not be able to respond by phone. ") +
-            "Automated alert from the BIPSS app."
+                AppText.text(R.string.copy_cc7dd972dabb, "Their emergency contacts: ") + contacts.joinToString(", ") { "${gsm(it.name)} ${it.phoneNumber}" } + ". " +
+                    AppText.text(R.string.copy_6576738b2884, "Please also contact these people if you're able to assist, as the user may not be able to respond by phone. ")) +
+            AppText.text(R.string.copy_4b38e583d245, "Automated alert from the BIPSS app.")
 
     internal fun hospitalClause(h: HospitalNotice?): String {
         if (h == null || h.isEmpty) return ""
         return buildString {
             // "Were sent" only for a send the network confirmed.
-            if (h.alerted.isNotEmpty()) append("Nearby hospitals were also sent this alert: ${list(h.alerted)}. ")
-            if (h.beingAlerted.isNotEmpty()) append("Nearby hospitals are also being alerted: ${list(h.beingAlerted)}. ")
+            if (h.alerted.isNotEmpty()) append(AppText.text(R.string.copy_28a53c0b7adc, "Nearby hospitals were also sent this alert: %1\$s. ", list(h.alerted)))
+            if (h.beingAlerted.isNotEmpty()) append(AppText.text(R.string.copy_6bc8ec9c5cfb, "Nearby hospitals are also being alerted: %1\$s. ", list(h.beingAlerted)))
             if (h.toCall.isNotEmpty()) {
-                append(if (h.alerted.isEmpty() && h.beingAlerted.isEmpty()) "Nearest hospitals: " else "Also near them: ")
+                append(if (h.alerted.isEmpty() && h.beingAlerted.isEmpty()) AppText.text(R.string.copy_bcc36bf0557b, "Nearest hospitals: ") else AppText.text(R.string.copy_2a84ccfd6675, "Also near them: "))
                 append(list(h.toCall)).append(". ")
             }
-            append("If you're not nearby, please call them directly to confirm and coordinate help. ")
+            append(AppText.text(R.string.copy_6484e366508c, "If you're not nearby, please call them directly to confirm and coordinate help. "))
         }
     }
 

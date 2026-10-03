@@ -1,0 +1,4 @@
+https://github.com/Nokia-Bell-Labs/papagei-foundation-model
+Revision: 0c537dad4d2850e15b724260de820dd68d77f0b0
+Only unused plotting/training imports removed from resnet.py.
+Weights: https://zenodo.org/records/13983110

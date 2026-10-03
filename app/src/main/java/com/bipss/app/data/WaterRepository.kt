@@ -21,8 +21,19 @@ class WaterRepository(
     private val prefs: UserPreferencesRepository
 ) {
     suspend fun log(amountMl: Int, timestampMs: Long = System.currentTimeMillis()) {
+        require(amountMl in 1..5000) { "A drink must be between 1 and 5000 mL" }
         dao.insert(WaterLogEntity(timestampMs = timestampMs, amountMl = amountMl))
     }
+
+    suspend fun subtractToday(amountMl: Int = 250, nowMs: Long = System.currentTimeMillis()) {
+        val range = LocalDay.dayRangeMs(nowMs)
+        dao.subtractBetween(range.first, range.last + 1, amountMl)
+    }
+
+    suspend fun remove(id: Long) = dao.deleteById(id)
+
+    fun entriesBetween(startMs: Long, endMs: Long): Flow<List<WaterLogEntity>> =
+        dao.entriesBetweenFlow(startMs, endMs)
 
     /** Totals for the current local day; re-emits after local midnight. */
     @OptIn(ExperimentalCoroutinesApi::class)

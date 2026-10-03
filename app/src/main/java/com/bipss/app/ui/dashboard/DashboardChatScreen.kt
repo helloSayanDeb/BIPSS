@@ -1,5 +1,9 @@
 package com.bipss.app.ui.dashboard
 
+
+import com.bipss.app.localization.AppText
+import com.bipss.app.R
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -12,10 +16,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Send
-import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.Rule
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material.icons.rounded.WbSunny
 import androidx.compose.material3.*
@@ -37,7 +39,6 @@ import com.bipss.app.ui.components.BrandMark
 import com.bipss.app.ui.components.IconBadge
 import com.bipss.app.navigation.LocalScaffoldPadding
 import com.bipss.app.ui.components.HairlineDivider
-import com.bipss.app.ui.components.StatusPill
 import com.bipss.app.ui.theme.BipssTheme
 import com.bipss.app.ui.theme.Space
 import org.koin.androidx.compose.koinViewModel
@@ -56,8 +57,10 @@ fun DashboardChatScreen(
     // other tabs, so rebuild it whenever this one comes forward.
     LaunchedEffect(Unit) { vm.refresh() }
 
-    LaunchedEffect(state.messages.size) {
-        if (state.messages.isNotEmpty()) listState.animateScrollToItem(state.messages.size - 1)
+    LaunchedEffect(state.messages.size, state.isAiTyping, state.morningDose.size) {
+        val briefingItems = if (state.morningDose.isEmpty()) 0 else state.morningDose.size + 2
+        val count = briefingItems + state.messages.size + if (state.isAiTyping) 1 else 0
+        if (count > 0) listState.animateScrollToItem(count - 1)
     }
 
     Column(
@@ -73,25 +76,18 @@ fun DashboardChatScreen(
             BrandMark(size = 44.dp)
             Spacer(Modifier.width(Space.m))
             Column(Modifier.weight(1f)) {
-                Text("Coach", style = MaterialTheme.typography.headlineMedium, color = colors.textPrimary)
-                Spacer(Modifier.height(6.dp))
+                Text(AppText.text(R.string.copy_e6b7456c0995, "Coach"), style = MaterialTheme.typography.headlineMedium, color = colors.textPrimary)
+                Spacer(Modifier.height(Space.s))
                 Text(
-                    "Grounded in your live readings",
+                    AppText.text(R.string.copy_15941f6d7ff1, "A little guidance for your day"),
                     style = MaterialTheme.typography.bodySmall,
                     color = colors.textTertiary
                 )
             }
-            // Honest about which engine is answering — the plan's
-            // "deterministic first, AI second" contract made visible.
-            if (state.aiModelReady) {
-                StatusPill("On-device AI", MaterialTheme.colorScheme.primary, icon = Icons.Rounded.AutoAwesome)
-            } else {
-                StatusPill("Rule-based", colors.textSecondary, icon = Icons.Rounded.Rule)
-            }
+
         }
 
         HairlineDivider()
-
         LazyColumn(
             state = listState,
             modifier = Modifier.weight(1f),
@@ -103,7 +99,7 @@ fun DashboardChatScreen(
             if (state.morningDose.isNotEmpty()) {
                 item {
                     Text(
-                        "YOUR BRIEFING",
+                        AppText.text(R.string.copy_4bcecab73968, "YOUR BRIEFING"),
                         style = com.bipss.app.ui.theme.SectionLabelStyle,
                         color = colors.textTertiary
                     )
@@ -123,7 +119,7 @@ fun DashboardChatScreen(
                             .padding(horizontal = Space.l, vertical = Space.m)
                     ) {
                         Text(
-                            "Thinking…",
+                            AppText.text(R.string.copy_a02f1cea3c1d, "Thinking…"),
                             style = MaterialTheme.typography.bodyMedium,
                             color = colors.textSecondary
                         )
@@ -151,7 +147,7 @@ fun DashboardChatScreen(
             ) {
                 if (state.inputText.isEmpty()) {
                     Text(
-                        "Ask about a score…",
+                        AppText.text(R.string.copy_42fe0be27f2d, "How are you feeling?"),
                         style = MaterialTheme.typography.bodyLarge,
                         color = colors.textTertiary
                     )
@@ -177,7 +173,7 @@ fun DashboardChatScreen(
             ) {
                 Icon(
                     Icons.AutoMirrored.Rounded.Send,
-                    "Send",
+                    AppText.text(R.string.copy_f6f4688ff23d, "Send"),
                     tint = if (sendActive) MaterialTheme.colorScheme.onPrimary else colors.textTertiary,
                     modifier = Modifier.size(20.dp)
                 )
@@ -219,7 +215,7 @@ private fun ChatBubble(message: ChatMessage) {
                 .padding(horizontal = Space.l, vertical = Space.m)
         ) {
             Text(
-                message.content,
+                if (isUser) message.content else AppText.display(message.content),
                 style = MaterialTheme.typography.bodyMedium,
                 color = if (isUser) MaterialTheme.colorScheme.onPrimary else colors.textPrimary
             )
@@ -250,14 +246,14 @@ private fun CoachCardView(card: CoachCard) {
             IconBadge(icon, tint, size = 32.dp)
             Spacer(Modifier.width(Space.m))
             Text(
-                card.title,
+                if (card.kind == CoachCardKind.ADVISORY) card.title else AppText.display(card.title),
                 style = MaterialTheme.typography.titleSmall,
                 color = colors.textPrimary
             )
         }
         Spacer(Modifier.height(Space.s))
         Text(
-            card.body,
+            if (card.kind == CoachCardKind.ADVISORY) card.body else AppText.display(card.body),
             style = MaterialTheme.typography.bodyMedium,
             color = colors.textSecondary
         )

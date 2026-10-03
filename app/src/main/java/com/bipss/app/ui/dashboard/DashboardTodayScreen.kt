@@ -1,543 +1,201 @@
 package com.bipss.app.ui.dashboard
 
+import com.bipss.app.localization.AppText
+import com.bipss.app.R
+
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.DirectionsWalk
-import androidx.compose.material.icons.rounded.Air
-import androidx.compose.material.icons.rounded.Bloodtype
-import androidx.compose.material.icons.rounded.CloudOff
-import androidx.compose.material.icons.rounded.DeviceThermostat
-import androidx.compose.material.icons.rounded.Favorite
-import androidx.compose.material.icons.rounded.LocalHospital
-import androidx.compose.material.icons.rounded.MonitorHeart
-import androidx.compose.material.icons.rounded.WaterDrop
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.bipss.app.data.MetricTypes
-import com.bipss.app.domain.RiskLevel
-import com.bipss.app.domain.RiskScore
+import com.bipss.app.domain.*
 import com.bipss.app.navigation.LocalScaffoldPadding
 import com.bipss.app.navigation.Routes
 import com.bipss.app.sos.*
+import com.bipss.app.ui.activity.ActivityViewModel
 import com.bipss.app.ui.components.*
-import com.bipss.app.ui.theme.BipssTheme
-import com.bipss.app.ui.theme.SOSRed
-import com.bipss.app.ui.theme.Space
-import com.google.accompanist.permissions.ExperimentalPermissionsApi
-import com.google.accompanist.permissions.isGranted
-import com.google.accompanist.permissions.rememberPermissionState
+import com.bipss.app.ui.theme.*
 import org.koin.androidx.compose.koinViewModel
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
-@OptIn(ExperimentalPermissionsApi::class)
 @Composable
-fun DashboardTodayScreen(
-    navController: NavController,
-    vm: DashboardViewModel = koinViewModel(),
-    sosVm: SosViewModel = koinViewModel()
-) {
+fun DashboardTodayScreen(navController: NavController, vm: DashboardViewModel = koinViewModel(),
+    sosVm: SosViewModel = koinViewModel(), activityVm: ActivityViewModel = koinViewModel(), dayVm: DayOverviewViewModel = koinViewModel()) {
     val state by vm.uiState.collectAsStateWithLifecycle()
+    val daily by activityVm.ui.collectAsStateWithLifecycle()
     val sosState by sosVm.state.collectAsStateWithLifecycle()
+    val readiness by sosVm.readiness.collectAsStateWithLifecycle()
+    val day by dayVm.ui.collectAsStateWithLifecycle()
     val colors = BipssTheme.colors
-
-    val locPermState = rememberLocationPermission()
-
-    // The first sync fires at launch, which on a fresh install is before the
-    // location grant has landed - leaving weather and air quality unresolved
-    // and the alert list unfiltered. Re-sync as soon as location becomes
-    // available rather than waiting for the next periodic (15-minute) sync.
-    androidx.compose.runtime.LaunchedEffect(locPermState.isGranted) {
-        if (locPermState.isGranted && state.env.latitude == null) {
-            vm.refreshEnvironment()
-        }
-    }
-
-    // Every state has a visible screen, including the failure ones - an
-    // unrendered error used to leave SOS silently dead until the app restarted.
-    when (val s = sosState) {
-        is SosUiState.Countdown  -> SosCountdownOverlay(state = s, onCancel = { sosVm.cancelSos() })
-        is SosUiState.Sending    -> SosSendingSpinner()
-        is SosUiState.Sent       -> SosSentOverlay(state = s, onDismiss = { sosVm.dismissResult() })
-        is SosUiState.NotSent    -> SosNotSentOverlay(state = s, onDismiss = { sosVm.dismissResult() })
-        is SosUiState.FalseAlarm -> SosFalseAlarmOverlay(onDismiss = { sosVm.dismissResult() })
-        SosUiState.Idle          -> Unit
-    }
-
-    // What would stop an SOS right now. SMS permission can't be observed, so
-    // it is re-checked whenever Home comes back to the foreground.
-    val sosReadiness by sosVm.readiness.collectAsStateWithLifecycle()
+    val location = rememberLocationPermission()
+    LaunchedEffect(location.isGranted) { if (location.isGranted && state.env.latitude == null) vm.refreshEnvironment() }
     androidx.lifecycle.compose.LifecycleResumeEffect(Unit) {
         sosVm.refreshReadiness()
         onPauseOrDispose { }
     }
-
+    when (val s = sosState) {
+        is SosUiState.Countdown -> SosCountdownOverlay(s) { sosVm.cancelSos() }
+        is SosUiState.Sending -> SosSendingSpinner()
+        is SosUiState.Sent -> SosSentOverlay(s) { sosVm.dismissResult() }
+        is SosUiState.NotSent -> SosNotSentOverlay(s) { sosVm.dismissResult() }
+        is SosUiState.FalseAlarm -> SosFalseAlarmOverlay { sosVm.dismissResult() }
+        SosUiState.Idle -> Unit
+    }
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        Column(
-            Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(LocalScaffoldPadding.current)
-                .padding(horizontal = Space.gutter)
-        ) {
-            Spacer(Modifier.height(Space.l))
-
-            // -- Header ------------------------------------------------------
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(LocalScaffoldPadding.current)
+            .padding(horizontal = Space.gutter), verticalArrangement = Arrangement.spacedBy(Space.l)) {
+            Spacer(Modifier.height(Space.xs))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                BrandMark(size = 44.dp)
-                Spacer(Modifier.width(Space.m))
                 Column(Modifier.weight(1f)) {
-                    Text(
-                        "Today",
-                        style = MaterialTheme.typography.headlineLarge,
-                        color = colors.textPrimary
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        if (state.env.fetchedAtMs == 0L) "Environment not synced yet"
-                        else "Environment synced ${state.env.dataAgeLabel.lowercase()}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = colors.textTertiary
-                    )
+                    Text(LocalDate.ofEpochDay(day.day).format(DateTimeFormatter.ofPattern("EEEE, d MMMM")),
+                        style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
+                    Spacer(Modifier.height(Space.s))
+                    Text(com.bipss.app.ai.GreetingHelper.getGreeting(daily.profile?.name),
+                        style = MaterialTheme.typography.headlineSmall, color = colors.textPrimary)
                 }
-                DataModeChip(state.dataMode)
+                IconButton(onClick = { navController.navigate(Routes.ONBOARDING_CONNECT_BAND_REPAIR) }) {
+                    Icon(Icons.Rounded.Watch, if (state.hasBand) AppText.text(R.string.copy_8051c4b4da21, "Band connected") else AppText.text(R.string.copy_ebc121880aa4, "Connect your band"),
+                        tint = if (state.hasBand) colors.bandNormal else colors.textSecondary)
+                }
+                state.batteryPercent?.let { Text("$it%", style = MaterialTheme.typography.labelSmall) }
+                Spacer(Modifier.width(Space.s))
+                FilledTonalButton(onClick = { sosVm.triggerSos(SosTriggerSource.MANUAL) },
+                    colors = ButtonDefaults.filledTonalButtonColors(containerColor = SOSRed, contentColor = Color.White),
+                    contentPadding = PaddingValues(horizontal = Space.m), modifier = Modifier.heightIn(min = 48.dp)) {
+                    Text("SOS", style = MaterialTheme.typography.labelLarge)
+                }
             }
+            DashboardDateSelector(day.day, dayVm::select)
+            val health = if (day.isToday) com.bipss.app.data.DayHealth(
+                state.riskScores.firstOrNull { it.type == RiskScoreType.SLEEP && it.hasNumber }?.score ?: day.health.sleep,
+                state.riskScores.firstOrNull { it.type == RiskScoreType.RECOVERY && it.hasNumber }?.score ?: day.health.recovery,
+                state.riskScores.firstOrNull { it.type == RiskScoreType.STRAIN && it.hasNumber }?.valueLabel?.let(com.bipss.app.localization.LocalNumbers::floatOrNull) ?: day.health.strain
+            ) else day.health
+            DailyScoreHero(health) { navController.navigate(Routes.snapshot(day.day)) }
+            if (day.isToday) {
+            val dayTitle = when {
+                !state.hasBand -> AppText.text(R.string.copy_ddb2c3ed7320, "Make today yours")
+                (state.baselineDays ?: 0) < 14 -> AppText.text(R.string.copy_de1bf2b52776, "Getting to know your rhythm")
+                else -> AppText.text(R.string.copy_c0bc6a46ec43, "Your day, at a glance")
+            }
+            BipssCard(onClick = { navController.navigate(Routes.DASHBOARD_CHAT) }) {
+                Text(dayTitle, style = MaterialTheme.typography.titleMedium, color = colors.textPrimary)
+                Spacer(Modifier.height(Space.s))
+                Text(if (!state.hasBand) AppText.text(R.string.copy_bc46a2769d20, "Connect your band for sleep and recovery. You can log water and activities now.")
+                    else if ((state.baselineDays ?: 0) < 14) AppText.text(R.string.copy_70f8063aa316, "Keep wearing your band each day and overnight. Your personal insights build as you go.")
+                    else AppText.text(R.string.copy_11789eebd1ae, "Explore your latest readings and choose a small next step with Coach."),
+                    style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary)
+                Spacer(Modifier.height(Space.m))
+                Text(AppText.text(R.string.copy_abb8ead8d707, "Ask Coach  →"), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+            }
+            }
+            SectionHeader(if (day.isToday) AppText.text(R.string.copy_1b2fffea95f7, "My day") else AppText.text(R.string.copy_b5b35eb8c85a, "Your day"), trailing = {
+                TextButton(onClick = { navController.navigate(Routes.snapshot(day.day)) }) { Text(AppText.text(R.string.copy_f9dbcaa8f1bf, "Snapshot →")) }
+            })
+            DayEvents(day) { navController.navigate(Routes.workout(it)) }
+            if (day.isToday) {
 
-            // Stays until fixed: an SOS that can't text anyone is worse than
-            // one that was never set up, because the user thinks it will.
-            // A phone that can't send SMS was told so during setup; contacts or a
-            // permission would not change that, so there is nothing to fix here.
-            val fixable = if (SosBlocker.NO_TELEPHONY in sosReadiness) emptySet() else sosReadiness
-            if (fixable.isNotEmpty()) {
-                Spacer(Modifier.height(Space.l))
-                InfoBanner(
-                    text = "SOS can't text anyone yet: " + buildList {
-                        if (SosBlocker.NO_SMS_PERMISSION in fixable) add("SMS permission is off")
-                        if (SosBlocker.NO_CONTACTS in fixable) add("no emergency contacts are saved")
-                    }.joinToString(" and ") + ".",
-                    icon = Icons.Rounded.LocalHospital,
-                    tint = colors.bandRisk,
-                    action = {
-                        GhostButton("Fix", onClick = { navController.navigate(Routes.SETTINGS_EMERGENCY) }, color = colors.bandRisk)
+            BipssCard(onClick = { navController.navigate(Routes.ACTIVITY_DETAIL) }) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconBadge(Icons.Rounded.DirectionsRun, colors.activity)
+                    Spacer(Modifier.width(Space.m))
+                    Column(Modifier.weight(1f)) {
+                        Text(AppText.text(R.string.copy_1de3df70ddf4, "Steps"), style = MaterialTheme.typography.titleSmall, color = colors.textSecondary)
+                        Spacer(Modifier.height(Space.s))
+                        Text(daily.todaySteps?.let { "%,d".format(it) } ?: AppText.text(R.string.copy_521adb53898c, "Start moving"), style = MaterialTheme.typography.headlineSmall, color = colors.textPrimary)
                     }
-                )
+                    Text(if (daily.todaySteps == null) AppText.text(R.string.copy_cc3dc81f41c3, "Set up →") else AppText.text(R.string.copy_25c8122ba463, "of %1\$s", daily.data.goal), style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
+                }
+                if (daily.todaySteps != null) {
+                    Spacer(Modifier.height(Space.m))
+                    LinearProgressIndicator(progress = { (daily.todaySteps!!.toFloat() / daily.data.goal).coerceIn(0f, 1f) },
+                        modifier = Modifier.fillMaxWidth(), color = colors.activity)
+                }
             }
-
-            Spacer(Modifier.height(Space.xl))
-
-            // -- Hero score --------------------------------------------------
-            val hero = state.heroScore
-            if (hero != null) {
-                HeroScoreCard(hero)
+            com.bipss.app.ui.hydration.HydrationQuickCard(onOpen = { navController.navigate(Routes.HYDRATION_DETAIL) })
+            com.bipss.app.ui.cycle.CycleQuickCard(onOpen = { navController.navigate(Routes.CYCLE_DETAIL) })
+            if (daily.data.nutritionEnabled) BipssCard(onClick = { navController.navigate(Routes.NUTRITION) }) {
+                Text(AppText.text(R.string.copy_be80ef360690, "Food journal"), style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(Space.s))
+                val meals = daily.data.foods.count { com.bipss.app.domain.time.LocalDay.epochDay(it.atMs) == daily.today }
+                Text(if (meals == 0) AppText.text(R.string.copy_7932cd18c2ca, "Log your first meal  →") else AppText.text(R.string.copy_8780fb18d2ca, "%1\$s entries today  →", meals), color = colors.textSecondary)
+            }
             } else {
                 BipssCard {
-                    Text(
-                        "Collecting your first readings",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = colors.textPrimary
-                    )
-                    Spacer(Modifier.height(Space.xs))
-                    Text(
-                        "Scores appear once the band streams data or the environment sync completes.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = colors.textSecondary
-                    )
+                    InfoRow(AppText.text(R.string.copy_1de3df70ddf4, "Steps"), day.steps?.toString() ?: AppText.text(R.string.copy_b37c7879f6c3, "Not recorded"))
+                    InfoRow(AppText.text(R.string.copy_fdfd56ca6a17, "Water logged"), AppText.text(R.string.copy_e52749128c70, "%1\$s mL", day.waterMl))
                 }
             }
-
-            // Only shown while the baseline is still widening.
-            Spacer(Modifier.height(Space.m))
-            state.baselineDays?.let { BaselineProgressChip(it) }
-
-            // -- Hydration ---------------------------------------------------
-            Spacer(Modifier.height(Space.l))
-            WaterLogCard(
-                lastLogMs = state.lastWaterLogMs,
-                totalMlToday = state.waterLogTotalMlToday,
-                onLogWater = { amount -> vm.logWaterIntake(amount) }
-            )
-
-            // -- Cycle (Female profiles only; the card hides itself otherwise) --
-            com.bipss.app.ui.cycle.CycleQuickCard(onOpen = { navController.navigate(Routes.CYCLE_DETAIL) })
-
-            // -- Vitals ------------------------------------------------------
-            Spacer(Modifier.height(Space.xxl))
-            SectionHeader("Vitals")
-            Spacer(Modifier.height(Space.m))
+            if (day.isToday) {
+                SectionHeader(AppText.text(R.string.copy_be38d62f0f07, "Daily rhythm"), trailing = {
+                    TextButton(onClick = { navController.navigate(Routes.ROUTINE) }) { Text(AppText.text(R.string.copy_7758080221e6, "Sleep times")) }
+                })
+                val now = java.time.LocalTime.now()
+                DailyWindowCards(com.bipss.app.domain.DailyWindows.build(now.hour * 60 + now.minute,
+                    day.activity.bedtimeMinutes, day.activity.wakeMinutes,
+                    state.env.uvIndex.takeUnless { state.env.isStale }, state.env.aqiValue.takeUnless { state.env.isStale },
+                    health.recovery, day.waterMl))
+            }
+            SectionHeader(AppText.text(R.string.copy_80ef841eaeea, "Health snapshot"), trailing = { TextButton(onClick = { navController.navigate(Routes.snapshot(day.day)) }) { Text(AppText.text(R.string.copy_d7a8c446069a, "See all")) } })
             Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(Space.m)) {
-                MetricTile(
-                    label = "Heart rate",
-                    value = state.heartRate?.toString() ?: "—",
-                    unit = "bpm",
-                    icon = Icons.Rounded.Favorite,
-                    tint = colors.heart,
-                    history = state.heartRateHistory,
-                    caption = if (state.heartRate != null) "Tap for history" else "Waiting for readings",
-                    modifier = Modifier.weight(1f).fillMaxHeight(),
-                    onClick = { navController.navigate(Routes.metricDetail(MetricTypes.HR)) }
-                )
-                MetricTile(
-                    label = "Blood oxygen",
-                    value = state.spO2?.toString() ?: "—",
-                    unit = "%",
-                    icon = Icons.Rounded.Bloodtype,
-                    tint = colors.spo2,
-                    history = state.spO2History,
-                    caption = if (state.spO2 != null) "Tap for history" else "Waiting for readings",
-                    modifier = Modifier.weight(1f).fillMaxHeight(),
-                    onClick = { navController.navigate(Routes.metricDetail(MetricTypes.SPO2)) }
-                )
+                MetricTile(AppText.text(R.string.copy_1447897ca9f5, "Heart rate"), (if (day.isToday) state.heartRate else day.vitals[MetricTypes.HR]?.avgValue?.toInt())?.toString() ?: "—", "bpm", Icons.Rounded.Favorite,
+                    colors.heart, if (day.isToday) state.heartRateHistory else emptyList(), Modifier.weight(1f).fillMaxHeight(),
+                    caption = if (!day.isToday) AppText.text(R.string.copy_73a5ff412204, "Daily average") else if (state.heartRate == null) AppText.text(R.string.copy_68fc858133b9, "Wear your band") else AppText.text(R.string.copy_d82e338b1734, "Latest reading"), onClick = { navController.navigate(if (day.isToday) Routes.metricDetail(MetricTypes.HR) else Routes.snapshot(day.day)) })
+                MetricTile(AppText.text(R.string.copy_c8b3907ee6a2, "Blood oxygen"), (if (day.isToday) state.spO2 else day.vitals[MetricTypes.SPO2]?.avgValue?.toInt())?.toString() ?: "—", "%", Icons.Rounded.Bloodtype,
+                    colors.spo2, if (day.isToday) state.spO2History else emptyList(), Modifier.weight(1f).fillMaxHeight(),
+                    caption = if (!day.isToday) AppText.text(R.string.copy_73a5ff412204, "Daily average") else if (state.spO2 == null) AppText.text(R.string.copy_68fc858133b9, "Wear your band") else AppText.text(R.string.copy_d82e338b1734, "Latest reading"), onClick = { navController.navigate(if (day.isToday) Routes.metricDetail(MetricTypes.SPO2) else Routes.snapshot(day.day)) })
             }
-            Spacer(Modifier.height(Space.m))
-            Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(Space.m)) {
-                MetricTile(
-                    label = "Skin temp",
-                    value = state.skinTempC?.let { "%.1f".format(it) } ?: "—",
-                    unit = "°C",
-                    icon = Icons.Rounded.DeviceThermostat,
-                    tint = colors.temp,
-                    history = state.skinTempHistory,
-                    caption = if (state.skinTempC != null) "Tap for history" else "Waiting for readings",
-                    modifier = Modifier.weight(1f).fillMaxHeight(),
-                    onClick = { navController.navigate(Routes.metricDetail(MetricTypes.SKIN_TEMP)) }
-                )
-                MetricTile(
-                    label = "Pulse rate variability",
-                    value = state.prvRmssd?.toString() ?: "—",
-                    unit = "ms",
-                    icon = Icons.Rounded.MonitorHeart,
-                    tint = colors.activity,
-                    history = emptyList(),
-                    caption = if (state.prvRmssd != null) "Tap for history" else "Waiting for readings",
-                    modifier = Modifier.weight(1f).fillMaxHeight(),
-                    onClick = { navController.navigate(Routes.metricDetail(MetricTypes.PRV)) }
-                )
-            }
-
-            // -- Wellness pillars --------------------------------------------
-            val pillars = state.wellnessPillars
-            if (pillars.isNotEmpty()) {
-                Spacer(Modifier.height(Space.xxl))
-                SectionHeader("Your day")
-                Spacer(Modifier.height(Space.m))
-                pillars.forEach { pillar ->
-                    ScoreRow(
-                        score = pillar,
-                        onClick = when (pillar.type) {
-                            com.bipss.app.domain.RiskScoreType.SLEEP -> { { navController.navigate(Routes.SLEEP_DETAIL) } }
-                            com.bipss.app.domain.RiskScoreType.RECOVERY -> { { navController.navigate(Routes.RECOVERY_DETAIL) } }
-                            com.bipss.app.domain.RiskScoreType.STRAIN -> { { navController.navigate(Routes.STRAIN_DETAIL) } }
-                            else -> null
-                        }
-                    )
-                    Spacer(Modifier.height(Space.m))
-                }
-            }
-
-            // -- Hazard domains ----------------------------------------------
-            val hazards = state.hazardDomains.filter { it != hero }
-            if (hazards.isNotEmpty()) {
-                Spacer(Modifier.height(Space.l))
-                SectionHeader("Risk domains")
-                Spacer(Modifier.height(Space.m))
-                hazards.forEach { risk ->
-                    ScoreRow(risk)
-                    Spacer(Modifier.height(Space.m))
-                }
-            }
-
-            // -- Experimental -----------------------------------------------------
-            // Apart from the risk domains: it is never a verdict about risk.
-            val experimental = state.experimentalScores
-            if (experimental.isNotEmpty()) {
-                Spacer(Modifier.height(Space.l))
-                SectionHeader("Also tracked")
-                Spacer(Modifier.height(Space.m))
-                experimental.forEach { e ->
-                    ScoreRow(e)
-                    Spacer(Modifier.height(Space.s))
-                    Text(
-                        com.bipss.app.domain.ali.AutonomicLoad.TOOLTIP,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = colors.textTertiary
-                    )
-                    Spacer(Modifier.height(Space.m))
-                }
-            }
-
-            // -- Environment ---------------------------------------------------
-            Spacer(Modifier.height(Space.l))
-            SectionHeader("Environment")
-            Spacer(Modifier.height(Space.m))
-            BipssCard {
-                Row {
-                    EnvStat(
-                        "Temperature",
-                        state.env.ambientTempC?.let { "${it.toInt()}°C" } ?: "—",
-                        Icons.Rounded.DeviceThermostat, colors.temp, Modifier.weight(1f)
-                    )
-                    EnvStat(
-                        "Humidity",
-                        state.env.humidityPercent?.let { "${it.toInt()}%" } ?: "—",
-                        Icons.Rounded.WaterDrop, colors.spo2, Modifier.weight(1f)
-                    )
-                    EnvStat(
-                        if (state.env.aqiSource == com.bipss.app.domain.environmental.AqiSource.MODEL) "AQI (model)" else "AQI",
-                        state.env.aqiValue?.toString() ?: "—",
-                        Icons.Rounded.Air, colors.air, Modifier.weight(1f)
-                    )
-                }
-                if (state.env.fetchedAtMs == 0L) {
-                    Spacer(Modifier.height(Space.m))
-                    InfoBanner(
-                        text = "No environment data yet. Values appear after the first sync.",
-                        icon = Icons.Rounded.CloudOff,
-                        tint = colors.textTertiary
-                    )
-                } else if (state.env.isStale) {
-                    // Only warn when the reading is actually old. A snapshot
-                    // read back from cache seconds after it was fetched is
-                    // still current, and telling the user to reconnect for a
-                    // live reading they already have reads as a fault.
-                    Spacer(Modifier.height(Space.m))
-                    InfoBanner(
-                        text = "Conditions from ${state.env.dataAgeLabel.lowercase()}. " +
-                            "Reconnect for a live reading.",
-                        icon = Icons.Rounded.CloudOff,
-                        tint = colors.bandMonitor
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(120.dp))
-        }
-
-        FloatingActionButton(
-            // Always starts the countdown at once. Missing permissions or
-            // contacts are shown inside the countdown, never in its way.
-            onClick = { sosVm.triggerSos(SosTriggerSource.MANUAL) },
-            containerColor = SOSRed,
-            contentColor = Color.White,
-            shape = CircleShape,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(LocalScaffoldPadding.current)
-                .padding(Space.xxl)
-        ) {
-            Icon(Icons.Rounded.LocalHospital, contentDescription = "Emergency SOS")
-        }
-    }
-}
-
-/**
- * The headline card.
- *
- * Uses [ScoreRing], which renders an em dash rather than a number whenever the
- * score could not actually be computed - so this card can never present an
- * invented figure as a measurement.
- */
-@Composable
-private fun HeroScoreCard(score: RiskScore) {
-    val colors = BipssTheme.colors
-    val color = score.level.bandColor()
-
-    BipssCard(accent = color, contentPadding = PaddingValues(Space.xl)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            ScoreRing(score = score, color = color)
-            Spacer(Modifier.width(Space.xl))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    score.type.displayName,
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = colors.textPrimary
-                )
-                if (score.type.question.isNotBlank()) {
-                    Text(
-                        score.type.question,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = colors.textTertiary
-                    )
-                }
+            BipssCard(onClick = { navController.navigate(Routes.BREATHING) }) {
+                Text(AppText.text(R.string.copy_99651e04f1e1, "A moment for you"), style = MaterialTheme.typography.titleMedium, color = colors.textPrimary)
                 Spacer(Modifier.height(Space.s))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (score.hasNumber) {
-                        StatusPill(score.levelLabel ?: score.level.bandLabel(), color)
-                        Spacer(Modifier.width(Space.s))
-                    }
-                    ScoreBadges(score)
-                }
-                ScoreReasonLine(score)
+                Text(AppText.text(R.string.copy_3679e72930e1, "Take a one-minute breathing break  →"), style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary)
             }
-        }
-
-        AvailabilityChip(score.availability, Modifier.padding(top = Space.m))
-        ConfidenceBar(score.confidence, Modifier.padding(top = Space.s))
-
-        if (score.factors.isNotEmpty()) {
+            if (day.isToday) {
+            SectionHeader(AppText.text(R.string.copy_c9669413061d, "Around you"))
+            BipssCard(onClick = { navController.navigate(Routes.DASHBOARD_INSIGHTS) }) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    HomeCondition(AppText.text(R.string.copy_b958ce8b871a, "Temperature"), state.env.ambientTempC?.let { "${it.toInt()}°" } ?: "—")
+                    HomeCondition(AppText.text(R.string.copy_46819ccb5e6d, "Humidity"), state.env.humidityPercent?.let { "${it.toInt()}%" } ?: "—")
+                    HomeCondition(if (state.env.aqiSource == com.bipss.app.domain.environmental.AqiSource.MODEL) AppText.text(R.string.copy_df8cbadf5610, "AQI · estimated") else AppText.text(R.string.copy_0e9cbafcdd80, "Air quality"),
+                        state.env.aqiValue?.toString() ?: "—")
+                }
+                val high = state.hazardDomains.firstOrNull { it.hasNumber && it.level == RiskLevel.HIGH }
+                if (high != null) {
+                    Spacer(Modifier.height(Space.m))
+                    Text(AppText.text(R.string.copy_11a5cb268077, "%1\$s: take extra care. View local conditions →", high.type.displayName),
+                        style = MaterialTheme.typography.bodySmall, color = colors.bandRisk)
+                }
+            }
+            }
+            val fixable = if (SosBlocker.NO_TELEPHONY in readiness) emptySet() else readiness
+            if (fixable.isNotEmpty()) InfoBanner(AppText.text(R.string.copy_f787bdbf8290, "Finish SOS setup so your contacts can receive an alert."),
+                Icons.Rounded.LocalHospital, colors.bandMonitor, action = {
+                    GhostButton(AppText.text(R.string.copy_4da10f1fbb17, "Set up"), { navController.navigate(Routes.SETTINGS_EMERGENCY) }, color = colors.bandMonitor)
+                })
             Spacer(Modifier.height(Space.l))
-            HairlineDivider()
-            Spacer(Modifier.height(Space.m))
-            Text(
-                "WHAT'S DRIVING IT",
-                style = com.bipss.app.ui.theme.SectionLabelStyle,
-                color = colors.textTertiary
-            )
-            Spacer(Modifier.height(Space.s))
-            FlowPills(score.factors.map { it.label to it.isElevated })
         }
     }
 }
 
-/** Compact row for a non-hero domain. Renders an em dash when uncomputable. */
-@Composable
-private fun ScoreRow(score: RiskScore, onClick: (() -> Unit)? = null) {
-    val colors = BipssTheme.colors
-    val color = scoreColor(score)
-
-    BipssCard(onClick = onClick, contentPadding = PaddingValues(Space.l)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            ScoreRing(score = score, size = 46.dp, strokeWidth = 5.dp, color = color)
-            Spacer(Modifier.width(Space.l))
-            Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        score.type.displayName,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = colors.textPrimary,
-                        modifier = Modifier.weight(1f, fill = false)
-                    )
-                    Spacer(Modifier.width(Space.s))
-                    ScoreBadges(score)
-                }
-                if (score.hasNumber) {
-                    Text(
-                        score.levelLabel ?: score.level.bandLabel(),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = color
-                    )
-                    // A partial score in a compact row previously showed a bare
-                    // band label, so "Normal" computed from environment alone
-                    // was indistinguishable from one that had seen the wearer.
-                    ScoreReasonLine(score)
-                } else {
-                    ScoreReasonLine(score)
-                }
-            }
-        }
-    }
-}
-
-/**
- * Hydration logging.
- *
- * Until this existed nothing in the UI called logWaterIntake, so the hydration
- * input could never change - it sat at its default forever and showed up as a
- * permanent "Hydration Low" driver on every Heat Stress score.
- */
-@Composable
-private fun WaterLogCard(
-    lastLogMs: Long?,
-    totalMlToday: Int,
-    onLogWater: (Int) -> Unit
-) {
-    val colors = BipssTheme.colors
-    // Recomputed on a ticking clock - a label remembered only on lastLogMs
-    // froze at whatever it said when the drink was logged.
-    val nowMs = rememberNowMs()
-    val label = if (lastLogMs == null) "Not logged yet" else {
-        val mins = ((nowMs - lastLogMs) / 60_000).coerceAtLeast(0L)
-        when {
-            mins < 1L  -> "Just now"
-            mins < 60L -> "$mins min ago"
-            else       -> "${mins / 60}h ${mins % 60}m ago"
-        }
-    }
-
-    QuickLogCard(
-        icon = Icons.Rounded.WaterDrop,
-        tint = colors.spo2,
-        title = "Hydration",
-        subtitle = if (totalMlToday > 0) "Last water: $label  ·  ${totalMlToday}mL today" else "Last water: $label",
-        footnote = if (lastLogMs == null)
-            "Hydration is left out of your Heat Stress score until you log a drink - " +
-                "not having logged one isn't evidence of dehydration."
-        else null
-    ) {
-        FilledTonalButton(onClick = { onLogWater(250) }, modifier = Modifier.weight(1f)) {
-            Text("+ 250mL")
-        }
-        FilledTonalButton(onClick = { onLogWater(500) }, modifier = Modifier.weight(1f)) {
-            Text("+ 500mL")
-        }
-    }
-}
-
-@Composable
-private fun EnvStat(
-    label: String,
-    value: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    tint: Color,
-    modifier: Modifier = Modifier,
-) {
-    val colors = BipssTheme.colors
-    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Icon(icon, null, tint = tint, modifier = Modifier.size(20.dp))
+@Composable private fun HomeCondition(label: String, value: String) {
+    Column {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = BipssTheme.colors.textSecondary)
         Spacer(Modifier.height(Space.s))
-        Text(value, style = MaterialTheme.typography.titleLarge, color = colors.textPrimary)
-        Spacer(Modifier.height(Space.xs))
-        Text(label, style = MaterialTheme.typography.bodySmall, color = colors.textTertiary)
+        Text(value, style = MaterialTheme.typography.titleLarge, color = BipssTheme.colors.textPrimary)
     }
-}
-
-/**
- * The colour a score is drawn in. Hazard verdict colours only for hazards:
- * Strain is load (the activity colour, whatever its size) and an experimental
- * indicator is neutral, never green-amber-red.
- */
-@Composable
-internal fun scoreColor(score: RiskScore): Color {
-    val colors = BipssTheme.colors
-    return when {
-        !score.hasNumber -> colors.textTertiary
-        score.type == com.bipss.app.domain.RiskScoreType.STRAIN -> colors.activity
-        score.type.category == com.bipss.app.domain.ScoreCategory.EXPERIMENTAL -> colors.textSecondary
-        else -> score.level.bandColor()
-    }
-}
-
-/** A Provisional chip while the baseline behind the score is still provisional. */
-@Composable
-internal fun ScoreBadges(score: RiskScore) {
-    if (score.provisional) StatusPill("Provisional", BipssTheme.colors.bandMonitor)
-}
-
-@Composable
-internal fun RiskLevel.bandColor(): Color {
-    val colors = BipssTheme.colors
-    return when (this) {
-        RiskLevel.LOW    -> colors.bandNormal
-        RiskLevel.MEDIUM -> colors.bandMonitor
-        RiskLevel.HIGH   -> colors.bandRisk
-    }
-}
-
-internal fun RiskLevel.bandLabel(): String = when (this) {
-    RiskLevel.LOW    -> "Normal"
-    RiskLevel.MEDIUM -> "Monitor"
-    RiskLevel.HIGH   -> "At risk"
 }

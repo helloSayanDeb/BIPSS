@@ -1,5 +1,8 @@
 package com.bipss.app.ui.onboarding
 
+import com.bipss.app.localization.AppText
+import com.bipss.app.R
+
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.bipss.app.ai.ChatbotEngine
@@ -40,7 +43,7 @@ class ModelDownloadViewModel(
     init {
         viewModelScope.launch {
             // Local only: a model installed earlier (e.g. before a catch-up) is just shown as ready.
-            if (prefsRepo.installedModelVersion.first() != null) {
+            if (chatbotEngine.isModelAvailable) {
                 _uiState.update { it.copy(progress = DownloadProgress.AlreadyUpToDate) }
             }
         }
@@ -65,11 +68,13 @@ class ModelDownloadViewModel(
         if (downloadJob?.isActive == true) return
         downloadJob = viewModelScope.launch {
             modelDownloadManager.downloadModelIfNeeded().collect { progress ->
-                _uiState.update { it.copy(progress = progress) }
-                if (progress is DownloadProgress.Success) {
+                if (progress is DownloadProgress.Success || progress is DownloadProgress.AlreadyUpToDate) {
+                    _uiState.update { it.copy(progress = DownloadProgress.Preparing) }
                     val path = prefsRepo.installedModelFilePath.first()
                     if (path != null) chatbotEngine.initialize(path)
-                }
+                    _uiState.update { it.copy(progress = if (chatbotEngine.isModelAvailable) DownloadProgress.Success
+                        else DownloadProgress.Failure(AppText.text(R.string.copy_2ad6b0c5231f, "This download couldn't run on this phone. You can still use Coach."))) }
+                } else _uiState.update { it.copy(progress = progress) }
             }
         }
     }

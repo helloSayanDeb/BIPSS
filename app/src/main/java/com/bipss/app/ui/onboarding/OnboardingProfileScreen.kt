@@ -1,5 +1,8 @@
 package com.bipss.app.ui.onboarding
 
+import com.bipss.app.localization.AppText
+import com.bipss.app.R
+
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -52,14 +55,14 @@ fun OnboardingProfileScreen(
     OnboardingScaffold(
         step = if (isEditMode) null else OnboardingStep.indexOf(OnboardingStep.PROFILE, catchUp = false),
         totalSteps = OnboardingStep.TOTAL,
-        title = if (isEditMode) "Edit profile" else "About you",
-        subtitle = "Your age sets the heart-rate range your strain is measured against.",
+        title = if (isEditMode) AppText.text(R.string.copy_15c4aa13037e, "Edit profile") else AppText.text(R.string.copy_428f4d00b7ff, "About you"),
+        subtitle = AppText.text(R.string.copy_13447f23b07b, "Your age sets the heart-rate range your strain is measured against."),
         onBack = if (isEditMode || navController.previousBackStackEntry != null) {
             { navController.popBackStack() }
         } else null,
         footer = {
             PrimaryButton(
-                text = if (isEditMode) "Save changes" else "Continue",
+                text = if (isEditMode) AppText.text(R.string.copy_dd0ae7a5cbcf, "Save changes") else AppText.text(R.string.copy_31fbef162594, "Continue"),
                 enabled = state.isFormValid,
                 loading = state.isSaving,
                 onClick = {
@@ -72,8 +75,8 @@ fun OnboardingProfileScreen(
         BipssTextField(
             value = state.name,
             onValueChange = vm::onNameChange,
-            label = "Full name",
-            placeholder = "e.g. John Doe",
+            label = AppText.text(R.string.copy_f13a64ba2fea, "Full name"),
+            placeholder = AppText.text(R.string.copy_568f712b07d7, "e.g. John Doe"),
             leadingIcon = Icons.Rounded.Person,
             error = state.nameError,
             keyboardType = KeyboardType.Text,
@@ -83,7 +86,7 @@ fun OnboardingProfileScreen(
         BipssTextField(
             value = state.age,
             onValueChange = vm::onAgeChange,
-            label = "Age",
+            label = AppText.text(R.string.copy_39b7370f30a3, "Age"),
             placeholder = "25",
             suffix = "years",
             leadingIcon = Icons.Rounded.CalendarToday,
@@ -96,7 +99,7 @@ fun OnboardingProfileScreen(
             BipssTextField(
                 value = state.height,
                 onValueChange = vm::onHeightChange,
-                label = "Height",
+                label = AppText.text(R.string.copy_bfe2eca40179, "Height"),
                 placeholder = "170",
                 suffix = "cm",
                 leadingIcon = Icons.Rounded.Height,
@@ -107,7 +110,7 @@ fun OnboardingProfileScreen(
             BipssTextField(
                 value = state.weight,
                 onValueChange = vm::onWeightChange,
-                label = "Weight",
+                label = AppText.text(R.string.copy_81d27ef6d503, "Weight"),
                 placeholder = "61",
                 suffix = "kg",
                 leadingIcon = Icons.Rounded.MonitorWeight,
@@ -120,7 +123,7 @@ fun OnboardingProfileScreen(
 
         Spacer(Modifier.height(Space.xxl))
         Text(
-            "How do you describe yourself?",
+            AppText.text(R.string.copy_10133a17613d, "How do you describe yourself?"),
             style = MaterialTheme.typography.titleMedium,
             color = colors.textPrimary
         )
@@ -131,9 +134,7 @@ fun OnboardingProfileScreen(
 
         Spacer(Modifier.height(Space.xxl))
         InfoBanner(
-            text = "Kept on this phone. Height and weight aren't used in any score" +
-                if (isEditMode && vm.healthConnectAvailable) " - they're saved to Health Connect if you allow it below."
-                else ".",
+            text = AppText.text(R.string.copy_50d5398e16fa, "Your details personalize your activity insights, BMI and hydration goal. You can update them any time."),
             icon = Icons.Rounded.Shield,
             tint = colors.bandNormal,
         )
@@ -142,13 +143,13 @@ fun OnboardingProfileScreen(
             Spacer(Modifier.height(Space.l))
             if (state.healthConnectGranted) {
                 Text(
-                    "Health Connect is allowed: saving also updates your height and weight there.",
+                    AppText.text(R.string.copy_0c96d260818c, "Health Connect is allowed: saving also updates your height and weight there."),
                     style = MaterialTheme.typography.bodySmall,
                     color = colors.textSecondary
                 )
             } else {
                 SecondaryButton(
-                    text = "Also save to Health Connect",
+                    text = AppText.text(R.string.copy_7d2811023759, "Also save to Health Connect"),
                     leadingIcon = Icons.Rounded.Favorite,
                     onClick = { healthConnectPermissionLauncher.launch(vm.healthConnectPermissions) },
                     modifier = Modifier.fillMaxWidth()

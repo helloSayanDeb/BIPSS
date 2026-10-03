@@ -108,8 +108,10 @@ sealed interface AqiDisplay {
             if (bandUba == null) return StationOnly(cpcbAqi)
             val current = context?.takeIf { it.isConfident && contextAgeMs != null && contextAgeMs <= CONTEXT_MAX_AGE_MS }
             return when (current?.kind) {
-                EnvContextKind.OUTDOOR -> Outdoor(cpcbAqi, bandUba, rec.outdoor?.byUba?.get(bandUba))
-                EnvContextKind.INDOOR  -> Indoor(bandUba, rec.indoor, cpcbAqi)
+                EnvContextKind.OUTDOOR -> Outdoor(cpcbAqi, bandUba,
+                    rec.outdoor?.byUba?.get(bandUba)?.takeIf { BaselineSchedule.isUsable(rec.dayN) })
+                EnvContextKind.INDOOR  -> Indoor(bandUba,
+                    rec.indoor?.takeIf { BaselineSchedule.isUsable(rec.dayN) }, cpcbAqi)
                 else                   -> Unclear(bandUba, cpcbAqi)
             }
         }

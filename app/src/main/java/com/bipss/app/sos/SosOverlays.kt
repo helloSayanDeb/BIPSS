@@ -1,5 +1,8 @@
 package com.bipss.app.sos
 
+import com.bipss.app.localization.AppText
+import com.bipss.app.R
+
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -46,6 +49,15 @@ fun SosCountdownOverlay(
     onCancel: () -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    var remainingMs by remember(state.deadlineElapsedMs) {
+        mutableLongStateOf((state.deadlineElapsedMs - android.os.SystemClock.elapsedRealtime()).coerceAtLeast(0L))
+    }
+    LaunchedEffect(state.deadlineElapsedMs) {
+        while (true) {
+            withFrameNanos { remainingMs = (state.deadlineElapsedMs - android.os.SystemClock.elapsedRealtime()).coerceAtLeast(0L) }
+            if (remainingMs == 0L) break
+        }
+    }
     val smsPermission = com.google.accompanist.permissions.rememberPermissionState(android.Manifest.permission.SEND_SMS)
     Dialog(
         onDismissRequest = onCancel,
@@ -73,7 +85,7 @@ fun SosCountdownOverlay(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Spacer(Modifier.height(24.dp))
                     Text(
-                        text = "EMERGENCY SOS",
+                        text = AppText.text(R.string.copy_5b180b0c4425, "EMERGENCY SOS"),
                         color = Color.Red,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp
@@ -81,7 +93,7 @@ fun SosCountdownOverlay(
                     Spacer(Modifier.height(16.dp))
                     Text(
                         // Never "Sending" when something already guarantees nothing will be sent.
-                        text = if (state.blockers.isEmpty()) "Sending Alert" else "Alert can't be sent yet",
+                        text = if (state.blockers.isEmpty()) AppText.text(R.string.copy_5c91d9af8924, "Sending Alert") else AppText.text(R.string.copy_ea56f842a92f, "Alert can't be sent yet"),
                         style = MaterialTheme.typography.headlineLarge,
                         fontWeight = FontWeight.ExtraBold,
                         color = Color.Black,
@@ -104,13 +116,8 @@ fun SosCountdownOverlay(
                         )
                     }
 
-                    val animatedFraction by animateFloatAsState(
-                        targetValue   = state.fraction,
-                        animationSpec = tween(900, easing = LinearEasing),
-                        label         = "arc"
-                    )
                     CircularProgressIndicator(
-                        progress    = { 1f - animatedFraction },
+                        progress    = { CountdownClock.progress(remainingMs, state.totalSeconds * 1000L) },
                         modifier    = Modifier.size(220.dp),
                         color       = Color.Red,
                         strokeWidth = 8.dp,
@@ -136,7 +143,7 @@ fun SosCountdownOverlay(
                             )
                             Spacer(Modifier.height(4.dp))
                             Text(
-                                text = "${state.secondsLeft}s",
+                                text = "${CountdownClock.secondsLeft(remainingMs)}s",
                                 color = Color.White,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 28.sp
@@ -149,11 +156,11 @@ fun SosCountdownOverlay(
                     if (state.blockers.isEmpty()) {
                         Text(
                             text = if (state.locationAllowed)
-                                "Your ${state.contactCount} emergency contact(s) will get an SMS with your location unless you cancel. " +
-                                    "Nearby hospitals that list a mobile number will be texted too."
+                                AppText.text(R.string.copy_5fe850e6aa24, "Your %1\$s emergency contact(s) will get an SMS with your location unless you cancel. ", state.contactCount) +
+                                    AppText.text(R.string.copy_7e82b5fe5649, "Nearby hospitals that list a mobile number will be texted too.")
                             else
-                                "Your ${state.contactCount} emergency contact(s) will get an SMS unless you cancel. " +
-                                    "Location is off for BIPSS, so it won't say where you are.",
+                                AppText.text(R.string.copy_b40d10b3e191, "Your %1\$s emergency contact(s) will get an SMS unless you cancel. ", state.contactCount) +
+                                    AppText.text(R.string.copy_13711b85c220, "Location is off for BIPSS, so it won't say where you are."),
                             textAlign = TextAlign.Center,
                             color = Color.DarkGray,
                             fontSize = 16.sp,
@@ -182,7 +189,7 @@ fun SosCountdownOverlay(
                         colors   = ButtonDefaults.outlinedButtonColors(contentColor = Color.DarkGray),
                         shape    = RoundedCornerShape(22.dp)
                     ) {
-                        Text("Call 112 now", fontWeight = FontWeight.SemiBold)
+                        Text(AppText.text(R.string.copy_908a026e7b30, "Call 112 now"), fontWeight = FontWeight.SemiBold)
                     }
                     Spacer(Modifier.height(16.dp))
                     OutlinedButton(
@@ -192,7 +199,7 @@ fun SosCountdownOverlay(
                         colors   = ButtonDefaults.outlinedButtonColors(contentColor = Color.Red),
                         shape    = RoundedCornerShape(26.dp)
                     ) {
-                        Text("CANCEL", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text(AppText.text(R.string.copy_ad8d698573fc, "CANCEL"), fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     }
                     Spacer(Modifier.height(8.dp))
                 }
@@ -209,9 +216,9 @@ private fun SosBlockerRow(
     onOpenSettings: () -> Unit
 ) {
     val text = when (blocker) {
-        SosBlocker.NO_SMS_PERMISSION -> "SMS permission is off, so SOS can't text anyone."
-        SosBlocker.NO_CONTACTS       -> "No emergency contacts are saved. Add them in Settings."
-        SosBlocker.NO_TELEPHONY      -> "This device can't send SMS."
+        SosBlocker.NO_SMS_PERMISSION -> AppText.text(R.string.copy_8bba5191698f, "SMS permission is off, so SOS can't text anyone.")
+        SosBlocker.NO_CONTACTS       -> AppText.text(R.string.copy_cb0387c67a4f, "No emergency contacts are saved. Add them in Settings.")
+        SosBlocker.NO_TELEPHONY      -> AppText.text(R.string.copy_0bd985eca829, "This device can't send SMS.")
     }
     Surface(
         color = Color(0xFFFFE0E2),
@@ -224,9 +231,9 @@ private fun SosBlockerRow(
                 // Android stops showing the dialog after repeated denials, so
                 // Settings is always offered alongside the in-place request.
                 if (canRequestSms) {
-                    TextButton(onClick = onAllowSms) { Text("Allow", color = Color.Red, fontWeight = FontWeight.Bold) }
+                    TextButton(onClick = onAllowSms) { Text(AppText.text(R.string.copy_e213c161d5ce, "Allow"), color = Color.Red, fontWeight = FontWeight.Bold) }
                 }
-                TextButton(onClick = onOpenSettings) { Text("Settings", color = Color.Red) }
+                TextButton(onClick = onOpenSettings) { Text(AppText.text(R.string.copy_74a883a037bc, "Settings"), color = Color.Red) }
             }
         }
     }
@@ -266,7 +273,7 @@ fun SosSendingSpinner() {
             Column(horizontalAlignment = Alignment.CenterHorizontally,
                    verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 CircularProgressIndicator(color = Color.White, strokeWidth = 4.dp)
-                Text("Sending alert…", style = MaterialTheme.typography.titleMedium, color = Color.White)
+                Text(AppText.text(R.string.copy_c50a9462460b, "Sending alert…"), style = MaterialTheme.typography.titleMedium, color = Color.White)
             }
         }
     }
@@ -291,31 +298,31 @@ fun SosSentOverlay(state: SosUiState.Sent, onDismiss: () -> Unit) {
                      tint     = MaterialTheme.colorScheme.primary, modifier = Modifier.size(80.dp))
                 Text(
                     when {
-                        allSent              -> "Alert sent"
-                        state.sentCount == 0 -> "Alert not confirmed yet"
-                        else                 -> "Alert partly sent"
+                        allSent              -> AppText.text(R.string.copy_4de6356a6c25, "Alert sent")
+                        state.sentCount == 0 -> AppText.text(R.string.copy_4736ca7e29ea, "Alert not confirmed yet")
+                        else                 -> AppText.text(R.string.copy_aa5ecd14aebf, "Alert partly sent")
                     },
                     style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold
                 )
                 Text(
                     buildString {
-                        append("The mobile network accepted your SOS for ${state.sentCount} of ${state.totalCount} contact(s).")
+                        append(AppText.text(R.string.copy_167aca10d29a, "The mobile network accepted your SOS for %1\$s of %2\$s contact(s).", state.sentCount, state.totalCount))
                         if (state.unconfirmedNames.isNotEmpty()) append(
-                            "\nNo confirmation yet for: ${state.unconfirmedNames.joinToString()}. " +
-                                "It may still go out, or may have failed."
+                            AppText.text(R.string.copy_2370b12e5205, "\nNo confirmation yet for: %1\$s. ", state.unconfirmedNames.joinToString()) +
+                                AppText.text(R.string.copy_194b58b42787, "It may still go out, or may have failed.")
                         )
-                        if (state.failedNames.isNotEmpty()) append("\nNot sent to: ${state.failedNames.joinToString()}.")
+                        if (state.failedNames.isNotEmpty()) append(AppText.text(R.string.copy_e9b138b31e02, "\nNot sent to: %1\$s.", state.failedNames.joinToString()))
                         if (state.hospitalLines.isNotEmpty()) {
-                            append("\n\nNearby hospitals:")
+                            append(AppText.text(R.string.copy_8790eef30685, "\n\nNearby hospitals:"))
                             state.hospitalLines.forEach { append("\n").append(it) }
                             append("\n")
                         }
                         when {
-                            !state.locationIncluded -> append("\nYour location could not be included.")
+                            !state.locationIncluded -> append(AppText.text(R.string.copy_d449756243f8, "\nYour location could not be included."))
                             state.locationLastKnown -> append(
-                                "\nIt included your last known location" +
-                                    (state.locationAgeMinutes?.let { " (about ${SosMessageBuilder.ageLabel(it)} old)" } ?: "") +
-                                    ", not a fresh fix."
+                                AppText.text(R.string.copy_f888191191bf, "\nIt included your last known location") +
+                                    (state.locationAgeMinutes?.let { AppText.text(R.string.copy_ee03ff7fc13c, " (about %1\$s old)", SosMessageBuilder.ageLabel(it)) } ?: "") +
+                                    AppText.text(R.string.copy_a9c8c29c1c06, ", not a fresh fix.")
                             )
                         }
                     },
@@ -324,8 +331,8 @@ fun SosSentOverlay(state: SosUiState.Sent, onDismiss: () -> Unit) {
                     textAlign = TextAlign.Center
                 )
                 Spacer(Modifier.size(8.dp))
-                OutlinedButton(onClick = { dialEmergency(context) }) { Text("Call 112") }
-                TextButton(onClick = onDismiss) { Text("Dismiss") }
+                OutlinedButton(onClick = { dialEmergency(context) }) { Text(AppText.text(R.string.copy_087479cd31cd, "Call 112")) }
+                TextButton(onClick = onDismiss) { Text(AppText.text(R.string.copy_48845bff334a, "Dismiss")) }
             }
         }
     }
@@ -347,26 +354,26 @@ fun SosNotSentOverlay(state: SosUiState.NotSent, onDismiss: () -> Unit) {
                    verticalArrangement = Arrangement.spacedBy(16.dp),
                    modifier = Modifier.padding(32.dp)) {
                 Icon(Icons.Outlined.Cancel, null, tint = Color.Red, modifier = Modifier.size(72.dp))
-                Text("SOS was not sent", style = MaterialTheme.typography.headlineMedium,
+                Text(AppText.text(R.string.copy_d3afc9f89a75, "SOS was not sent"), style = MaterialTheme.typography.headlineMedium,
                      fontWeight = FontWeight.Bold, color = Color.Black)
                 Text(
                     when (state.reason) {
-                        SosNotSentReason.NO_SMS_PERMISSION -> "SMS permission is off, so no message could be sent. Allow SMS for BIPSS in Settings."
-                        SosNotSentReason.NO_CONTACTS       -> "No emergency contacts are saved, so there was no one to text. Add contacts in Settings."
-                        SosNotSentReason.NO_TELEPHONY      -> "This device can't send SMS."
-                        SosNotSentReason.ALL_SENDS_FAILED  -> "Your phone could not send any of the messages" +
-                            (state.detail?.let { " ($it)" } ?: "") + ". Check your signal and SIM."
+                        SosNotSentReason.NO_SMS_PERMISSION -> AppText.text(R.string.copy_2d54a8f04540, "SMS permission is off, so no message could be sent. Allow SMS for BIPSS in Settings.")
+                        SosNotSentReason.NO_CONTACTS       -> AppText.text(R.string.copy_7faa485cdb7a, "No emergency contacts are saved, so there was no one to text. Add contacts in Settings.")
+                        SosNotSentReason.NO_TELEPHONY      -> AppText.text(R.string.copy_0bd985eca829, "This device can't send SMS.")
+                        SosNotSentReason.ALL_SENDS_FAILED  -> AppText.text(R.string.copy_ce6552405c16, "Your phone could not send any of the messages") +
+                            (state.detail?.let { " ($it)" } ?: "") + AppText.text(R.string.copy_c237a9bb137c, ". Check your signal and SIM.")
                     },
                     color = Color.DarkGray, textAlign = TextAlign.Center
                 )
                 Button(
                     onClick = { dialEmergency(context) },
                     colors  = ButtonDefaults.buttonColors(containerColor = Color.Red, contentColor = Color.White)
-                ) { Text("Call 112", fontWeight = FontWeight.Bold) }
+                ) { Text(AppText.text(R.string.copy_087479cd31cd, "Call 112"), fontWeight = FontWeight.Bold) }
                 if (state.reason == SosNotSentReason.NO_SMS_PERMISSION) {
-                    OutlinedButton(onClick = { openAppSettings(context) }) { Text("Open Settings") }
+                    OutlinedButton(onClick = { openAppSettings(context) }) { Text(AppText.text(R.string.copy_3f940108cb1e, "Open Settings")) }
                 }
-                TextButton(onClick = onDismiss) { Text("Dismiss", color = Color.DarkGray) }
+                TextButton(onClick = onDismiss) { Text(AppText.text(R.string.copy_48845bff334a, "Dismiss"), color = Color.DarkGray) }
             }
         }
     }
@@ -388,8 +395,8 @@ fun SosFalseAlarmOverlay(onDismiss: () -> Unit) {
                    modifier = Modifier.padding(32.dp)) {
                 Icon(Icons.Outlined.Cancel, null,
                      tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(64.dp))
-                Text("Alert Cancelled", style = MaterialTheme.typography.titleLarge)
-                Text("Logged locally as a false alarm. No data sent.",
+                Text(AppText.text(R.string.copy_4aaf751ef2cb, "Alert Cancelled"), style = MaterialTheme.typography.titleLarge)
+                Text(AppText.text(R.string.copy_3399405c81e0, "Logged locally as a false alarm. No data sent."),
                      style = MaterialTheme.typography.bodySmall,
                      color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
             }

@@ -1,5 +1,8 @@
 package com.bipss.app.ui.onboarding
 
+import com.bipss.app.localization.AppText
+import com.bipss.app.R
+
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.bipss.app.data.Gender
@@ -71,19 +74,19 @@ class OnboardingProfileViewModel(
 
     fun onNameChange(v: String) {
         _uiState.update {
-            it.copy(name = v, nameError = if (v.isBlank()) "Name cannot be empty" else null)
+            it.copy(name = v, nameError = if (v.isBlank()) AppText.text(R.string.copy_9615c8137b02, "Name cannot be empty") else null)
         }
     }
 
     fun onAgeChange(v: String) {
-        val age = v.toIntOrNull()
+        val age = com.bipss.app.localization.LocalNumbers.intOrNull(v)
         _uiState.update {
             it.copy(
                 age      = v,
                 ageError = when {
-                    v.isBlank()          -> "Required"
-                    age == null          -> "Must be a number"
-                    age !in 1..120       -> "Age must be 1–120"
+                    v.isBlank()          -> AppText.text(R.string.copy_4850b174b713, "Required")
+                    age == null          -> AppText.text(R.string.copy_309091489611, "Must be a number")
+                    age !in 1..120       -> AppText.text(R.string.copy_eb48e74b72b5, "Age must be 1–120")
                     else                 -> null
                 }
             )
@@ -91,14 +94,14 @@ class OnboardingProfileViewModel(
     }
 
     fun onHeightChange(v: String) {
-        val h = v.toFloatOrNull()
+        val h = com.bipss.app.localization.LocalNumbers.floatOrNull(v)
         _uiState.update {
             it.copy(
                 height      = v,
                 heightError = when {
-                    v.isBlank()          -> "Required"
-                    h == null            -> "Must be a number"
-                    h !in 50f..250f      -> "Height must be 50–250 cm"
+                    v.isBlank()          -> AppText.text(R.string.copy_4850b174b713, "Required")
+                    h == null            -> AppText.text(R.string.copy_309091489611, "Must be a number")
+                    h !in 50f..250f      -> AppText.text(R.string.copy_8b29afb46edf, "Height must be 50–250 cm")
                     else                 -> null
                 }
             )
@@ -106,14 +109,14 @@ class OnboardingProfileViewModel(
     }
 
     fun onWeightChange(v: String) {
-        val w = v.toFloatOrNull()
+        val w = com.bipss.app.localization.LocalNumbers.floatOrNull(v)
         _uiState.update {
             it.copy(
                 weight      = v,
                 weightError = when {
-                    v.isBlank()          -> "Required"
-                    w == null            -> "Must be a number"
-                    w !in 20f..300f      -> "Weight must be 20–300 kg"
+                    v.isBlank()          -> AppText.text(R.string.copy_4850b174b713, "Required")
+                    w == null            -> AppText.text(R.string.copy_309091489611, "Must be a number")
+                    w !in 20f..300f      -> AppText.text(R.string.copy_9e691ec1bbff, "Weight must be 20–300 kg")
                     else                 -> null
                 }
             )

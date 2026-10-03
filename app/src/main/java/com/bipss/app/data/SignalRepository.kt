@@ -37,7 +37,9 @@ private const val TAG = "SignalRepository"
 class SignalRepository(
     private val ble:      BleGattManager,
     private val epochDao: SignalEpochDao,
-    private val appScope: CoroutineScope
+    private val appScope: CoroutineScope,
+    private val archive: PpgArchive,
+    private val sleepStages: SleepStageRepository
 ) {
     private val _latestPulse = MutableStateFlow<PulseReading?>(null)
     /** Most recent measured (not coasted, not Poor) pulse. */
@@ -69,6 +71,7 @@ class SignalRepository(
         appScope.launch(Dispatchers.Default) {
             var pipeline = SignalPipeline()
             ble.waveform.collect { chunk ->
+                archive.accept(chunk)
                 if (resetRequested.getAndSet(false)) {
                     pipeline = SignalPipeline()
                     _latestPulse.value = null

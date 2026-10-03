@@ -1,5 +1,8 @@
 package com.bipss.app.ui.sleep
 
+import com.bipss.app.localization.AppText
+import com.bipss.app.R
+
 import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -66,10 +69,10 @@ fun SleepDetailScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Sleep") },
+                title = { Text(AppText.text(R.string.copy_d466bcf52eb6, "Sleep")) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = AppText.text(R.string.copy_76900f1bfd16, "Back"))
                     }
                 }
             )
@@ -83,6 +86,9 @@ fun SleepDetailScreen(
                 .padding(pad)
                 .padding(horizontal = Space.gutter)
         ) {
+            androidx.compose.material3.TextButton(onClick = { navController.navigate(com.bipss.app.navigation.Routes.SLEEP_STAGES) }) {
+                Text(AppText.text(R.string.copy_bf7e1c9d769b, "Explore sleep stages"))
+            }
             Spacer(Modifier.height(Space.m))
 
             // -- Last night --------------------------------------------------
@@ -90,28 +96,26 @@ fun SleepDetailScreen(
             if (last == null) {
                 EmptyState(
                     icon = Icons.Rounded.Bedtime,
-                    title = "No sleep recorded yet",
-                    body = "Wear the band overnight. Detection runs the following morning and needs at " +
-                        "least 30 minutes of sleep. It works from wrist movement, which the band sends " +
-                        "from firmware v2."
+                    title = AppText.text(R.string.copy_e7818d7d0f0d, "No sleep recorded yet"),
+                    body = AppText.text(R.string.copy_50c68651a6b8, "Wear your band overnight. Your sleep summary will appear after your next recorded night.")
                 )
             } else {
                 BipssCard {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Last night", style = MaterialTheme.typography.titleMedium,
+                        Text(AppText.text(R.string.copy_257b14f3f959, "Latest sleep · %1\$s", SimpleDateFormat("d MMM", Locale.getDefault()).format(Date(last.endMs))), style = MaterialTheme.typography.titleMedium,
                              color = colors.textPrimary, modifier = Modifier.weight(1f))
                     }
                     Spacer(Modifier.height(Space.s))
                     Row(verticalAlignment = Alignment.Bottom) {
                         Text(
-                            "${last.totalSleepMs / 3_600_000}h ${(last.totalSleepMs % 3_600_000) / 60_000}m",
+                            AppText.text(R.string.copy_279d04514bff, "%1\$sh %2\$sm", last.totalSleepMs / 3_600_000, (last.totalSleepMs % 3_600_000) / 60_000),
                             style = MetricValue,
                             color = colors.textPrimary
                         )
                         Spacer(Modifier.width(Space.m))
-                        state.lastNightScore?.let {
+                        com.bipss.app.data.SleepRepository.score(last).let {
                             Text(
-                                "score $it",
+                                AppText.text(R.string.copy_ed29f7132188, "score %1\$s", it),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = colors.textTertiary,
                                 modifier = Modifier.padding(bottom = 6.dp)
@@ -120,19 +124,19 @@ fun SleepDetailScreen(
                     }
                     Spacer(Modifier.height(Space.m))
                     HairlineDivider()
-                    InfoRow("Efficiency", "${last.efficiencyPct}%")
+                    InfoRow(AppText.text(R.string.copy_87b180c8f204, "Efficiency"), "${last.efficiencyPct}%")
                     HairlineDivider()
-                    InfoRow("Awake after falling asleep", "${last.wakeAfterOnsetMs / 60_000} min")
+                    InfoRow(AppText.text(R.string.copy_6da9a0e51e28, "Awake after falling asleep"), AppText.text(R.string.copy_3e16be5f4e1d, "%1\$s min", last.wakeAfterOnsetMs / 60_000))
                     HairlineDivider()
-                    InfoRow("Awakenings", "${last.awakenings}")
-                    last.avgHr?.let { HairlineDivider(); InfoRow("Average heart rate", "${it.toInt()} bpm") }
-                    last.avgSpo2?.let { HairlineDivider(); InfoRow("Average SpO2", "${it.toInt()}%") }
+                    InfoRow(AppText.text(R.string.copy_652e9be4e639, "Awakenings"), "${last.awakenings}")
+                    last.avgHr?.let { HairlineDivider(); InfoRow(AppText.text(R.string.copy_90440886e9c7, "Average heart rate"), AppText.text(R.string.copy_b8300f6c066e, "%1\$s bpm", it.toInt())) }
+                    last.avgSpo2?.let { HairlineDivider(); InfoRow(AppText.text(R.string.copy_814f8e271596, "Average SpO2"), "${it.toInt()}%") }
                 }
             }
 
             // -- Breathing screening ------------------------------------------
             Spacer(Modifier.height(Space.xxl))
-            SectionLabel("Overnight oxygen dips")
+            SectionLabel(AppText.text(R.string.copy_17a957727dd5, "Overnight oxygen dips"))
             Spacer(Modifier.height(Space.m))
 
             BipssCard {
@@ -144,7 +148,7 @@ fun SleepDetailScreen(
                 )
                 Spacer(Modifier.height(Space.s))
                 Text(
-                    "${state.nightsCollected} of ${state.nightsRequired} nights collected",
+                    AppText.text(R.string.copy_07bed06d948b, "%1\$s of %2\$s nights collected", state.nightsCollected, state.nightsRequired),
                     style = MaterialTheme.typography.bodySmall,
                     color = colors.textSecondary
                 )
@@ -152,8 +156,8 @@ fun SleepDetailScreen(
                 if (!state.hasAnyNight) {
                     Spacer(Modifier.height(Space.m))
                     Text(
-                        "Wear the band overnight to start counting. Each night is analysed on " +
-                            "its own and shown here from the first one.",
+                        AppText.text(R.string.copy_f51b03b449e0, "Wear the band overnight to start counting. Each night is analysed on ") +
+                            AppText.text(R.string.copy_2f08f1f7d438, "its own and shown here from the first one."),
                         style = MaterialTheme.typography.bodySmall,
                         color = colors.textTertiary
                     )
@@ -180,8 +184,8 @@ fun SleepDetailScreen(
                         )
                     } else {
                         InfoBanner(
-                            text = "An average appears after ${state.nightsRequired} nights. " +
-                                "Individual nights are shown above.",
+                            text = AppText.text(R.string.copy_99a8330335d7, "An average appears after %1\$s nights. ", state.nightsRequired) +
+                                AppText.text(R.string.copy_3bc015b2d4ee, "Individual nights are shown above."),
                             icon = Icons.Rounded.Info,
                             tint = colors.textTertiary
                         )
@@ -198,7 +202,7 @@ fun SleepDetailScreen(
                                     putExtra(Intent.EXTRA_TEXT, report)
                                 }
                                 context.startActivity(
-                                    Intent.createChooser(send, "Share record")
+                                    Intent.createChooser(send, AppText.text(R.string.copy_252327030492, "Share record"))
                                 )
                             }
                         },
@@ -206,16 +210,16 @@ fun SleepDetailScreen(
                     ) {
                         Icon(Icons.Rounded.Download, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(Space.s))
-                        Text("Export for physician")
+                        Text(AppText.text(R.string.copy_d321a0a5ed9f, "Export for physician"))
                     }
                 }
             }
 
             Spacer(Modifier.height(Space.m))
             Text(
-                "This counts drops in blood oxygen during sleep detected from wrist movement - both " +
-                    "estimates from a consumer band. It is not a diagnosis, and BIPSS is not a medical " +
-                    "device. If you are concerned about your breathing during sleep, talk to a doctor.",
+                AppText.text(R.string.copy_6cbd050207c4, "This counts drops in blood oxygen during sleep detected from wrist movement - both ") +
+                    AppText.text(R.string.copy_edf81a2f3c95, "estimates from a consumer band. It is not a diagnosis, and BIPSS is not a medical ") +
+                    AppText.text(R.string.copy_d7f73a4cc808, "device. If you are concerned about your breathing during sleep, talk to a doctor."),
                 style = MaterialTheme.typography.labelSmall,
                 color = colors.textTertiary
             )
@@ -245,7 +249,7 @@ private fun NightPill(
         IconButton(onClick = onPrevious, enabled = index > 0) {
             Icon(
                 Icons.Rounded.ChevronLeft,
-                contentDescription = "Previous night",
+                contentDescription = AppText.text(R.string.copy_0e68927897f6, "Previous night"),
                 tint = if (index > 0) colors.textPrimary else colors.textTertiary
             )
         }
@@ -257,8 +261,8 @@ private fun NightPill(
         ) {
             Column(Modifier.padding(Space.m)) {
                 Text(
-                    if (night.eventCount == 1) "1 oxygen dip counted"
-                    else "${night.eventCount} oxygen dips counted",
+                    if (night.eventCount == 1) AppText.text(R.string.copy_a6c61e677619, "1 oxygen dip counted")
+                    else AppText.text(R.string.copy_b65b3831c8c6, "%1\$s oxygen dips counted", night.eventCount),
                     style = MaterialTheme.typography.titleSmall,
                     color = colors.textPrimary
                 )
@@ -280,7 +284,7 @@ private fun NightPill(
                 // judge the night's signal quality instead of trusting a bare count.
                 if (night.rejectedArtefactCount > 0) {
                     Text(
-                        "${night.rejectedArtefactCount} more not counted (movement or under 10 s)",
+                        AppText.text(R.string.copy_3094b01b05f2, "%1\$s more not counted (movement or under 10 s)", night.rejectedArtefactCount),
                         style = MaterialTheme.typography.labelSmall,
                         color = colors.textTertiary
                     )
@@ -291,7 +295,7 @@ private fun NightPill(
         IconButton(onClick = onNext, enabled = index < total - 1) {
             Icon(
                 Icons.Rounded.ChevronRight,
-                contentDescription = "Next night",
+                contentDescription = AppText.text(R.string.copy_4ba23cc30c55, "Next night"),
                 tint = if (index < total - 1) colors.textPrimary else colors.textTertiary
             )
         }

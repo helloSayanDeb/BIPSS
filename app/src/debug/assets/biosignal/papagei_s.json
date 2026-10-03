@@ -1,0 +1,14 @@
+{
+  "name": "PaPaGei-S encoder",
+  "checkpoint_sha256": "79d68671e51bdc951fee853e5a8241099e38148ff26ed888b843849332e0b988",
+  "sha256": "0f40adc731771c23ce2aa1da54a7f5ff70b744e7082e9e96ac9a13366e094488",
+  "bytes": 20502016,
+  "source_revision": "https://github.com/Nokia-Bell-Labs/papagei-foundation-model\nRevision: 0c537dad4d2850e15b724260de820dd68d77f0b0\nOnly unused plotting/training imports removed from resnet.py.\nWeights: https://zenodo.org/records/13983110\n",
+  "max_absolute_errors": [
+    1.0281801223754883e-06,
+    2.086162567138672e-06,
+    3.0994415283203125e-06
+  ],
+  "output_dimensions": 512,
+  "task_head": null
+}

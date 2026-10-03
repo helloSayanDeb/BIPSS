@@ -26,6 +26,10 @@ Sensor status carried over from v1 (read before trusting any field):
   AHT21, ENS160              - NEVER SUCCESSFULLY READ; code included, unproven
 """
 
+import os
+from step_counter import StepCounter
+from sensor_validation import decode_aht21, ens_ready, ens_compensation, pulse_is_fresh
+
 import board
 import busio
 import digitalio
@@ -61,6 +65,13 @@ def now_ms():
 
 
 # ---------------------------------------------------------------- I2C ------
+def lock_i2c():
+    deadline = now_ms() + 10
+    while not i2c.try_lock():
+        if now_ms() >= deadline:
+            raise OSError("I2C lock timeout")
+
+
 def i2c_bus_recovery():
     """Clock out a slave stuck holding SDA low, then issue a STOP."""
     scl = digitalio.DigitalInOut(board.SCL)
@@ -89,8 +100,7 @@ time.sleep(1.0)
 i2c_bus_recovery()
 i2c = busio.I2C(board.SCL, board.SDA, frequency=400000)
 
-while not i2c.try_lock():
-    pass
+lock_i2c()
 found = i2c.scan()
 i2c.unlock()
 print("found:", [hex(a) for a in found])
@@ -106,8 +116,7 @@ _reg = bytearray(1)
 
 
 def i2c_write(addr, data):
-    while not i2c.try_lock():
-        pass
+    lock_i2c()
     try:
         i2c.writeto(addr, data)
     finally:
@@ -116,8 +125,7 @@ def i2c_write(addr, data):
 
 def i2c_read_into(addr, reg, buf, end=None):
     _reg[0] = reg
-    while not i2c.try_lock():
-        pass
+    lock_i2c()
     try:
         i2c.writeto_then_readfrom(addr, _reg, buf, in_end=end if end is not None else len(buf))
     finally:
@@ -127,10 +135,14 @@ def i2c_read_into(addr, reg, buf, end=None):
 # ---------------------------------------------------------- MPU6050 -------
 accel_buf = bytearray(6)
 if mpu_ok:
-    i2c_write(MPU6050_ADDR, bytes((0x6B, 0x00)))  # wake
-    time.sleep(0.05)
-    i2c_write(MPU6050_ADDR, bytes((0x1A, 0x05)))  # CONFIG: DLPF_CFG=5 (~10 Hz), no aliasing at 25 Hz
-    i2c_write(MPU6050_ADDR, bytes((0x1C, 0x00)))  # ACCEL_CONFIG: +-2 g, 16384 LSB/g
+    try:
+        i2c_write(MPU6050_ADDR, bytes((0x6B, 0x00)))  # wake
+        time.sleep(0.05)
+        i2c_write(MPU6050_ADDR, bytes((0x1A, 0x05)))  # CONFIG: DLPF_CFG=5 (~10 Hz), no aliasing at 25 Hz
+        i2c_write(MPU6050_ADDR, bytes((0x1C, 0x00)))  # ACCEL_CONFIG: +-2 g, 16384 LSB/g
+    except OSError as e:
+        mpu_ok = False
+        print("mpu_ok initialization failed:", e)
 
 
 def read_accel_raw():
@@ -181,15 +193,19 @@ activity = ActivityCounter()
 fifo_ptrs = bytearray(3)          # WR_PTR, OVF_COUNTER, RD_PTR
 fifo_data = bytearray(32 * 6)     # whole FIFO, red+IR, 3 bytes each
 if max_ok:
-    i2c_write(MAX30102_ADDR, bytes((0x09, 0x40)))  # reset
-    time.sleep(0.1)
-    i2c_write(MAX30102_ADDR, bytes((0x08, 0x3F)))  # FIFO: SMP_AVE=2, rollover, A_FULL=15
-    i2c_write(MAX30102_ADDR, bytes((0x09, 0x03)))  # SpO2 mode (red + IR)
-    i2c_write(MAX30102_ADDR, bytes((0x0A, 0x27)))  # 4096 nA range, 100 Hz, 411 us / 18-bit
-    i2c_write(MAX30102_ADDR, bytes((0x0C, 0x3F)))  # red LED current
-    i2c_write(MAX30102_ADDR, bytes((0x0D, 0x3F)))  # IR LED current
-    for reg in (0x04, 0x05, 0x06):
-        i2c_write(MAX30102_ADDR, bytes((reg, 0x00)))
+    try:
+        i2c_write(MAX30102_ADDR, bytes((0x09, 0x40)))  # reset
+        time.sleep(0.1)
+        i2c_write(MAX30102_ADDR, bytes((0x08, 0x3F)))  # FIFO: SMP_AVE=2, rollover, A_FULL=15
+        i2c_write(MAX30102_ADDR, bytes((0x09, 0x03)))  # SpO2 mode (red + IR)
+        i2c_write(MAX30102_ADDR, bytes((0x0A, 0x27)))  # 4096 nA range, 100 Hz, 411 us / 18-bit
+        i2c_write(MAX30102_ADDR, bytes((0x0C, 0x3F)))  # red LED current
+        i2c_write(MAX30102_ADDR, bytes((0x0D, 0x3F)))  # IR LED current
+        for reg in (0x04, 0x05, 0x06):
+            i2c_write(MAX30102_ADDR, bytes((reg, 0x00)))
+    except OSError as e:
+        max_ok = False
+        print("max_ok initialization failed:", e)
 
 
 def read_fifo():
@@ -340,8 +356,7 @@ if aht_ok:
         time.sleep(0.1)
         i2c_write(AHT21_ADDR, bytes((0x71,)))
         st = bytearray(1)
-        while not i2c.try_lock():
-            pass
+        lock_i2c()
         try:
             i2c.readfrom_into(AHT21_ADDR, st)
         finally:
@@ -365,8 +380,7 @@ def aht_step(t_ms):
             return None
         if t_ms - aht_started_ms < 80:
             return None
-        while not i2c.try_lock():
-            pass
+        lock_i2c()
         try:
             i2c.readfrom_into(AHT21_ADDR, aht_buf)
         finally:
@@ -376,9 +390,7 @@ def aht_step(t_ms):
                 aht_state = AHT_IDLE  # give up on this conversion
             return None
         aht_state = AHT_IDLE
-        raw_h = (aht_buf[1] << 12) | (aht_buf[2] << 4) | (aht_buf[3] >> 4)
-        raw_t = ((aht_buf[3] & 0x0F) << 16) | (aht_buf[4] << 8) | aht_buf[5]
-        return raw_t / 1048576.0 * 200.0 - 50.0, raw_h / 1048576.0 * 100.0
+        return decode_aht21(aht_buf)
     except OSError:
         aht_state = AHT_IDLE
         return None
@@ -389,6 +401,10 @@ ens_status = bytearray(1)
 ens_aqi = bytearray(1)
 if ens_ok:
     try:
+        identity = bytearray(2)
+        i2c_read_into(ens_addr, 0x00, identity)
+        if identity != bytes((0x60, 0x01)):
+            raise OSError("ENS160 identity mismatch")
         for mode, pause in ((0xF0, 0.25), (0x01, 0.1), (0x02, 0.1)):  # reset, idle, standard
             i2c_write(ens_addr, bytes((0x10, mode)))
             time.sleep(pause)
@@ -398,10 +414,11 @@ if ens_ok:
 
 
 def ens_compensate(temp_c, rh):
-    t = int((temp_c + 273.15) * 64.0)
-    h = int(rh * 512.0)
+    packet = ens_compensation(temp_c, rh)
+    if packet is None:
+        return
     try:
-        i2c_write(ens_addr, bytes((0x13, t & 0xFF, t >> 8, h & 0xFF, h >> 8)))
+        i2c_write(ens_addr, packet)
     except OSError:
         pass
 
@@ -409,8 +426,7 @@ def ens_compensate(temp_c, rh):
 def read_ens_uba():
     try:
         i2c_read_into(ens_addr, 0x20, ens_status)
-        validity = (ens_status[0] >> 2) & 0x03
-        if validity == 0 and ens_status[0] & 0x02:
+        if ens_ready(ens_status[0]):
             i2c_read_into(ens_addr, 0x21, ens_aqi)
             uba = ens_aqi[0] & 0x07
             return uba if 1 <= uba <= 5 else None
@@ -466,6 +482,9 @@ STATUS_FMT = "<BIHBBBhhBBHBB"
 WAVE_FMT = "<BHB4H6bBB"
 assert struct.calcsize(STATUS_FMT) == 20
 assert struct.calcsize(WAVE_FMT) == 20
+step_counter = StepCounter()
+step_boot_id = struct.unpack("<I", os.urandom(4))[0]
+step_pkt = bytearray(20)
 status_pkt = bytearray(20)
 wave_pkt = bytearray(20)
 
@@ -501,6 +520,9 @@ amb_t = -1
 uba = None
 uba_t = -1
 last_comp_ms = 0
+next_steps_ms = 0
+next_ens_ms = 0
+last_ppg_wall_ms = -1
 
 while True:
     t_ns = time.monotonic_ns()
@@ -514,9 +536,11 @@ while True:
         raw = read_accel_raw()
         if raw is None:
             accel_valid = False
+            step_counter.reset_window()
         else:
             dt = (t_ns - last_accel_ns) / 1e9
             last_accel_ns = t_ns
+            step_counter.add(raw[0] / 16384.0, raw[1] / 16384.0, raw[2] / 16384.0, t_ms)
             activity.add([c * 1000.0 / 16384.0 for c in raw], dt)
             last_accel = [clamp_i8(round(c / 256)) for c in raw]  # 16384/64 = 256 LSB per 1/64 g
             accel_valid = True
@@ -524,6 +548,8 @@ while True:
     # PPG: every pending sample, each advancing the index by one.
     if max_ok:
         count, lost = read_fifo()
+        if count > 0:
+            last_ppg_wall_ms = t_ms
         if lost:
             sample_index += lost
             wave_flags |= F_FIFO_OVF
@@ -587,7 +613,8 @@ while True:
             if ens_ok and t_ms - last_comp_ms > 60_000:
                 ens_compensate(amb_c, rh)
                 last_comp_ms = t_ms
-    if ens_ok:
+    if ens_ok and t_ms >= next_ens_ms:
+        next_ens_ms = t_ms + 1000
         v = read_ens_uba()
         if v is not None:
             uba = v
@@ -607,8 +634,8 @@ while True:
         # repeating it with its quality bit set would report a stale number
         # as a new measurement.
         now_sample_t = sample_index * PPG_PERIOD_MS
-        pulse_fresh = max_ok and hr_proc.n > 0 and hr_proc.last_rr_t >= 0 and             now_sample_t - hr_proc.last_rr_t < FRESH_MS
-        spo2_fresh = max_ok and spo2_proc.updated_t >= 0 and now_sample_t - spo2_proc.updated_t < FRESH_MS
+        pulse_fresh = max_ok and hr_proc.n > 0 and pulse_is_fresh(t_ms, last_ppg_wall_ms, now_sample_t, hr_proc.last_rr_t, FRESH_MS)
+        spo2_fresh = max_ok and pulse_is_fresh(t_ms, last_ppg_wall_ms, now_sample_t, spo2_proc.updated_t, FRESH_MS)
         hr = hr_proc.bpm if pulse_fresh and hr_proc.bpm else 0
         prv = hr_proc.rmssd if pulse_fresh and 0 < hr_proc.rmssd < 255 else 0xFF
         spo2 = spo2_proc.spo2 if spo2_fresh and spo2_proc.spo2 else 0xFF
@@ -641,6 +668,12 @@ while True:
         if ble.connected:
             try:
                 band.status = status_pkt
+                if t_ms >= next_steps_ms:
+                    struct.pack_into("<BBIIIB5x", step_pkt, 0, 0x31, 1, step_boot_id,
+                                     t_ms & 0xffffffff, step_counter.total,
+                                     1 if accel_valid and t_ns - last_accel_ns < 160_000_000 else 0)
+                    band.status = step_pkt
+                    next_steps_ms = t_ms + 5000
             except Exception as e:
                 print("status notify failed:", e)
 

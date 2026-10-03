@@ -112,6 +112,8 @@ class BleGattManager(private val context: Context) {
 
     private val _sensorReadings = MutableSharedFlow<SensorReading>(replay = 0, extraBufferCapacity = 64)
     val sensorReadings: SharedFlow<SensorReading> = _sensorReadings.asSharedFlow()
+    private val _bandSteps = MutableSharedFlow<com.bipss.app.ble.protocol.BandStepEvent>(extraBufferCapacity = 16)
+    val bandSteps = _bandSteps.asSharedFlow()
 
     /**
      * PPG + accelerometer, 12.5 chunks a second from a v2 band. A consumer that
@@ -269,10 +271,9 @@ class BleGattManager(private val context: Context) {
             when (newState) {
                 BluetoothProfile.STATE_CONNECTED -> {
                     Log.i(TAG, "Connected - discovering services")
-                    reconnectAttempts = 0
                     // Fast intervals for discovery and subscription only; see subscribeAll.
                     g.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH)
-                    g.discoverServices()
+                    if (!g.discoverServices()) recoverSubscription(g)
                 }
                 BluetoothProfile.STATE_DISCONNECTED -> {
                     Log.w(TAG, "Disconnected (status=$status)")
@@ -284,9 +285,10 @@ class BleGattManager(private val context: Context) {
         }
 
         override fun onServicesDiscovered(g: BluetoothGatt, status: Int) {
+            if (g !== gatt) return
             cacheRefreshInFlight = false
             if (status != BluetoothGatt.GATT_SUCCESS) {
-                _connectionState.value = BleConnectionState.Error("Service discovery failed")
+                recoverSubscription(g)
                 return
             }
             val service = g.getService(BIPSS_SERVICE_UUID)
@@ -320,6 +322,7 @@ class BleGattManager(private val context: Context) {
         }
 
         override fun onMtuChanged(g: BluetoothGatt, mtu: Int, status: Int) {
+            if (g !== gatt) return
             // Any status: v2 packets fit the default MTU, so a refused
             // negotiation is logged and the subscription goes ahead regardless.
             Log.i(TAG, "MTU now $mtu (status=$status)")
@@ -333,8 +336,13 @@ class BleGattManager(private val context: Context) {
         }
 
         override fun onDescriptorWrite(g: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
+            if (g !== gatt) return
             if (status != BluetoothGatt.GATT_SUCCESS) {
                 Log.w(TAG, "Subscribe to ${descriptor.characteristic.uuid} failed: $status")
+                if (descriptor.characteristic.uuid in listOf(CHAR_STATUS, CHAR_WAVEFORM)) {
+                    recoverSubscription(g)
+                    return
+                }
             }
             opQueue.complete()
         }
@@ -356,12 +364,14 @@ class BleGattManager(private val context: Context) {
         override fun onCharacteristicRead(
             g: BluetoothGatt, characteristic: BluetoothGattCharacteristic, value: ByteArray, status: Int
         ) {
+            if (g !== gatt) return
             if (status == BluetoothGatt.GATT_SUCCESS) handleCharacteristicData(g, characteristic.uuid, value)
             opQueue.complete()
         }
 
         @Deprecated("Used for API < 33")
         override fun onCharacteristicRead(g: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
+            if (g !== gatt) return
             if (Build.VERSION.SDK_INT < 33) {
                 @Suppress("DEPRECATION")
                 if (status == BluetoothGatt.GATT_SUCCESS) {
@@ -389,11 +399,24 @@ class BleGattManager(private val context: Context) {
         })
     }
 
-    private fun enqueueNotification(g: BluetoothGatt, serviceUuid: UUID, charUuid: UUID) {
-        val char = g.getService(serviceUuid)?.getCharacteristic(charUuid) ?: run {
-            Log.w(TAG, "Characteristic $charUuid not found"); return
+    private fun recoverSubscription(failedGatt: BluetoothGatt) {
+        scope.launch {
+            if (failedGatt !== gatt || userInitiatedDisconnect) return@launch
+            failedGatt.disconnect()
+            closeGatt()
+            _connectionState.value = BleConnectionState.Disconnected
+            scheduleReconnect()
         }
-        opQueue.enqueue(GattOpQueue.Op("subscribe $charUuid") {
+    }
+
+    private fun enqueueNotification(g: BluetoothGatt, serviceUuid: UUID, charUuid: UUID) {
+        val required = charUuid == CHAR_STATUS || charUuid == CHAR_WAVEFORM
+        val char = g.getService(serviceUuid)?.getCharacteristic(charUuid) ?: run {
+            Log.w(TAG, "Characteristic $charUuid not found")
+            if (required) recoverSubscription(g)
+            return
+        }
+        opQueue.enqueue(GattOpQueue.Op("subscribe $charUuid", onFailure = { if (required) recoverSubscription(g) }) {
             if (!g.setCharacteristicNotification(char, true)) return@Op false
             val descriptor = char.getDescriptor(CCCD_UUID) ?: return@Op false
             if (Build.VERSION.SDK_INT >= 33) {
@@ -451,6 +474,7 @@ class BleGattManager(private val context: Context) {
     // -- Packets ---------------------------------------------------------------
 
     private fun handleCharacteristicData(g: BluetoothGatt?, uuid: UUID, value: ByteArray) {
+        if (g != null && g !== gatt) return
         val arrival = System.currentTimeMillis()
         when (uuid) {
             CHAR_BATTERY_LEVEL -> if (value.isNotEmpty()) {
@@ -462,7 +486,15 @@ class BleGattManager(private val context: Context) {
                 if (!_waveform.tryEmit(chunk)) Log.w(TAG, "Waveform consumer behind - chunk dropped")
             }
             CHAR_STATUS -> when {
+                value.size == 20 && value.firstOrNull() == 0x31.toByte() -> {
+                    com.bipss.app.ble.protocol.BandStepsParser.parse(value)?.let { packet ->
+                        if (_protocol.value == BandProtocolVersion.V2) {
+                            pairedMac?.let { device -> _bandSteps.tryEmit(com.bipss.app.ble.protocol.BandStepEvent(device, packet, arrival)) }
+                        } else if (!cacheRefreshInFlight && ++consecutiveV2Headers >= V2_HEADERS_BEFORE_STALE) onStaleCacheSuspected(g)
+                    }
+                }
                 _protocol.value == BandProtocolVersion.V2 -> decodeStatus(value, arrival)?.let { reading ->
+                    reconnectAttempts = 0
                     if (!_sensorReadings.tryEmit(reading)) Log.w(TAG, "Reading consumer behind - reading dropped")
                 }
                 // Mid-refresh the table is in flux; the next discovery decides.
@@ -550,6 +582,7 @@ class BleGattManager(private val context: Context) {
             if (value.size < BandProtocol.LEGACY_FRAME_SIZE) _legacyFramesTruncated.value = true
             return
         }
+        reconnectAttempts = 0
         _legacyFramesTruncated.value = false
         val wall = synchronized(linkLock) {
             clock.onUptimeOnly(frame.bandUptimeMs, arrivalMs) ?: clock.onUptimeOnly(frame.bandUptimeMs, arrivalMs)

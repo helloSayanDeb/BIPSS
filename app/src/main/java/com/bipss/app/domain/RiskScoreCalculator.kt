@@ -143,7 +143,9 @@ class RiskScoreCalculator {
         val strainPillar  = computeStrain(strain, dataMode)
         val readiness     = computeReadiness(recoveryScore, sleepPillar, strainPillar, hazards, dataMode)
 
-        return listOf(readiness, recoveryScore, sleepPillar, strainPillar) + hazards + computeAutonomicLoad(ali, personal.dayN, dataMode)
+        val scores = listOf(readiness, recoveryScore, sleepPillar, strainPillar) + hazards + computeAutonomicLoad(ali, personal.dayN, dataMode)
+        return scores.map { it.copy(inputs = insightInputs(it.type, scores, hr, spo2, skinTempC, personal, env,
+            hoursSinceWater, recovery, strain, ali)) }
     }
 
     // -- Heat stress -----------------------------------------------------------
@@ -184,7 +186,7 @@ class RiskScoreCalculator {
         // Active heat/humidity advisories - 25 points. Only counted once a fetch
         // has actually happened; AlertSeverity.NONE on a never-fetched snapshot
         // means "unknown", not "all clear".
-        if (env != null && env.fetchedAtMs > 0L) {
+        if (env != null && env.alertsCheckedAtMs > 0L) {
             val boost = when (env.alertSeverity) {
                 AlertSeverity.EXTREME  -> 25f
                 AlertSeverity.WARNING  -> 15f
@@ -323,7 +325,7 @@ class RiskScoreCalculator {
     // the band-removed demo state.
 
     private fun computeFlood(env: EnvironmentalSnapshot?, dataMode: DataMode): RiskScore {
-        if (env == null || env.fetchedAtMs == 0L) {
+        if (env == null || env.alertsCheckedAtMs == 0L) {
             return unavailable(
                 RiskScoreType.FLOOD, ScoreAvailability.NEEDS_BAND, dataMode,
                 listOf("disaster alert feed")

@@ -238,6 +238,32 @@ interface WaterLogDao {
     @Insert
     suspend fun insert(entry: WaterLogEntity)
 
+    @Query("SELECT * FROM water_log WHERE timestampMs >= :startMs AND timestampMs < :endMs ORDER BY timestampMs DESC, id DESC")
+    fun entriesBetweenFlow(startMs: Long, endMs: Long): Flow<List<WaterLogEntity>>
+
+    @Query("SELECT * FROM water_log WHERE timestampMs >= :startMs AND timestampMs < :endMs ORDER BY timestampMs DESC, id DESC")
+    suspend fun entriesBetween(startMs: Long, endMs: Long): List<WaterLogEntity>
+
+    @Query("DELETE FROM water_log WHERE id = :id")
+    suspend fun deleteById(id: Long)
+
+    @Query("UPDATE water_log SET amountMl = :amountMl WHERE id = :id")
+    suspend fun updateAmount(id: Long, amountMl: Int)
+
+    /** Correct the newest drinks first, atomically; never creates a negative drink. */
+    @androidx.room.Transaction
+    suspend fun subtractBetween(startMs: Long, endMs: Long, amountMl: Int) {
+        require(amountMl > 0)
+        var remaining = amountMl
+        for (entry in entriesBetween(startMs, endMs)) {
+            if (remaining == 0) break
+            val removed = minOf(remaining, entry.amountMl)
+            if (removed == entry.amountMl) deleteById(entry.id)
+            else updateAmount(entry.id, entry.amountMl - removed)
+            remaining -= removed
+        }
+    }
+
 
     /** [startMs] inclusive, [endMs] exclusive - pass LocalDay ranges. */
     @Query("""

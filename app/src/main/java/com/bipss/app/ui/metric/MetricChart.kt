@@ -1,5 +1,8 @@
 package com.bipss.app.ui.metric
 
+import com.bipss.app.localization.AppText
+import com.bipss.app.R
+
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -151,8 +154,8 @@ fun MetricLineChart(
         ) {
             EmptyState(
                 icon = Icons.Rounded.ShowChart,
-                title = "No readings in this range",
-                body = "Nothing was recorded here. Wear the band to fill the window."
+                title = AppText.text(R.string.copy_f05faa3acb21, "No readings in this range"),
+                body = AppText.text(R.string.copy_07e99f673bc4, "Nothing was recorded here. Wear the band to fill the window.")
             )
         }
         return
@@ -298,16 +301,16 @@ fun MetricStatsRow(
     restingValue: Float?,
     unit: String,
     modifier: Modifier = Modifier,
-    restingLabel: String = "RESTING",
+    restingLabel: String = AppText.text(R.string.copy_266af3af0b6a, "RESTING"),
     decimals: Int = 1,
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(Space.s)
     ) {
-        StatFigure("MIN", minValue, unit, Modifier.weight(1f), decimals)
-        StatFigure("AVG", avgValue, unit, Modifier.weight(1f), decimals)
-        StatFigure("MAX", maxValue, unit, Modifier.weight(1f), decimals)
+        StatFigure(AppText.text(R.string.copy_d319c28c2d23, "MIN"), minValue, unit, Modifier.weight(1f), decimals)
+        StatFigure(AppText.text(R.string.copy_249a90b07ed1, "AVG"), avgValue, unit, Modifier.weight(1f), decimals)
+        StatFigure(AppText.text(R.string.copy_2d9c014a222d, "MAX"), maxValue, unit, Modifier.weight(1f), decimals)
         StatFigure(restingLabel, restingValue, unit, Modifier.weight(1f), decimals)
     }
 }

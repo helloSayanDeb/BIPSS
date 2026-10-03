@@ -1,6 +1,11 @@
 package com.bipss.app
 
 import android.os.Bundle
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
+import org.koin.android.ext.android.inject
+import com.bipss.app.data.DailyActivityRepository
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge

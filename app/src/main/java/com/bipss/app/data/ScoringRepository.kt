@@ -215,7 +215,7 @@ class ScoringRepository(
         processNewNights()
         val session = sleepDao.mostRecent() ?: return null
         val dayN = dayN()
-        if (session.endMs < LocalDay.previousDayRangeMs(nowMs).first) {
+        if (LocalDay.epochDay(session.endMs) != LocalDay.epochDay(nowMs)) {
             val date = SimpleDateFormat("d MMM", Locale.getDefault()).format(Date(session.startMs))
             return RecoveryResult(
                 nightStartMs = session.startMs, score = null, stage = BaselineSchedule.stage(dayN), dayN = dayN,

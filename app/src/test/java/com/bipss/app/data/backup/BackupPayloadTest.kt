@@ -19,6 +19,7 @@ class BackupPayloadTest {
         val p = json.decodeFromString(BackupPayload.serializer(), v1)
         assertEquals(1, p.schemaVersion)
         assertEquals(null, p.profileGender)
+        assertEquals(null, p.waterGoalMl)
         assertTrue(p.cyclePeriods.isEmpty() && p.waterLog.isEmpty() && p.ewmaBaselines.isEmpty())
         assertEquals("HRV", p.baselineStats.single().metricType)   // mapped to PRV on restore
     }
@@ -31,7 +32,7 @@ class BackupPayloadTest {
             baselineStats = emptyList(), schemaVersion = 2, profileGender = "FEMALE",
             ewmaBaselines = listOf(BackupEwma("PRV_night", 42.0, 9.0, 12, 5L, 6L)),
             dataDays = listOf(BackupDataDay(20000, 300)),
-            waterLog = listOf(BackupWater(7L, 250)),
+            waterLog = listOf(BackupWater(7L, 250)), waterGoalMl = 2250,
             cyclePeriods = listOf(BackupPeriod(20100, 20104), BackupPeriod(20128, null)),
             cycleNotes = listOf(BackupNote(20101, "tired", 8L))
         )

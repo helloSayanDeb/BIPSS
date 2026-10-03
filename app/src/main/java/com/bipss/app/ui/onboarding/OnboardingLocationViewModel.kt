@@ -1,5 +1,8 @@
 package com.bipss.app.ui.onboarding
 
+import com.bipss.app.localization.AppText
+import com.bipss.app.R
+
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -85,8 +88,8 @@ class OnboardingLocationViewModel(
                 sources = if (snapshot == null) {
                     // The sync as a whole ran out of time; which sources had
                     // answered by then is not known, so none is claimed.
-                    listOf("Weather", "Air quality", "Official alerts").map {
-                        SourceResult(it, SourceStatus.FAILED, "Didn't finish within ${FETCH_TIMEOUT_MS / 1000} seconds")
+                    listOf(AppText.text(R.string.copy_a0bba6381246, "Weather"), AppText.text(R.string.copy_0e9cbafcdd80, "Air quality"), AppText.text(R.string.copy_57192b3add92, "Official alerts")).map {
+                        SourceResult(it, SourceStatus.FAILED, AppText.text(R.string.copy_6e8a355058ca, "Didn't finish within %1\$s seconds", FETCH_TIMEOUT_MS / 1000))
                     }
                 } else listOf(
                     weather(snapshot.ambientTempC),
@@ -99,38 +102,34 @@ class OnboardingLocationViewModel(
     }
 
     private fun weather(tempC: Float?) = if (tempC != null)
-        SourceResult("Weather", SourceStatus.OK, "${tempC.roundToInt()} °C now")
-    else SourceResult("Weather", SourceStatus.FAILED, "The weather service isn't responding right now")
+        SourceResult(AppText.text(R.string.copy_a0bba6381246, "Weather"), SourceStatus.OK, AppText.text(R.string.copy_e0f57f147fcc, "%1\$s °C now", tempC.roundToInt()))
+    else SourceResult(AppText.text(R.string.copy_a0bba6381246, "Weather"), SourceStatus.FAILED, AppText.text(R.string.copy_741bf6f832e3, "The weather service isn't responding right now"))
 
     private fun airQuality(s: com.bipss.app.domain.environmental.EnvironmentalSnapshot): SourceResult = when {
         s.aqiValue != null && s.aqiSource == com.bipss.app.domain.environmental.AqiSource.CPCB ->
-            SourceResult("Air quality", SourceStatus.OK,
-                "AQI ${s.aqiValue} at ${s.aqiStationName ?: "the nearest station"}" +
-                    (s.aqiStationDistanceKm?.let { ", ${it.roundToInt()} km away" } ?: ""))
+            SourceResult(AppText.text(R.string.copy_0e9cbafcdd80, "Air quality"), SourceStatus.OK,
+                AppText.text(R.string.copy_85e865f05ac0, "AQI %1\$s at %2\$s", s.aqiValue, s.aqiStationName ?: "the nearest station") +
+                    (s.aqiStationDistanceKm?.let { AppText.text(R.string.copy_71236f96c7a0, ", %1\$s km away", it.roundToInt()) } ?: ""))
         // No station reading: the CAMS model, said plainly.
         s.aqiValue != null && s.aqiSource == com.bipss.app.domain.environmental.AqiSource.MODEL ->
-            SourceResult("Air quality", SourceStatus.OK,
-                "AQI ${s.aqiValue}, modelled for your area" + when (cpcb.lastOutcome) {
-                    CpcbAqiFetcher.Outcome.NO_STATION_NEARBY -> " (no CPCB station within 50 km)"
-                    CpcbAqiFetcher.Outcome.OK -> " (the nearest station isn't reporting a full index)"
-                    else -> " (CPCB stations aren't answering)"
-                })
+            SourceResult(AppText.text(R.string.copy_0e9cbafcdd80, "Air quality"), SourceStatus.OK,
+                AppText.text(R.string.copy_5892f64ac98c, "Estimated AQI %1\$s for your area", s.aqiValue))
         else -> when (cpcb.lastOutcome) {
             CpcbAqiFetcher.Outcome.NO_STATION_NEARBY ->
-                SourceResult("Air quality", SourceStatus.NOT_AVAILABLE_HERE, "No government monitoring station within 50 km")
+                SourceResult(AppText.text(R.string.copy_0e9cbafcdd80, "Air quality"), SourceStatus.NOT_AVAILABLE_HERE, AppText.text(R.string.copy_ac83a1a82620, "No government monitoring station within 50 km"))
             CpcbAqiFetcher.Outcome.NOT_CONFIGURED ->
-                SourceResult("Air quality", SourceStatus.NOT_AVAILABLE_HERE, "Not set up in this version of the app")
+                SourceResult(AppText.text(R.string.copy_0e9cbafcdd80, "Air quality"), SourceStatus.NOT_AVAILABLE_HERE, AppText.text(R.string.copy_db6470ad34bc, "Air quality is unavailable right now"))
             CpcbAqiFetcher.Outcome.OK ->
                 // A station answered but reported too few pollutants for an official index.
-                SourceResult("Air quality", SourceStatus.NOT_AVAILABLE_HERE, "The nearest station isn't reporting a full index right now")
-            else -> SourceResult("Air quality", SourceStatus.FAILED, "The government air-quality service isn't responding right now")
+                SourceResult(AppText.text(R.string.copy_0e9cbafcdd80, "Air quality"), SourceStatus.NOT_AVAILABLE_HERE, AppText.text(R.string.copy_2f6ecf61fed2, "The nearest station isn't reporting a full index right now"))
+            else -> SourceResult(AppText.text(R.string.copy_0e9cbafcdd80, "Air quality"), SourceStatus.FAILED, AppText.text(R.string.copy_af881ee23b7d, "The government air-quality service isn't responding right now"))
         }
     }
 
     private fun alerts(checked: Boolean, count: Int) = if (checked)
-        SourceResult("Official alerts", SourceStatus.OK,
-            if (count == 0) "None active for your area" else "$count active for your area")
-    else SourceResult("Official alerts", SourceStatus.FAILED, "The alert feeds aren't responding right now")
+        SourceResult(AppText.text(R.string.copy_57192b3add92, "Official alerts"), SourceStatus.OK,
+            if (count == 0) AppText.text(R.string.copy_45e5b33530f0, "None active for your area") else AppText.text(R.string.copy_04a8e1ad7688, "%1\$s active for your area", count))
+    else SourceResult(AppText.text(R.string.copy_57192b3add92, "Official alerts"), SourceStatus.FAILED, AppText.text(R.string.copy_f07659c98d57, "The alert feeds aren't responding right now"))
 
     private companion object {
         const val TAG = "OnboardingLocation"

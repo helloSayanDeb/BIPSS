@@ -24,6 +24,7 @@ class BipssApplication : Application(), Configuration.Provider, KoinComponent {
 
     override fun onCreate() {
         super.onCreate()
+        com.bipss.app.localization.AppText.initialize(this)
 
         startKoin {
             androidLogger(Level.ERROR)
@@ -34,6 +35,11 @@ class BipssApplication : Application(), Configuration.Provider, KoinComponent {
 
         BipssNotifications.createChannels(this)
         startUp()
+    }
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        BipssNotifications.createChannels(this)
     }
 
     /**
@@ -56,6 +62,10 @@ class BipssApplication : Application(), Configuration.Provider, KoinComponent {
             // while a screen happens to be open.
             runCatching { getKoin().get<com.bipss.app.data.SensorRepository>().start() }
             runCatching { getKoin().get<com.bipss.app.data.WaterRepository>().migrateLegacyCounter() }
+            runCatching {
+                val file = getKoin().get<com.bipss.app.ai.ModelDownloadManager>().installedModelFile()
+                if (file != null) getKoin().get<com.bipss.app.ai.ChatbotEngine>().initialize(file.absolutePath)
+            }
             // Shared data uploaded while Demo Mode was on is purged from the
             // cloud too; local sharing consent is left as the user set it.
             // A cloud deletion the user asked for must finish even if the work

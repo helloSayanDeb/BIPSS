@@ -58,10 +58,11 @@ object CpcbUrlBuilder {
     const val RESOURCE = "3b01bcb8-0b14-4abf-b6f2-c1bfd384ba69"
     private const val BASE = "https://api.data.gov.in/resource/$RESOURCE"
 
-    fun build(apiKey: String, state: String?, limit: Int): String = buildString {
+    fun build(apiKey: String, state: String?, limit: Int, offset: Int = 0): String = buildString {
         append(BASE)
         append("?api-key=").append(encodeQueryValue(apiKey))
         append("&format=json&limit=").append(limit)
+        if (offset > 0) append("&offset=").append(offset)
         state?.trim()?.takeIf { it.isNotEmpty() }?.let {
             append("&filters[state]=").append(encodeQueryValue(it))
         }
@@ -99,7 +100,8 @@ class CpcbAqiFetcher(
         get() = apiKey.isNotBlank() && apiKey != "your_key_here" && apiKey != "YOUR_KEY"
 
     /** Why the last [fetchAqi] returned what it did - lets setup say "no station here" rather than "failed". */
-    enum class Outcome { NOT_RUN, OK, NOT_CONFIGURED, NO_LOCATION, FAILED, NO_STATION_NEARBY }
+    enum class Outcome { NOT_RUN, OK, NOT_CONFIGURED, NO_LOCATION, FAILED, NO_STATION_NEARBY,
+        AUTH_FAILED, RATE_LIMITED, NETWORK_UNREACHABLE, NO_RECORDS }
 
     @Volatile var lastOutcome: Outcome = Outcome.NOT_RUN
         private set
@@ -127,17 +129,36 @@ class CpcbAqiFetcher(
         }
         lastOutcome = Outcome.FAILED
         try {
-            val url = CpcbUrlBuilder.build(apiKey, state, LIMIT)
-            val resp = okHttpClient.fetchText(Request.Builder().url(url).build())
-            if (!resp.isSuccessful) {
-                Log.w(TAG, "CPCB fetch failed: HTTP ${resp.code}")
-                return@withContext null
+            val records = mutableListOf<kotlinx.serialization.json.JsonElement>()
+            var offset = 0
+            while (offset < 20_000) {
+                val url = CpcbUrlBuilder.build(apiKey, state, LIMIT, offset)
+                val resp = okHttpClient.fetchText(Request.Builder().url(url).build())
+                if (!resp.isSuccessful) {
+                    lastOutcome = when (resp.code) { 401, 403 -> Outcome.AUTH_FAILED; 429 -> Outcome.RATE_LIMITED; else -> Outcome.FAILED }
+                    Log.w(TAG, "CPCB fetch failed: HTTP ${resp.code}")
+                    return@withContext null
+                }
+                val body = lenientJson.parseToJsonElement(resp.body ?: return@withContext null).jsonObject
+                val message = body.str("message").orEmpty().lowercase()
+                if (message.contains("api key") || message.contains("apikey") || message.contains("unauthorized")) {
+                    lastOutcome = Outcome.AUTH_FAILED
+                    return@withContext null
+                }
+                val page = body["records"]?.jsonArray.orEmpty()
+                records.addAll(page)
+                val total = body.str("total")?.toIntOrNull()
+                offset += page.size
+                if (page.size < LIMIT || (total != null && offset >= total)) break
             }
-            parseNearestStation(resp.body ?: return@withContext null, lat, lon)
+            if (records.isEmpty()) { lastOutcome = Outcome.NO_RECORDS; return@withContext null }
+            val combined = JsonObject(mapOf("records" to kotlinx.serialization.json.JsonArray(records)))
+            parseNearestStation(combined.toString(), lat, lon)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.e(TAG, "CPCB fetch error: ${e.message}")
+            if (e is java.io.IOException) lastOutcome = Outcome.NETWORK_UNREACHABLE
+            Log.e(TAG, "CPCB fetch error: ${e.javaClass.simpleName}")
             null
         }
     }

@@ -1,5 +1,8 @@
 package com.bipss.app.ui.settings
 
+import com.bipss.app.localization.AppText
+import com.bipss.app.R
+
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -50,10 +53,10 @@ fun SettingsScreen(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text("Settings", style = MaterialTheme.typography.titleLarge) },
+                title = { Text(AppText.text(R.string.copy_74a883a037bc, "Settings"), style = MaterialTheme.typography.titleLarge) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back", tint = colors.textSecondary)
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, AppText.text(R.string.copy_76900f1bfd16, "Back"), tint = colors.textSecondary)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -70,18 +73,19 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = Space.gutter)
         ) {
-            Group("Profile") { ProfileCard(state, navController) }
-            Group("My device") { DeviceCard(state, vm, navController) }
-            Group("AI model") { AiModelCard(state, vm) }
-            Group("Appearance") { ThemeSelector(state.themePreference, vm::onThemePreferenceSelected) }
-            Group("Privacy & data") { PrivacySection(state, vm) }
+            Group(AppText.text(R.string.copy_d696a35bdd18, "Profile")) { ProfileCard(state, navController) }
+            Group(AppText.text(R.string.copy_20e5a3c21307, "My device")) { DeviceCard(state, vm, navController) }
+            Group(AppText.text(R.string.copy_4d2e74abb828, "AI model")) { AiModelCard(state, vm) }
+            Group(AppText.text(R.string.copy_3907fa7f8072, "Appearance")) { ThemeSelector(state.themePreference, vm::onThemePreferenceSelected) }
+            Group(AppText.text(R.string.copy_4391d8a99171, "Privacy & data")) { PrivacySection(state, vm) }
             // Opened from the Home SOS warning: land on the section that fixes it.
             val emergency = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
             LaunchedEffect(openAtEmergency) { if (openAtEmergency) emergency.bringIntoView() }
             Box(Modifier.bringIntoViewRequester(emergency)) {
-                Column { Group("Emergency contacts") { EmergencyContacts(state, vm, navController) } }
+                Column { Group(AppText.text(R.string.copy_9463d00b353e, "Emergency contacts")) { EmergencyContacts(state, vm, navController) } }
             }
-            Group("About") { AboutCard() }
+            Group(AppText.text(R.string.copy_a36877416ca2, "Emergency support")) { NearbyHospitalsCard() }
+            Group(AppText.text(R.string.copy_4efca0d10c5f, "About")) { AboutCard() }
             Spacer(Modifier.height(Space.huge))
         }
     }
@@ -102,25 +106,25 @@ private fun ProfileCard(state: SettingsUiState, navController: NavController) {
     val colors = BipssTheme.colors
     BipssCard {
         if (state.userName.isNotBlank()) {
-            InfoRow("Name", state.userName)
+            InfoRow(AppText.text(R.string.copy_dcd1d5223f73, "Name"), state.userName)
             HairlineDivider()
-            InfoRow("Age", "${state.userAge} years")
+            InfoRow(AppText.text(R.string.copy_39b7370f30a3, "Age"), AppText.text(R.string.copy_c7233823363a, "%1\$s years", state.userAge))
             HairlineDivider()
-            InfoRow("Height", "${state.userHeightCm.toInt()} cm")
+            InfoRow(AppText.text(R.string.copy_bfe2eca40179, "Height"), AppText.text(R.string.copy_6303e3d69f3e, "%1\$s cm", state.userHeightCm.toInt()))
             HairlineDivider()
-            InfoRow("Weight", "${state.userWeightKg} kg")
+            InfoRow(AppText.text(R.string.copy_81d27ef6d503, "Weight"), AppText.text(R.string.copy_a289dfb01422, "%1\$s kg", state.userWeightKg))
             HairlineDivider()
-            InfoRow("Gender", state.userGender?.label ?: "Not set")
+            InfoRow(AppText.text(R.string.copy_a04630ef8bc3, "Gender"), state.userGender?.label ?: AppText.text(R.string.copy_4895f73177ab, "Not set"))
         } else {
             Text(
-                "No profile set up yet.",
+                AppText.text(R.string.copy_9107bb28a00e, "No profile set up yet."),
                 style = MaterialTheme.typography.bodyMedium,
                 color = colors.textSecondary
             )
         }
         Spacer(Modifier.height(Space.l))
         SecondaryButton(
-            text = "Edit profile",
+            text = AppText.text(R.string.copy_15c4aa13037e, "Edit profile"),
             leadingIcon = Icons.Rounded.Edit,
             onClick = { navController.navigate(Routes.ONBOARDING_PROFILE_EDIT) },
             modifier = Modifier.fillMaxWidth()
@@ -139,7 +143,7 @@ private fun DeviceCard(state: SettingsUiState, vm: SettingsViewModel, navControl
             Spacer(Modifier.width(Space.m))
             Column(Modifier.weight(1f)) {
                 Text(
-                    if (state.bandSimulated) "Simulated band" else state.bandName ?: "No device paired",
+                    if (state.bandSimulated) AppText.text(R.string.copy_2f7752a32492, "Simulated band") else state.bandName ?: AppText.text(R.string.copy_8e7dc7099b74, "No device paired"),
                     style = MaterialTheme.typography.titleMedium,
                     color = colors.textPrimary
                 )
@@ -149,9 +153,9 @@ private fun DeviceCard(state: SettingsUiState, vm: SettingsViewModel, navControl
                     Spacer(Modifier.width(6.dp))
                     Text(
                         when {
-                            state.isBandConnected -> "Connected"
-                            state.bandMac != null -> "Disconnected"
-                            else                  -> "Not paired"
+                            state.isBandConnected -> AppText.text(R.string.copy_22965568d22a, "Connected")
+                            state.bandMac != null -> AppText.text(R.string.copy_04dfac3671b4, "Disconnected")
+                            else                  -> AppText.text(R.string.copy_53f15ea2f234, "Not paired")
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = statusColor
@@ -163,11 +167,11 @@ private fun DeviceCard(state: SettingsUiState, vm: SettingsViewModel, navControl
             Spacer(Modifier.height(Space.m))
             InfoBanner(
                 text = if (state.legacyFramesTruncated)
-                    "This band runs firmware v1, and this phone cuts its readings short, so none can be decoded. " +
-                        "Updating the band to firmware v2 fixes this."
+                    AppText.text(R.string.copy_6578ef959318, "This band runs firmware v1, and this phone cuts its readings short, so none can be decoded. ") +
+                        AppText.text(R.string.copy_542bb42c2ec6, "Updating the band to firmware v2 fixes this.")
                 else
-                    "This band runs firmware v1, which sends no movement or pulse-waveform data. " +
-                        "Sleep detection and exertion-based strain need firmware v2.",
+                    AppText.text(R.string.copy_31bad494e890, "This band runs firmware v1, which sends no movement or pulse-waveform data. ") +
+                        AppText.text(R.string.copy_1c930633a5e8, "Sleep detection and exertion-based strain need firmware v2."),
                 icon = Icons.Rounded.Info,
                 tint = colors.bandMonitor
             )
@@ -176,21 +180,21 @@ private fun DeviceCard(state: SettingsUiState, vm: SettingsViewModel, navControl
         if (state.bandMac != null) {
             Row(horizontalArrangement = Arrangement.spacedBy(Space.s)) {
                 if (!state.isBandConnected) {
-                    SecondaryButton("Reconnect", { vm.onReconnectTap() }, Modifier.weight(1f))
+                    SecondaryButton(AppText.text(R.string.copy_bf8a9eab9e7e, "Reconnect"), { vm.onReconnectTap() }, Modifier.weight(1f))
                 }
                 SecondaryButton(
-                    "Re-pair",
+                    AppText.text(R.string.copy_0731e9dcc4b9, "Re-pair"),
                     { navController.navigate(Routes.ONBOARDING_CONNECT_BAND_REPAIR) },
                     Modifier.weight(1f)
                 )
                 SecondaryButton(
-                    "Forget", { vm.showForgetDialog() }, Modifier.weight(1f),
+                    AppText.text(R.string.copy_a6bd489d9550, "Forget"), { vm.showForgetDialog() }, Modifier.weight(1f),
                     contentColor = colors.bandRisk
                 )
             }
         } else {
             PrimaryButton(
-                text = "Add device",
+                text = AppText.text(R.string.copy_419d18afe2d3, "Add device"),
                 leadingIcon = Icons.Rounded.Bluetooth,
                 onClick = { navController.navigate(Routes.ONBOARDING_CONNECT_BAND_REPAIR) }
             )
@@ -204,19 +208,20 @@ private fun DeviceCard(state: SettingsUiState, vm: SettingsViewModel, navControl
 private fun AiModelCard(state: SettingsUiState, vm: SettingsViewModel) {
     val colors = BipssTheme.colors
     BipssCard {
-        if (state.modelVersion != null) {
+        if (state.modelVersion != null && !state.modelLoadFailed &&
+            (state.downloadPhase is DownloadProgress.Idle || state.downloadPhase is DownloadProgress.Success || state.downloadPhase is DownloadProgress.AlreadyUpToDate)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconBadge(Icons.Rounded.AutoAwesome, MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.width(Space.m))
                 Column(Modifier.weight(1f)) {
                     Text(
-                        "Model installed",
+                        AppText.text(R.string.copy_066574012791, "Model installed"),
                         style = MaterialTheme.typography.titleMedium,
                         color = colors.textPrimary
                     )
                     Spacer(Modifier.height(Space.xs))
                     Text(
-                        "Version ${state.modelVersion}" + (state.modelSizeMb?.let { " · $it MB" } ?: ""),
+                        AppText.text(R.string.copy_b65bfa7f1eb0, "Version %1\$s", state.modelVersion) + (state.modelSizeMb?.let { AppText.text(R.string.copy_5e41af40c7dd, " · %1\$s MB", it) } ?: ""),
                         style = MaterialTheme.typography.bodySmall,
                         color = colors.textSecondary
                     )
@@ -225,30 +230,22 @@ private fun AiModelCard(state: SettingsUiState, vm: SettingsViewModel) {
             Spacer(Modifier.height(Space.l))
             Row(horizontalArrangement = Arrangement.spacedBy(Space.s)) {
                 SecondaryButton(
-                    text = if (state.isCheckingUpdate) "Checking…" else "Check for updates",
+                    text = if (state.isCheckingUpdate) AppText.text(R.string.copy_ec963ffc911b, "Checking…") else AppText.text(R.string.copy_f26f3275e735, "Check for updates"),
                     onClick = { vm.onCheckForUpdates() },
                     enabled = !state.isCheckingUpdate,
                     modifier = Modifier.weight(1f)
                 )
                 if (state.updateAvailable) {
                     SecondaryButton(
-                        "Update", { vm.onDownloadModelTap() }, Modifier.weight(1f),
+                        AppText.text(R.string.copy_c1c1009d3f37, "Update"), { vm.onDownloadModelTap() }, Modifier.weight(1f),
                         contentColor = MaterialTheme.colorScheme.primary
                     )
                 }
             }
-        } else if (!com.bipss.app.ai.isModelDownloadConfigured) {
-            Text(
-                "No on-device model is available for this version of BIPSS yet. The Coach tab uses rule-based replies, and every other feature works normally.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = colors.textSecondary
-            )
+            state.modelUpdateMessage?.let { Text(it, Modifier.padding(top = Space.s), style = MaterialTheme.typography.bodySmall, color = colors.textSecondary) }
         } else {
-            Text(
-                "The on-device model isn't installed. The Coach tab uses rule-based replies, and every other feature works normally.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = colors.textSecondary
-            )
+            Text(AppText.text(R.string.copy_2d714ba3591c, "Add optional AI conversations to Coach. Download only when you're ready."),
+                style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary)
             Spacer(Modifier.height(Space.l))
             when (val p = state.downloadPhase) {
                 is DownloadProgress.Downloading -> {
@@ -262,19 +259,19 @@ private fun AiModelCard(state: SettingsUiState, vm: SettingsViewModel) {
                     )
                     Spacer(Modifier.height(Space.s))
                     Text(
-                        "${(p.fraction * 100).toInt()}%  ·  ${p.mbDownloaded}/${p.totalMb} MB",
+                        AppText.text(R.string.copy_6df01a33ec86, "%1\$s%  ·  %2\$s/%3\$s MB", (p.fraction * 100).toInt(), p.mbDownloaded, p.totalMb),
                         style = MaterialTheme.typography.bodySmall,
                         color = colors.textTertiary
                     )
                 }
-                is DownloadProgress.Verifying -> {
+                is DownloadProgress.Verifying, is DownloadProgress.Preparing -> {
                     LinearProgressIndicator(
                         modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
                         color = MaterialTheme.colorScheme.primary,
                         trackColor = colors.raised
                     )
                     Spacer(Modifier.height(Space.s))
-                    Text("Verifying checksum…", style = MaterialTheme.typography.bodySmall, color = colors.textTertiary)
+                    Text(if (p is DownloadProgress.Preparing) AppText.text(R.string.copy_7800094e7601, "Preparing Coach…") else AppText.text(R.string.copy_15e433ec884f, "Checking your download…"), style = MaterialTheme.typography.bodySmall, color = colors.textTertiary)
                 }
                 is DownloadProgress.Initializing -> {
                     LinearProgressIndicator(
@@ -283,14 +280,14 @@ private fun AiModelCard(state: SettingsUiState, vm: SettingsViewModel) {
                         trackColor = colors.raised
                     )
                     Spacer(Modifier.height(Space.s))
-                    Text("Checking the model server…", style = MaterialTheme.typography.bodySmall, color = colors.textTertiary)
+                    Text(AppText.text(R.string.copy_2bcefb166bf3, "Checking the model server…"), style = MaterialTheme.typography.bodySmall, color = colors.textTertiary)
                 }
                 else -> {
                     if (p is DownloadProgress.Failure) {
                         Text(p.reason, style = MaterialTheme.typography.bodySmall, color = colors.bandRisk)
                         Spacer(Modifier.height(Space.s))
                     }
-                    PrimaryButton(if (p is DownloadProgress.Failure) "Try again" else "Download AI model", { vm.onDownloadModelTap() })
+                    PrimaryButton(if (p is DownloadProgress.Failure) AppText.text(R.string.copy_d8b8392e2c54, "Try again") else AppText.text(R.string.copy_8f2fd8eea02e, "Download AI model"), { vm.onDownloadModelTap() })
                 }
             }
         }
@@ -360,12 +357,12 @@ private fun PrivacySection(state: SettingsUiState, vm: SettingsViewModel) {
     BipssCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("Cloud backup", style = MaterialTheme.typography.titleMedium, color = colors.textPrimary)
+                Text(AppText.text(R.string.copy_cd9a62e6a1af, "Cloud backup"), style = MaterialTheme.typography.titleMedium, color = colors.textPrimary)
                 Spacer(Modifier.height(Space.xs))
                 Text(
-                    "Your own copy in your Google Drive (a private app folder only BIPSS can read): profile, " +
-                        "settings, emergency contacts, baselines, water log and cycle log. Raw sensor readings stay " +
-                        "on this phone. For moving to a new phone - nothing reaches the developer.",
+                    AppText.text(R.string.copy_ccfb9e3e8962, "Your own copy in your Google Drive (a private app folder only BIPSS can read): profile, ") +
+                        AppText.text(R.string.copy_e03f67185f51, "settings, emergency contacts, baselines, water log and cycle log. Raw sensor readings stay ") +
+                        AppText.text(R.string.copy_78544e6b291d, "on this phone. For moving to a new phone - nothing reaches the developer."),
                     style = MaterialTheme.typography.bodySmall,
                     color = colors.textSecondary
                 )
@@ -380,30 +377,32 @@ private fun PrivacySection(state: SettingsUiState, vm: SettingsViewModel) {
                 )
             )
         }
+        Spacer(Modifier.height(Space.m))
+        SecondaryButton(text = if (state.isConnectingDrive) AppText.text(R.string.copy_72021eb70e91, "Connecting…") else AppText.text(R.string.copy_4406cf53eddd, "Connect Google Drive"),
+            onClick = { vm.onConnectDriveTap(askConsent) },
+            enabled = !state.isConnectingDrive && !state.isBackingUp && !state.isRestoring,
+            modifier = Modifier.fillMaxWidth())
+        state.backupStatusMessage?.let { Text(it, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = Space.s)) }
         if (state.cloudBackupEnabled) {
             Spacer(Modifier.height(Space.l))
             Row(horizontalArrangement = Arrangement.spacedBy(Space.s)) {
                 SecondaryButton(
-                    text = if (state.isBackingUp) "Backing up…" else "Back up now",
+                    text = if (state.isBackingUp) AppText.text(R.string.copy_bc51147d52ab, "Backing up…") else AppText.text(R.string.copy_02a2840b598b, "Back up now"),
                     onClick = { vm.onBackupNowTap(askConsent) },
-                    enabled = !state.isBackingUp,
+                    enabled = !state.isBackingUp && !state.isRestoring && !state.isConnectingDrive,
                     modifier = Modifier.weight(1f)
                 )
                 SecondaryButton(
-                    text = if (state.isRestoring) "Restoring…" else "Restore",
+                    text = if (state.isRestoring) AppText.text(R.string.copy_5a4918e0201c, "Restoring…") else AppText.text(R.string.copy_a76e13b98392, "Restore"),
                     onClick = { vm.onRestoreTap(askConsent) },
-                    enabled = !state.isRestoring,
+                    enabled = !state.isBackingUp && !state.isRestoring && !state.isConnectingDrive,
                     modifier = Modifier.weight(1f)
                 )
             }
-            state.backupStatusMessage?.let {
-                Spacer(Modifier.height(Space.s))
-                Text(it, style = MaterialTheme.typography.bodySmall, color = colors.textTertiary)
-            }
             val fmt = java.text.SimpleDateFormat("d MMM yyyy, HH:mm", java.util.Locale.getDefault())
             val times = listOfNotNull(
-                state.lastBackupAtMs?.let { "Last backup: ${fmt.format(java.util.Date(it))}" },
-                state.lastRestoreAtMs?.let { "Last restore: ${fmt.format(java.util.Date(it))}" }
+                state.lastBackupAtMs?.let { AppText.text(R.string.copy_7a0b372dd6d0, "Last backup: %1\$s", fmt.format(java.util.Date(it))) },
+                state.lastRestoreAtMs?.let { AppText.text(R.string.copy_f1e226aed40a, "Last restore: %1\$s", fmt.format(java.util.Date(it))) }
             )
             if (times.isNotEmpty()) {
                 Spacer(Modifier.height(Space.s))
@@ -435,16 +434,16 @@ private fun PrivacySection(state: SettingsUiState, vm: SettingsViewModel) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(
-                    "Share data with BIPSS",
+                    AppText.text(R.string.copy_3b1d9328b4ae, "Share data with BIPSS"),
                     style = MaterialTheme.typography.titleMedium,
                     color = colors.textPrimary
                 )
                 Spacer(Modifier.height(Space.xs))
                 Text(
-                    "Optional, to help improve BIPSS: shares minute averages of your band readings and your " +
-                        "sleep summaries, under an anonymous ID, every hour. Not a backup - nothing is ever " +
-                        "restored from it. Turning it off stops new uploads; Delete my data also removes " +
-                        "what was shared.",
+                    AppText.text(R.string.copy_28ab74a9e51a, "Optional, to help improve BIPSS: shares minute averages of your band readings and your ") +
+                        AppText.text(R.string.copy_ab79bbd7f023, "sleep summaries, under an anonymous ID, every hour. Not a backup - nothing is ever ") +
+                        AppText.text(R.string.copy_f3ff24765adf, "restored from it. Turning it off stops new uploads; Delete my data also removes ") +
+                        AppText.text(R.string.copy_ef9906a344c9, "what was shared."),
                     style = MaterialTheme.typography.bodySmall,
                     color = colors.textSecondary
                 )
@@ -462,7 +461,7 @@ private fun PrivacySection(state: SettingsUiState, vm: SettingsViewModel) {
         if (state.dataSharingEnabled && state.sharingUsername != null) {
             Spacer(Modifier.height(Space.s))
             Text(
-                "Your sharing ID: ${state.sharingUsername}",
+                AppText.text(R.string.copy_c0dc038399f9, "Your sharing ID: %1\$s", state.sharingUsername),
                 style = MaterialTheme.typography.bodySmall,
                 color = colors.textTertiary
             )
@@ -471,7 +470,7 @@ private fun PrivacySection(state: SettingsUiState, vm: SettingsViewModel) {
 
     Spacer(Modifier.height(Space.m))
     SecondaryButton(
-        text = "Delete my data",
+        text = AppText.text(R.string.copy_5c4653236b30, "Delete my data"),
         leadingIcon = Icons.Rounded.DeleteForever,
         onClick = { vm.onDeleteDataTap() },
         contentColor = colors.bandRisk,
@@ -493,7 +492,7 @@ private fun EmergencyContacts(
     val locPerm = rememberLocationPermission()
 
     Text(
-        "Contacts here receive an SMS when SOS fires, with your location if BIPSS can get it. Nearby hospitals that list a mobile number are texted too, with these contacts' names and numbers. Stored on this phone, and in your Drive backup if it's on.",
+        AppText.text(R.string.copy_d2e7ea72463e, "Contacts here receive an SMS when SOS fires, with your location if BIPSS can get it. Nearby hospitals that list a mobile number are texted too, with these contacts' names and numbers. Stored on this phone, and in your Drive backup if it's on."),
         style = MaterialTheme.typography.bodySmall,
         color = colors.textSecondary
     )
@@ -501,22 +500,22 @@ private fun EmergencyContacts(
 
     if (!smsPerm.allPermissionsGranted) {
         InfoBanner(
-            text = "SMS permission is required to send SOS alerts.",
+            text = AppText.text(R.string.copy_35a7368be5e3, "SMS permission is required to send SOS alerts."),
             icon = Icons.Rounded.Sms,
             tint = colors.bandRisk,
             action = {
-                GhostButton("Allow", { smsPerm.launchMultiplePermissionRequest() }, color = colors.bandRisk)
+                GhostButton(AppText.text(R.string.copy_e213c161d5ce, "Allow"), { smsPerm.launchMultiplePermissionRequest() }, color = colors.bandRisk)
             }
         )
         Spacer(Modifier.height(Space.s))
     }
     if (!locPerm.isGranted) {
         InfoBanner(
-            text = "Location sharpens the coordinates sent with an SOS.",
+            text = AppText.text(R.string.copy_38d1138d7442, "Location sharpens the coordinates sent with an SOS."),
             icon = Icons.Rounded.LocationOn,
             tint = colors.bandMonitor,
             action = {
-                GhostButton("Allow", { locPerm.request() }, color = colors.bandMonitor)
+                GhostButton(AppText.text(R.string.copy_e213c161d5ce, "Allow"), { locPerm.request() }, color = colors.bandMonitor)
             }
         )
         Spacer(Modifier.height(Space.s))
@@ -525,7 +524,7 @@ private fun EmergencyContacts(
     if (state.emergencyContacts.isEmpty()) {
         BipssCard {
             Text(
-                "No contacts yet.",
+                AppText.text(R.string.copy_645a0fef7c6e, "No contacts yet."),
                 style = MaterialTheme.typography.bodyMedium,
                 color = colors.textSecondary
             )
@@ -540,8 +539,8 @@ private fun EmergencyContacts(
     Spacer(Modifier.height(Space.s))
     SecondaryButton(
         text = if (state.emergencyContacts.size >= MAX_EMERGENCY_CONTACTS)
-            "Maximum of $MAX_EMERGENCY_CONTACTS reached"
-        else "Add from contacts",
+            AppText.text(R.string.copy_0409f1dc6f8a, "Maximum of %1\$s reached", MAX_EMERGENCY_CONTACTS)
+        else AppText.text(R.string.copy_b4fb13e60102, "Add from contacts"),
         leadingIcon = Icons.Rounded.PersonAdd,
         onClick = { navController.navigate(Routes.SETTINGS_CONTACT_PICKER) },
         enabled = state.emergencyContacts.size < MAX_EMERGENCY_CONTACTS,
@@ -574,7 +573,7 @@ private fun ContactRow(contact: EmergencyContactEntity, onDelete: () -> Unit) {
                 Text(contact.phoneNumber, style = MaterialTheme.typography.bodySmall, color = colors.textTertiary)
             }
             IconButton(onClick = onDelete) {
-                Icon(Icons.Rounded.Close, "Remove", tint = colors.textTertiary)
+                Icon(Icons.Rounded.Close, AppText.text(R.string.copy_c3812fc4acb8, "Remove"), tint = colors.textTertiary)
             }
         }
     }
@@ -586,11 +585,11 @@ private fun ContactRow(contact: EmergencyContactEntity, onDelete: () -> Unit) {
 private fun AboutCard() {
     val colors = BipssTheme.colors
     BipssCard {
-        InfoRow("Version", BuildConfig.VERSION_NAME)
+        InfoRow(AppText.text(R.string.copy_dd167905de0d, "Version"), BuildConfig.VERSION_NAME)
         HairlineDivider()
         Spacer(Modifier.height(Space.m))
         Text(
-            "BIPSS analyses your health entirely on-device. Risk scores come from a deterministic engine that keeps working with no model installed and no network available.",
+            AppText.text(R.string.copy_8a950d18f78a, "BIPSS analyses your health entirely on-device. Risk scores come from a deterministic engine that keeps working with no model installed and no network available."),
             style = MaterialTheme.typography.bodySmall,
             color = colors.textSecondary
         )
@@ -603,19 +602,19 @@ private fun AboutCard() {
 private fun cloudDeletionLine(state: SettingsUiState): String? = when (state.cloudDeletionStatus) {
     com.bipss.app.data.sharing.CloudDeletionStatus.NONE -> null
     com.bipss.app.data.sharing.CloudDeletionStatus.PENDING ->
-        "Deleting your shared data is queued. It will finish automatically once you're online."
+        AppText.text(R.string.copy_b947763ae33e, "Deleting your shared data is queued. It will finish automatically once you're online.")
     com.bipss.app.data.sharing.CloudDeletionStatus.IN_PROGRESS ->
-        "Deleting your shared data… ${state.cloudDeletionCount} record(s) removed so far."
+        AppText.text(R.string.copy_77a1760b344b, "Deleting your shared data… %1\$s record(s) removed so far.", state.cloudDeletionCount)
     com.bipss.app.data.sharing.CloudDeletionStatus.DONE ->
         if (state.cloudAccountRemoved)
-            "Your shared data was deleted (${state.cloudDeletionCount} record(s)), and its anonymous sharing ID removed."
+            AppText.text(R.string.copy_0ab943e7c988, "Your shared data was deleted (%1\$s record(s)), and its anonymous sharing ID removed.", state.cloudDeletionCount)
         else
-            "Your shared data was deleted (${state.cloudDeletionCount} record(s)). Its anonymous sharing ID could not be " +
-                "removed, but this phone is signed out of it, so sharing again starts a new ID."
+            AppText.text(R.string.copy_194dc346a152, "Your shared data was deleted (%1\$s record(s)). Its anonymous sharing ID could not be ", state.cloudDeletionCount) +
+                AppText.text(R.string.copy_cf3e48be4bae, "removed, but this phone is signed out of it, so sharing again starts a new ID.")
     com.bipss.app.data.sharing.CloudDeletionStatus.FAILED ->
-        "Deleting your shared data failed after several attempts. Try Delete my data again while online."
+        AppText.text(R.string.copy_3dd052801d4f, "Deleting your shared data failed after several attempts. Try Delete my data again while online.")
     com.bipss.app.data.sharing.CloudDeletionStatus.IDENTITY_LOST ->
-        "Your shared data could not be deleted from this phone: the anonymous sharing ID it was stored under is no longer signed in here."
+        AppText.text(R.string.copy_f447cd4d3f34, "Your shared data could not be deleted from this phone: the anonymous sharing ID it was stored under is no longer signed in here.")
 }
 
 @Composable
@@ -624,25 +623,25 @@ private fun DeleteDataDialog(vm: SettingsViewModel) {
     AlertDialog(
         onDismissRequest = { vm.dismissDeleteDialog() },
         containerColor = colors.card,
-        title = { Text("Delete my data", color = colors.textPrimary) },
+        title = { Text(AppText.text(R.string.copy_5c4653236b30, "Delete my data"), color = colors.textPrimary) },
         text = {
             Text(
-                "This deletes, from this phone and now: every reading, baseline, sleep record, water log, " +
-                    "emergency contact, SOS log, your profile and your settings. If you have shared data with " +
-                    "BIPSS, that is deleted too - immediately if you are online, otherwise automatically once you " +
-                    "are. Not touched: your theme, the downloaded AI model file, any backup in your own Google " +
-                    "Drive, and height or weight already saved to Health Connect.",
+                AppText.text(R.string.copy_e5eb30060d40, "This deletes, from this phone and now: every reading, baseline, sleep record, water log, ") +
+                    AppText.text(R.string.copy_09900759343b, "emergency contact, SOS log, your profile and your settings. If you have shared data with ") +
+                    AppText.text(R.string.copy_1b0138d37770, "BIPSS, that is deleted too - immediately if you are online, otherwise automatically once you ") +
+                    AppText.text(R.string.copy_57242fc3a776, "are. Not touched: your theme, the downloaded AI model file, any backup in your own Google ") +
+                    AppText.text(R.string.copy_b4a663e61bda, "Drive, and height or weight already saved to Health Connect."),
                 color = colors.textSecondary
             )
         },
         confirmButton = {
             TextButton(onClick = { vm.onDeleteDataConfirmed() }) {
-                Text("Delete", color = colors.bandRisk)
+                Text(AppText.text(R.string.copy_e2d0a54968ea, "Delete"), color = colors.bandRisk)
             }
         },
         dismissButton = {
             TextButton(onClick = { vm.dismissDeleteDialog() }) {
-                Text("Cancel", color = colors.textSecondary)
+                Text(AppText.text(R.string.copy_19766ed6ccb2, "Cancel"), color = colors.textSecondary)
             }
         }
     )
@@ -655,26 +654,26 @@ private fun DeletionResultDialog(result: DeletionResult, state: SettingsUiState,
     AlertDialog(
         onDismissRequest = {},
         containerColor = colors.card,
-        title = { Text("Your data", color = colors.textPrimary) },
+        title = { Text(AppText.text(R.string.copy_ee5ef73aae18, "Your data"), color = colors.textPrimary) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(Space.m)) {
                 Text(
                     if (result.localDeleted)
-                        "✓ Your readings, history, contacts, profile and settings have been deleted from this phone."
-                    else "Deleting data on this phone…",
+                        AppText.text(R.string.copy_5c6199f826a9, "✓ Your readings, history, contacts, profile and settings have been deleted from this phone.")
+                    else AppText.text(R.string.copy_ab45f739e9f9, "Deleting data on this phone…"),
                     color = colors.textPrimary
                 )
                 Spacer(Modifier.height(Space.xs))
                 Text(
-                    if (!result.hadSharedData) "You never shared data with BIPSS, so there was nothing in the cloud to delete."
-                    else cloudDeletionLine(state) ?: "Deleting your shared data is queued.",
+                    if (!result.hadSharedData) AppText.text(R.string.copy_a267427dc92d, "You never shared data with BIPSS, so there was nothing in the cloud to delete.")
+                    else cloudDeletionLine(state) ?: AppText.text(R.string.copy_06d1f5b85aaa, "Deleting your shared data is queued."),
                     color = colors.textSecondary
                 )
             }
         },
         confirmButton = {
             TextButton(onClick = { vm.onDeletionAcknowledged() }) {
-                Text("Done", color = MaterialTheme.colorScheme.primary)
+                Text(AppText.text(R.string.copy_11a6767d5674, "Done"), color = MaterialTheme.colorScheme.primary)
             }
         }
     )
@@ -686,21 +685,21 @@ private fun ForgetDeviceDialog(vm: SettingsViewModel) {
     AlertDialog(
         onDismissRequest = { vm.dismissForgetDialog() },
         containerColor = colors.card,
-        title = { Text("Forget device?", color = colors.textPrimary) },
+        title = { Text(AppText.text(R.string.copy_7e1e65d6dfa3, "Forget device?"), color = colors.textPrimary) },
         text = {
             Text(
-                "The band will be disconnected and its pairing removed. Stored readings are kept.",
+                AppText.text(R.string.copy_f5ffb03f241f, "The band will be disconnected and its pairing removed. Stored readings are kept."),
                 color = colors.textSecondary
             )
         },
         confirmButton = {
             TextButton(onClick = { vm.onForgetDeviceConfirmed() }) {
-                Text("Forget", color = colors.bandRisk)
+                Text(AppText.text(R.string.copy_a6bd489d9550, "Forget"), color = colors.bandRisk)
             }
         },
         dismissButton = {
             TextButton(onClick = { vm.dismissForgetDialog() }) {
-                Text("Cancel", color = colors.textSecondary)
+                Text(AppText.text(R.string.copy_19766ed6ccb2, "Cancel"), color = colors.textSecondary)
             }
         }
     )

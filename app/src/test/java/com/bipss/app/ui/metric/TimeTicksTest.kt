@@ -3,10 +3,16 @@ package com.bipss.app.ui.metric
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.Before
+import org.junit.After
+import java.util.Locale
 import java.time.ZoneId
 import java.time.ZonedDateTime
 
 class TimeTicksTest {
+    private lateinit var previousLocale: Locale
+    @Before fun useEnglishFixture() { previousLocale = Locale.getDefault(); Locale.setDefault(Locale.US) }
+    @After fun restoreLocale() { Locale.setDefault(previousLocale) }
 
     private val zone = ZoneId.of("Asia/Kolkata")
     private val end = ZonedDateTime.of(2026, 9, 30, 3, 28, 0, 0, zone).toInstant().toEpochMilli()

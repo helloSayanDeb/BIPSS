@@ -315,18 +315,17 @@ class DisasterAlertRepository(
         if (lastStation != null && lastObserved != null && now - lastObserved <= CPCB_CARRY_MS) {
             return Air(lastStation.aqiValue, AqiSource.CPCB, lastStation.dominantPollutant, lastStation.pollutantSubIndices,
                        lastStation.aqiStationName, lastStation.aqiStationDistanceKm, lastObserved,
-                       note = "CPCB isn't answering right now, so this is the station's last reading.")
+                       note = "Latest available station reading. An update is temporarily unavailable.")
         }
         val why = when (cpcbFetcher.lastOutcome) {
-            CpcbAqiFetcher.Outcome.NO_STATION_NEARBY -> "No CPCB station within 50 km."
-            CpcbAqiFetcher.Outcome.NOT_CONFIGURED    -> "CPCB isn't set up in this build."
-            CpcbAqiFetcher.Outcome.OK                -> "The nearest CPCB station isn't reporting a full index."
-            else                                     -> "CPCB stations aren't answering right now."
+            CpcbAqiFetcher.Outcome.NO_STATION_NEARBY -> "No monitoring station within 50 km."
+            CpcbAqiFetcher.Outcome.OK                -> "The nearest station isn't reporting a full index."
+            else                                     -> "Station readings are temporarily unavailable."
         }
         if (model != null) {
             return Air(model.computation.aqi, AqiSource.MODEL, model.computation.dominantPollutant,
                        model.computation.subIndices, observedAtMs = model.observedAtMs,
-                       note = "$why This is a modelled estimate for the area (CAMS, via Open-Meteo), not a station reading.")
+                       note = "$why Showing an estimated AQI for your area.")
         }
         return Air(null, AqiSource.NONE, note = why)
     }

@@ -108,7 +108,7 @@ object SleepDetector {
     const val MG_S_PER_COUNT = 300.0
 
     const val HR_GATE_BPM = 15.0
-    const val HR_GATE_FROM_DAY = 3
+    const val HR_GATE_FROM_DAY = com.bipss.app.domain.BaselineSchedule.PROVISIONAL_FROM
 
     /** Per-minute sleep (true) or wake (false). Off-wrist minutes are always false. */
     fun score(epochs: List<MinuteEpoch>, sleepingHr: Double?, dayN: Int): BooleanArray {

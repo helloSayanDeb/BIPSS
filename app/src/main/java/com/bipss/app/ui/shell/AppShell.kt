@@ -1,7 +1,16 @@
 package com.bipss.app.ui.shell
 
+import com.bipss.app.localization.AppText
+import com.bipss.app.R
+
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import com.bipss.app.ui.components.glassSurface
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -130,61 +139,30 @@ private fun BipssTabBar(
     onItemClick: (String) -> Unit
 ) {
     val colors = BipssTheme.colors
-    Column {
-        HorizontalDivider(thickness = 1.dp, color = colors.hairline)
-
+    Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 18.dp, end = 18.dp, top = 6.dp, bottom = 2.dp), contentAlignment = Alignment.Center) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.background)
-                .navigationBarsPadding()
-                .padding(top = 10.dp, bottom = 10.dp),
-            horizontalArrangement = Arrangement.SpaceAround,
+            modifier = Modifier.widthIn(max = 480.dp).fillMaxWidth()
+                .glassSurface(radius = 36)
+                .selectableGroup().padding(6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             items.forEach { item ->
                 val selected = currentRoute == item.route
-                val tintColor by animateColorAsState(
-                    if (selected) MaterialTheme.colorScheme.primary else colors.textTertiary,
-                    label = "tabTint"
-                )
-                val pillColor by animateColorAsState(
-                    if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.14f) else Color.Transparent,
-                    label = "tabPill"
-                )
-
+                val tint by animateColorAsState(if (selected) colors.textPrimary else colors.textSecondary, label = "tabTint")
+                val fill by animateColorAsState(if (selected) colors.textPrimary.copy(alpha = .12f) else Color.Transparent, label = "tabPill")
                 Column(
-                    modifier = Modifier
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) { onItemClick(item.route) }
-                        .padding(horizontal = 4.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    modifier = Modifier.weight(1f).clip(RoundedCornerShape(28.dp)).background(fill)
+                        .selectable(selected = selected, role = Role.Tab, onClick = { onItemClick(item.route) })
+                        .heightIn(min = 58.dp).padding(horizontal = 3.dp, vertical = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(width = 56.dp, height = 30.dp)
-                            .clip(RoundedCornerShape(15.dp))
-                            .background(pillColor),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = item.icon,
-                            contentDescription = item.contentDesc,
-                            tint = tintColor,
-                            modifier = Modifier.size(21.dp)
-                        )
-                    }
+                    Icon(item.icon, contentDescription = item.contentDesc, tint = tint, modifier = Modifier.size(23.dp))
                     Spacer(Modifier.height(4.dp))
-                    Text(
-                        item.label,
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontSize = 10.sp,
-                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
-                        ),
-                        color = tintColor
-                    )
+                    Text(item.label, color = tint, textAlign = TextAlign.Center,
+                        maxLines = 2, overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp,
+                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium))
                 }
             }
         }

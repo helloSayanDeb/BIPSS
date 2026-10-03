@@ -1,15 +1,19 @@
 package com.bipss.app.domain.cycle
 
+import com.bipss.app.localization.AppText
+import com.bipss.app.R
+
 import kotlin.math.roundToInt
 
 /** One logged period, as local epoch days. [endDay] is inclusive; null while it is ongoing. */
 data class Period(val id: Long, val startDay: Long, val endDay: Long?)
 
-enum class CyclePhase(val label: String) {
+enum class CyclePhase(private val englishLabel: String) {
     MENSTRUAL("Menstrual"),
     FOLLICULAR("Follicular"),
     FERTILE("Fertile window"),
-    LUTEAL("Luteal")
+    LUTEAL("Luteal");
+    val label: String get() = AppText.label(englishLabel)
 }
 
 data class CycleStats(
@@ -127,11 +131,11 @@ object CyclePredictor {
 
     /** Why a start cannot be logged on [day], or null when it can. */
     fun startConflict(periods: List<Period>, day: Long, todayDay: Long): String? = when {
-        day > todayDay -> "A period can't be logged for a day that hasn't happened yet."
+        day > todayDay -> AppText.text(R.string.copy_9a81fedd6398, "A period can't be logged for a day that hasn't happened yet.")
         periods.any { p -> day in p.startDay..(p.endDay ?: (p.startDay + DEFAULT_PERIOD - 1)) } ->
-            "That day is already part of a logged period."
+            AppText.text(R.string.copy_b069b7dd6cc6, "That day is already part of a logged period.")
         periods.any { p -> kotlin.math.abs(p.startDay - day) < MIN_GAP - 5 } ->
-            "That's within ${MIN_GAP - 5} days of another logged start. Remove that one first if it was a mistake."
+            AppText.text(R.string.copy_3e3987be91e2, "That's within %1\$s days of another logged start. Remove that one first if it was a mistake.", MIN_GAP - 5)
         else -> null
     }
 
@@ -141,8 +145,8 @@ object CyclePredictor {
             .maxByOrNull { it.startDay }
 
     fun endConflict(periods: List<Period>, day: Long, todayDay: Long): String? = when {
-        day > todayDay -> "An end can't be logged for a day that hasn't happened yet."
-        periodToEnd(periods, day) == null -> "Log the start of this period first."
+        day > todayDay -> AppText.text(R.string.copy_30ac3814cb51, "An end can't be logged for a day that hasn't happened yet.")
+        periodToEnd(periods, day) == null -> AppText.text(R.string.copy_7260b01dccfb, "Log the start of this period first.")
         else -> null
     }
 }

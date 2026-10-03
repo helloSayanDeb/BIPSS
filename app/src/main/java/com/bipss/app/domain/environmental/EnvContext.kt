@@ -1,5 +1,8 @@
 package com.bipss.app.domain.environmental
 
+import com.bipss.app.localization.AppText
+import com.bipss.app.R
+
 import java.util.Locale
 
 /**
@@ -91,17 +94,17 @@ object EnvContextClassifier {
 
         // What was observed, stated once, whichever way it points.
         when {
-            s.satellitesVisible == 0 -> evidence += "No satellites heard during the check"
-            cn0 != null -> evidence += "Strongest satellites at ${fmt(cn0)} dB-Hz " +
-                "(open sky is usually above ${fmt(OPEN_SKY_CN0_DBHZ)}, indoors below ${fmt(INDOOR_CN0_DBHZ)})"
+            s.satellitesVisible == 0 -> evidence += AppText.text(R.string.copy_e463083ec725, "No satellites heard during the check")
+            cn0 != null -> evidence += AppText.text(R.string.copy_f300b70b7d25, "Strongest satellites at %1\$s dB-Hz ", fmt(cn0)) +
+                AppText.text(R.string.copy_ed779f9c5b05, "(open sky is usually above %1\$s, indoors below %2\$s)", fmt(OPEN_SKY_CN0_DBHZ), fmt(INDOOR_CN0_DBHZ))
         }
-        if (s.satellitesVisible > 0) evidence += "${s.satellitesUsed} of ${s.satellitesVisible} satellites used in the position fix"
-        s.accuracyM?.let { evidence += "GPS accurate to about ${fmt(it)} m" } ?: run {
-            if (s.satellitesVisible > 0) evidence += "No GPS position fix"
+        if (s.satellitesVisible > 0) evidence += AppText.text(R.string.copy_33b77f67b2b0, "%1\$s of %2\$s satellites used in the position fix", s.satellitesUsed, s.satellitesVisible)
+        s.accuracyM?.let { evidence += AppText.text(R.string.copy_5933d12eedb4, "GPS accurate to about %1\$s m", fmt(it)) } ?: run {
+            if (s.satellitesVisible > 0) evidence += AppText.text(R.string.copy_536188a1fee3, "No GPS position fix")
         }
-        if (travelling) evidence += "Travelling" + (s.speedMps?.takeIf { it >= TRAVEL_SPEED_MPS }?.let { " at ${fmt(it * 3.6)} km/h" } ?: "")
-        else if (still) evidence += "Band shows you mostly still"
-        else if (walking) evidence += "Band shows you moving about"
+        if (travelling) evidence += AppText.text(R.string.copy_0d05eabc25f4, "Travelling") + (s.speedMps?.takeIf { it >= TRAVEL_SPEED_MPS }?.let { AppText.text(R.string.copy_f70773fc7640, " at %1\$s km/h", fmt(it * 3.6)) } ?: "")
+        else if (still) evidence += AppText.text(R.string.copy_abcd63daaa11, "Band shows you mostly still")
+        else if (walking) evidence += AppText.text(R.string.copy_a97e86f40c8e, "Band shows you moving about")
 
         return when {
             strong && (manyUsed || goodFix) -> {

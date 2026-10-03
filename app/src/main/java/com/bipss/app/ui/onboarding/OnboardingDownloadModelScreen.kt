@@ -1,5 +1,8 @@
 package com.bipss.app.ui.onboarding
 
+import com.bipss.app.localization.AppText
+import com.bipss.app.R
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -32,109 +35,43 @@ import org.koin.androidx.compose.koinViewModel
  * it says so and moves on; otherwise nothing is fetched until the user taps.
  */
 @Composable
-fun OnboardingDownloadModelScreen(
-    navController: NavController,
-    vm: ModelDownloadViewModel = koinViewModel()
-) {
+fun OnboardingDownloadModelScreen(navController: NavController, standalone: Boolean = false,
+    vm: ModelDownloadViewModel = koinViewModel()) {
     val state by vm.uiState.collectAsStateWithLifecycle()
-    val colors = BipssTheme.colors
     val progress = state.progress
-
-    val isDone = progress is DownloadProgress.Success || progress is DownloadProgress.AlreadyUpToDate
-    val isBusy = progress is DownloadProgress.Initializing ||
-                 progress is DownloadProgress.Downloading ||
-                 progress is DownloadProgress.Verifying
-
-    val next: () -> Unit = { navController.goToNextOnboardingStep(OnboardingStep.MODEL, catchUp = false) }
-
+    val done = progress is DownloadProgress.Success || progress is DownloadProgress.AlreadyUpToDate
+    val busy = progress is DownloadProgress.Initializing || progress is DownloadProgress.Downloading ||
+        progress is DownloadProgress.Verifying || progress is DownloadProgress.Preparing
+    val next: () -> Unit = { if (standalone) navController.popBackStack()
+        else navController.goToNextOnboardingStep(OnboardingStep.MODEL, catchUp = false) }
     OnboardingScaffold(
-        step = OnboardingStep.indexOf(OnboardingStep.MODEL, catchUp = false),
-        totalSteps = OnboardingStep.TOTAL,
-        title = "On-device AI model",
-        subtitle = if (state.configured)
-            "Optional. A language model that runs entirely on your phone, so your questions aren't sent to a server."
-        else
-            "Optional, and not available yet.",
+        step = if (standalone) null else OnboardingStep.indexOf(OnboardingStep.MODEL, catchUp = false),
+        totalSteps = OnboardingStep.TOTAL, title = AppText.text(R.string.copy_177d9ac631dd, "Make Coach more conversational"),
+        subtitle = AppText.text(R.string.copy_cd536acafa72, "Add optional AI for conversations on your phone."),
         onBack = { navController.popBackStack() },
         footer = {
-            when {
-                !state.configured || isDone -> PrimaryButton("Continue", onClick = next)
-                isBusy -> {
-                    PrimaryButton("Downloading…", onClick = {}, loading = true)
-                    Spacer(Modifier.height(Space.s))
-                    GhostButton("Stop and continue", onClick = { vm.stopDownload(); next() },
-                                modifier = Modifier.fillMaxWidth())
-                }
-                state.manifestSizeMb != null -> {
-                    PrimaryButton("Download  ·  ${state.manifestSizeMb} MB", onClick = vm::startDownload)
-                    Spacer(Modifier.height(Space.s))
-                    GhostButton("Not now", onClick = next, modifier = Modifier.fillMaxWidth())
-                }
-                else -> {
-                    PrimaryButton(
-                        text = if (state.manifestCheckFailed) "Try again" else "Check download size",
-                        onClick = vm::checkSize,
-                        loading = state.checking
-                    )
-                    Spacer(Modifier.height(Space.s))
-                    GhostButton("Not now", onClick = next, modifier = Modifier.fillMaxWidth())
-                }
+            if (done) PrimaryButton(AppText.text(R.string.copy_31fbef162594, "Continue"), onClick = next)
+            else {
+                PrimaryButton(if (busy) AppText.text(R.string.copy_339a42865ec7, "Getting Coach ready…") else if (progress is DownloadProgress.Failure) AppText.text(R.string.copy_d8b8392e2c54, "Try again") else AppText.text(R.string.copy_003977f0b57d, "Download now"),
+                    onClick = vm::startDownload, loading = busy)
+                Spacer(Modifier.height(Space.s))
+                GhostButton(if (busy) AppText.text(R.string.copy_dc14e084903b, "Stop and skip") else AppText.text(R.string.copy_b58eb52c8810, "Skip for now"),
+                    onClick = { if (busy) vm.stopDownload(); next() }, modifier = Modifier.fillMaxWidth())
             }
         }
     ) {
-        if (!state.configured) {
-            InfoBanner(
-                text = "No on-device model is available for this version of BIPSS yet. The Coach tab uses " +
-                    "rule-based replies instead, and everything else works fully without a model.",
-                icon = Icons.Rounded.Info,
-                tint = colors.bandMonitor,
-            )
-            return@OnboardingScaffold
-        }
-
-        SectionLabel("What the model adds")
-        Spacer(Modifier.height(Space.m))
         BipssCard {
-            FeatureRow(
-                icon = Icons.Rounded.Forum,
-                tint = MaterialTheme.colorScheme.primary,
-                title = "Conversational answers",
-                body = "Ask why a score moved and get a reply grounded in your own readings."
-            )
+            FeatureRow(Icons.Rounded.Forum, MaterialTheme.colorScheme.primary, AppText.text(R.string.copy_aa77c232d64c, "More room for conversation"),
+                AppText.text(R.string.copy_4237f9beac3d, "Ask follow-up questions about your day and explore your readings."))
             Spacer(Modifier.height(Space.xl))
-            FeatureRow(
-                icon = Icons.Rounded.Insights,
-                tint = colors.sleep,
-                title = "Cross-domain narrative",
-                body = "Connects heat, air quality and your band's readings into one explanation."
-            )
-            Spacer(Modifier.height(Space.xl))
-            FeatureRow(
-                icon = Icons.Rounded.TipsAndUpdates,
-                tint = colors.bandMonitor,
-                title = "Suggested next steps",
-                body = "Turns the current picture into concrete things you can do."
-            )
+            FeatureRow(Icons.Rounded.TipsAndUpdates, BipssTheme.colors.sleep, AppText.text(R.string.copy_485ca594ccc9, "Private by design"),
+                AppText.text(R.string.copy_b81b488d3243, "Your conversations stay on your phone."))
         }
-
         Spacer(Modifier.height(Space.l))
-        InfoBanner(
-            text = "Metrics, scores and alerts all work fully without it. You can add it any time from Settings.",
-            icon = Icons.Rounded.Info,
-            tint = colors.bandNormal,
-        )
-
-        if (state.manifestCheckFailed && !isBusy && !isDone) {
-            Spacer(Modifier.height(Space.m))
-            InfoBanner(
-                text = "Couldn't reach the model server. Check your connection, or skip this for now.",
-                icon = Icons.Rounded.Info,
-                tint = colors.bandMonitor,
-            )
-        }
-
-        if (isBusy || isDone || progress is DownloadProgress.Failure) {
-            Spacer(Modifier.height(Space.xl))
+        Text(AppText.text(R.string.copy_0e14d6d8c3b8, "Download on Wi-Fi if possible. You can keep using Coach and add AI later."),
+            style = MaterialTheme.typography.bodyMedium, color = BipssTheme.colors.textSecondary)
+        if (progress !is DownloadProgress.Idle) {
+            Spacer(Modifier.height(Space.l))
             DownloadStatusCard(progress)
         }
     }
@@ -167,7 +104,7 @@ private fun DownloadStatusCard(progress: DownloadProgress) {
                     )
                     Spacer(Modifier.weight(1f))
                     Text(
-                        "${progress.mbDownloaded} / ${progress.totalMb} MB",
+                        AppText.text(R.string.copy_4faf4bdff501, "%1\$s / %2\$s MB", progress.mbDownloaded, progress.totalMb),
                         style = MaterialTheme.typography.bodySmall,
                         color = colors.textSecondary
                     )
@@ -186,15 +123,16 @@ private fun DownloadStatusCard(progress: DownloadProgress) {
                 )
                 Spacer(Modifier.height(Space.s))
                 Text(
-                    (if (progress.estimatedSecondsRemaining > 0) "About ${progress.estimatedSecondsRemaining}s remaining · " else "") +
-                        "keep BIPSS open while it downloads",
+                    (if (progress.estimatedSecondsRemaining > 0) AppText.text(R.string.copy_42cdcbf90378, "About %1\$ss remaining · ", progress.estimatedSecondsRemaining) else "") +
+                        AppText.text(R.string.copy_758cfd9b1af7, "keep BIPSS open while it downloads"),
                     style = MaterialTheme.typography.bodySmall,
                     color = colors.textTertiary
                 )
             }
 
-            is DownloadProgress.Initializing -> IndeterminateRow("Checking for the latest model…")
-            is DownloadProgress.Verifying -> IndeterminateRow("Verifying checksum…")
+            is DownloadProgress.Initializing -> IndeterminateRow(AppText.text(R.string.copy_f8a13f993494, "Checking for the latest model…"))
+            is DownloadProgress.Verifying -> IndeterminateRow(AppText.text(R.string.copy_15e433ec884f, "Checking your download…"))
+            is DownloadProgress.Preparing -> IndeterminateRow(AppText.text(R.string.copy_7800094e7601, "Preparing Coach…"))
 
             is DownloadProgress.Success, is DownloadProgress.AlreadyUpToDate -> {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -202,13 +140,13 @@ private fun DownloadStatusCard(progress: DownloadProgress) {
                     Spacer(Modifier.width(Space.m))
                     Column(Modifier.weight(1f)) {
                         Text(
-                            "Model ready",
+                            AppText.text(R.string.copy_996f3eb220d1, "Model ready"),
                             style = MaterialTheme.typography.titleMedium,
                             color = colors.textPrimary
                         )
                         Spacer(Modifier.height(Space.xs))
                         Text(
-                            "The Coach tab now answers with the on-device model.",
+                            AppText.text(R.string.copy_2c9a14b22244, "The Coach tab now answers with the on-device model."),
                             style = MaterialTheme.typography.bodySmall,
                             color = colors.textSecondary
                         )
@@ -222,7 +160,7 @@ private fun DownloadStatusCard(progress: DownloadProgress) {
                     Spacer(Modifier.width(Space.m))
                     Column(Modifier.weight(1f)) {
                         Text(
-                            "Download failed",
+                            AppText.text(R.string.copy_eae34ccbc443, "Download failed"),
                             style = MaterialTheme.typography.titleMedium,
                             color = colors.textPrimary
                         )

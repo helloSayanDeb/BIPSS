@@ -1,5 +1,8 @@
 package com.bipss.app.ui.components
 
+import com.bipss.app.localization.AppText
+import com.bipss.app.R
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -42,7 +45,7 @@ fun SimulationBanner(modifier: Modifier = Modifier) {
         Icon(Icons.Outlined.Science, contentDescription = null, tint = colors.card, modifier = Modifier.size(16.dp))
         Spacer(Modifier.width(8.dp))
         Text(
-            "Simulated band — not real data",
+            AppText.text(R.string.copy_0cbfd1b23e73, "Simulated band — not real data"),
             style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.SemiBold,
             color = colors.card

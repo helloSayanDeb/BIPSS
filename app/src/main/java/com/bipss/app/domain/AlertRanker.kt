@@ -1,5 +1,8 @@
 package com.bipss.app.domain
 
+import com.bipss.app.localization.AppText
+import com.bipss.app.R
+
 import com.bipss.app.domain.environmental.ImdAlert
 import com.bipss.app.domain.environmental.RankedAlert
 import com.bipss.app.domain.environmental.Relevance
@@ -224,8 +227,8 @@ object AlertRanker {
         // the app never computed.
         val note = if (weight == WEIGHT_HIGH &&
             match.availability == ScoreAvailability.AVAILABLE) {
-            "Your ${domain.displayName} is already ${match.score}/100 - " +
-                "this alert affects you more than most"
+            AppText.text(R.string.copy_fc4134e52bb2, "Your %1\$s is already %2\$s/100 - ", domain.displayName, match.score) +
+                AppText.text(R.string.copy_35b1cce5496b, "this alert affects you more than most")
         } else null
 
         return Vulnerability(weight, note)

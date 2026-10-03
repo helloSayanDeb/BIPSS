@@ -1,124 +1,90 @@
 package com.bipss.app.ui.dashboard
 
+import com.bipss.app.localization.AppText
+import com.bipss.app.R
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
-import androidx.compose.material.icons.rounded.CloudDone
-import androidx.compose.material.icons.rounded.CloudOff
-import androidx.compose.material.icons.rounded.Settings
-import androidx.compose.material.icons.rounded.Watch
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
+import androidx.compose.material.icons.rounded.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
-import com.bipss.app.navigation.LocalScaffoldPadding
-import com.bipss.app.navigation.Routes
+import com.bipss.app.navigation.*
+import com.bipss.app.ui.activity.ActivityViewModel
 import com.bipss.app.ui.components.*
-import com.bipss.app.ui.theme.BipssTheme
-import com.bipss.app.ui.theme.Space
+import com.bipss.app.ui.theme.*
 import org.koin.androidx.compose.koinViewModel
 
 @Composable
-fun DashboardProfileScreen(
-    navController: NavController,
-    vm: DashboardViewModel = koinViewModel()
-) {
-    val state by vm.uiState.collectAsStateWithLifecycle()
+fun DashboardProfileScreen(navController: NavController, vm: DashboardViewModel = koinViewModel(),
+    activityVm: ActivityViewModel = koinViewModel()) {
+    val daily by activityVm.ui.collectAsStateWithLifecycle()
     val colors = BipssTheme.colors
-
-    Column(
-        Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .verticalScroll(rememberScrollState())
-            .padding(LocalScaffoldPadding.current)
-            .padding(horizontal = Space.gutter)
-    ) {
-        Spacer(Modifier.height(Space.l))
-        Text("More", style = MaterialTheme.typography.headlineLarge, color = colors.textPrimary)
-
-        Spacer(Modifier.height(Space.xl))
-
-        BipssCard(onClick = { navController.navigate(Routes.SETTINGS) }) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconBadge(Icons.Rounded.Settings, MaterialTheme.colorScheme.primary)
-                Spacer(Modifier.width(Space.l))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        "Settings",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = colors.textPrimary
-                    )
-                    Spacer(Modifier.height(Space.xs))
-                    Text(
-                        "Profile, device, AI model, privacy and emergency contacts",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = colors.textSecondary
-                    )
-                }
-                Icon(
-                    Icons.AutoMirrored.Rounded.KeyboardArrowRight, null,
-                    tint = colors.textTertiary,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
+    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).verticalScroll(rememberScrollState())
+        .padding(LocalScaffoldPadding.current).padding(horizontal = Space.gutter),
+        verticalArrangement = Arrangement.spacedBy(Space.l)) {
+        Spacer(Modifier.height(Space.xs))
+        Text(AppText.text(R.string.copy_d47d7cb0e4f8, "More"), style = MaterialTheme.typography.headlineLarge, color = colors.textPrimary)
+        BipssCard(onClick = { navController.navigate(Routes.ONBOARDING_PROFILE_EDIT) }) {
+            Text(daily.profile?.name?.takeIf { it.isNotBlank() } ?: AppText.text(R.string.copy_528d89ad72cb, "Your profile"), style = MaterialTheme.typography.titleLarge, color = colors.textPrimary)
+            Spacer(Modifier.height(Space.s))
+            Text(AppText.text(R.string.copy_ef55f5a7f733, "Personal details & measurements  →"), style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary)
         }
-
-        Spacer(Modifier.height(Space.xxl))
-        SectionLabel("System status")
-        Spacer(Modifier.height(Space.m))
+        SectionHeader(AppText.text(R.string.copy_e474894a4bf7, "Your wellbeing"))
         BipssCard {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconBadge(
-                    if (state.isOnline) Icons.Rounded.CloudDone else Icons.Rounded.CloudOff,
-                    if (state.isOnline) colors.bandNormal else colors.bandMonitor,
-                    size = 34.dp
-                )
-                Spacer(Modifier.width(Space.m))
-                Text(
-                    if (state.isOnline) "Network online" else "Offline — using cached data",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = colors.textPrimary
-                )
+            MoreLink(AppText.text(R.string.copy_bbb419f0149d, "Activity & steps"), AppText.text(R.string.copy_b1ff4d0f3b7d, "Goals, history and your activity log"), Icons.Rounded.DirectionsRun) { navController.navigate(Routes.ACTIVITY_DETAIL) }
+            HairlineDivider()
+            MoreLink(AppText.text(R.string.copy_7826b2bdbdc1, "Body measurements"), AppText.text(R.string.copy_9220e22034f3, "Height, weight and BMI"), Icons.Rounded.AccessibilityNew) { navController.navigate(Routes.BODY_DETAIL) }
+            HairlineDivider()
+            MoreLink(AppText.text(R.string.copy_1d9605ff4a17, "Hydration"), AppText.text(R.string.copy_8915a96388f6, "Your goal and daily drinks"), Icons.Rounded.WaterDrop) { navController.navigate(Routes.HYDRATION_DETAIL) }
+            HairlineDivider()
+            MoreLink(AppText.text(R.string.copy_d466bcf52eb6, "Sleep"), AppText.text(R.string.copy_48e91fc0a926, "Your nights and sleep patterns"), Icons.Rounded.Bedtime) { navController.navigate(Routes.SLEEP_DETAIL) }
+            if (daily.profile?.gender == com.bipss.app.data.Gender.FEMALE) {
+                HairlineDivider()
+                MoreLink(AppText.text(R.string.copy_518653530449, "Cycle"), AppText.text(R.string.copy_e022a3ac2600, "Calendar and notes"), Icons.Rounded.CalendarMonth) { navController.navigate(Routes.CYCLE_DETAIL) }
             }
-            Spacer(Modifier.height(Space.m))
             HairlineDivider()
-            InfoRow("Environment synced", state.env.dataAgeLabel)
+            MoreLink(AppText.text(R.string.copy_068863289325, "Your trends"), AppText.text(R.string.copy_63ca6dc4ad05, "Sleep, recovery and activity over time"), Icons.Rounded.Insights) { navController.navigate(Routes.TRENDS) }
             HairlineDivider()
-            InfoRow(
-                "Health status",
-                when (state.healthStatus) {
-                    HealthStatus.NORMAL  -> "Normal"
-                    HealthStatus.MONITOR -> "Monitor"
-                    HealthStatus.AT_RISK -> "At risk"
-                }
-            )
+            MoreLink(AppText.text(R.string.copy_345d1f24f40f, "Sleep routine"), AppText.text(R.string.copy_62ebb1af04c6, "Bedtime, wake time and daily rhythm"), Icons.Rounded.Bedtime) { navController.navigate(Routes.ROUTINE) }
             HairlineDivider()
-            InfoRow("Band", if (state.hasBand) "Streaming" else "Not streaming")
+            MoreLink(AppText.text(R.string.copy_be80ef360690, "Food journal"), if (daily.data.nutritionEnabled) AppText.text(R.string.copy_6e2d0086d1a7, "Meals and nutrition you log") else AppText.text(R.string.copy_50588c9edbcd, "Optional · set up when you're ready"), Icons.Rounded.Restaurant) { navController.navigate(Routes.NUTRITION) }
+            HairlineDivider()
+            MoreLink(AppText.text(R.string.copy_4eac4c1136cd, "Breathing break"), AppText.text(R.string.copy_22a9fe6f17a7, "One quiet minute"), Icons.Rounded.Air) { navController.navigate(Routes.BREATHING) }
         }
+        SectionHeader(AppText.text(R.string.copy_9c3728a79757, "Your app"))
+        BipssCard {
+            MoreLink(AppText.text(R.string.copy_b3ad0f6efcb9, "Your band"), AppText.text(R.string.copy_1b5ab66e5a9b, "Connect or manage your device"), Icons.Rounded.Watch) { navController.navigate(Routes.ONBOARDING_CONNECT_BAND_REPAIR) }
+            HairlineDivider()
+            MoreLink(AppText.text(R.string.copy_9463d00b353e, "Emergency contacts"), AppText.text(R.string.copy_777d43067c40, "Get ready for an SOS"), Icons.Rounded.LocalHospital) { navController.navigate(Routes.SETTINGS_EMERGENCY) }
+            HairlineDivider()
+            MoreLink(AppText.text(R.string.copy_e0c88e602685, "Coach download"), AppText.text(R.string.copy_a107aad19cf9, "Add optional AI conversations"), Icons.Rounded.AutoAwesome) { navController.navigate(Routes.ONBOARDING_DOWNLOAD_MODEL + "?standalone=true") }
+            HairlineDivider()
+            MoreLink(AppText.text(R.string.copy_f6d3343e3f5a, "Settings & privacy"), AppText.text(R.string.copy_a191cb921b9f, "Appearance, backup and data controls"), Icons.Rounded.Settings) { navController.navigate(Routes.SETTINGS) }
+        }
+        Spacer(Modifier.height(Space.xl))
+    }
+}
 
-        if (state.riskScores.isNotEmpty()) {
-            Spacer(Modifier.height(Space.xxl))
-            SectionLabel("Risk summary")
-            Spacer(Modifier.height(Space.m))
-            BipssCard {
-                state.riskScores.forEachIndexed { i, score ->
-                    // A score that could not be computed is a dash, never "0 / 100".
-                    InfoRow(score.type.displayName, if (score.hasNumber) score.valueWithScale else "—")
-                    if (i < state.riskScores.lastIndex) HairlineDivider()
-                }
+@Composable private fun MoreLink(title: String, subtitle: String, icon: ImageVector, onClick: () -> Unit) {
+    Surface(onClick = onClick, color = androidx.compose.ui.graphics.Color.Transparent) {
+        Row(Modifier.fillMaxWidth().padding(vertical = Space.m), verticalAlignment = Alignment.CenterVertically) {
+            IconBadge(icon, MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.width(Space.m))
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleSmall, color = BipssTheme.colors.textPrimary)
+                Spacer(Modifier.height(Space.s))
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = BipssTheme.colors.textSecondary)
             }
+            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = BipssTheme.colors.textTertiary)
         }
-
-        Spacer(Modifier.height(Space.huge))
     }
 }

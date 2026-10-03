@@ -1,5 +1,8 @@
 package com.bipss.app.ui.onboarding
 
+import com.bipss.app.localization.AppText
+import com.bipss.app.R
+
 import android.Manifest
 import android.bluetooth.BluetoothAdapter
 import android.content.Intent
@@ -118,15 +121,15 @@ fun OnboardingConnectBandScreen(
     OnboardingScaffold(
         step = if (isRePairMode) null else OnboardingStep.indexOf(OnboardingStep.BAND, catchUp = false),
         totalSteps = OnboardingStep.TOTAL,
-        title = if (isRePairMode) "Re-pair your band" else "Connect your band",
-        subtitle = "Power the BIPSS band on and hold it near your phone.",
+        title = if (isRePairMode) AppText.text(R.string.copy_16aa2b62a6f2, "Re-pair your band") else AppText.text(R.string.copy_ebc121880aa4, "Connect your band"),
+        subtitle = AppText.text(R.string.copy_a3b64d203714, "Power the BIPSS band on and hold it near your phone."),
         onBack = { navController.popBackStack() },
         footer = {
             PrimaryButton(
                 text = when {
-                    isConnected -> "Continue"
-                    blocker != null -> "No band connected"
-                    else -> "Waiting for band…"
+                    isConnected -> AppText.text(R.string.copy_31fbef162594, "Continue")
+                    blocker != null -> AppText.text(R.string.copy_3882e2a7a0e5, "No band connected")
+                    else -> AppText.text(R.string.copy_3228fb4ee5ae, "Waiting for band…")
                 },
                 enabled = isConnected,
                 onClick = goNext
@@ -134,7 +137,7 @@ fun OnboardingConnectBandScreen(
             if (!isRePairMode) {
                 Spacer(Modifier.height(Space.s))
                 GhostButton(
-                    text = "Skip for now",
+                    text = AppText.text(R.string.copy_b58eb52c8810, "Skip for now"),
                     onClick = goNext,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -157,29 +160,29 @@ fun OnboardingConnectBandScreen(
 
         when (blocker) {
             ScanBlocker.NO_BLUETOOTH -> InfoBanner(
-                text = "This phone has no Bluetooth, so it can't connect to a band. You can skip this step.",
+                text = AppText.text(R.string.copy_5068052eab4b, "This phone has no Bluetooth, so it can't connect to a band. You can skip this step."),
                 icon = Icons.Rounded.Info,
                 tint = colors.bandMonitor
             )
             ScanBlocker.NO_PERMISSION -> InfoBanner(
-                text = "BIPSS needs the nearby-devices permission to find your band.",
+                text = AppText.text(R.string.copy_37122061b890, "BIPSS needs the nearby-devices permission to find your band."),
                 icon = Icons.Rounded.Info,
                 tint = colors.bandMonitor,
-                action = { GhostButton(text = "Allow", onClick = request, color = colors.bandMonitor) }
+                action = { GhostButton(text = AppText.text(R.string.copy_e213c161d5ce, "Allow"), onClick = request, color = colors.bandMonitor) }
             )
             ScanBlocker.PERMISSION_BLOCKED -> InfoBanner(
-                text = "Nearby-devices permission is turned off for BIPSS. Allow it in Android's settings to find your band.",
+                text = AppText.text(R.string.copy_226f010fa5e7, "Nearby-devices permission is turned off for BIPSS. Allow it in Android's settings to find your band."),
                 icon = Icons.Rounded.Info,
                 tint = colors.bandMonitor,
-                action = { GhostButton(text = "Settings", onClick = { openAppSettings(context) }, color = colors.bandMonitor) }
+                action = { GhostButton(text = AppText.text(R.string.copy_74a883a037bc, "Settings"), onClick = { openAppSettings(context) }, color = colors.bandMonitor) }
             )
             ScanBlocker.BLUETOOTH_OFF -> InfoBanner(
-                text = "Bluetooth is off. Searching starts as soon as it's on.",
+                text = AppText.text(R.string.copy_ac9a7acdb01d, "Bluetooth is off. Searching starts as soon as it's on."),
                 icon = Icons.Rounded.BluetoothDisabled,
                 tint = colors.bandMonitor,
                 action = {
                     GhostButton(
-                        text = "Turn on",
+                        text = AppText.text(R.string.copy_5a1f096a0d8d, "Turn on"),
                         onClick = {
                             runCatching { enableBluetooth.launch(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)) }
                         },
@@ -201,13 +204,13 @@ fun OnboardingConnectBandScreen(
                                 )
                                 Spacer(Modifier.height(Space.xs))
                                 Text(
-                                    "${s.address}  ·  ${s.rssi} dBm",
+                                    AppText.text(R.string.copy_a51c4470e87b, "%1\$s  ·  %2\$s dBm", s.address, s.rssi),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = colors.textTertiary
                                 )
                             }
                             SecondaryButton(
-                                text = "Connect",
+                                text = AppText.text(R.string.copy_1a2303ede074, "Connect"),
                                 onClick = { vm.connectToDevice(s.address) },
                                 contentColor = MaterialTheme.colorScheme.primary
                             )
@@ -215,7 +218,7 @@ fun OnboardingConnectBandScreen(
                     }
                 }
 
-                is BleConnectionState.Connecting -> StatusRow("Connecting to your band…", showSpinner = true)
+                is BleConnectionState.Connecting -> StatusRow(AppText.text(R.string.copy_858652742b7f, "Connecting to your band…"), showSpinner = true)
 
                 is BleConnectionState.Connected -> {
                     BipssCard(accent = colors.bandNormal) {
@@ -224,13 +227,13 @@ fun OnboardingConnectBandScreen(
                             Spacer(Modifier.width(Space.m))
                             Column(Modifier.weight(1f)) {
                                 Text(
-                                    lastSeen?.name ?: "BIPSS Band",
+                                    lastSeen?.name ?: AppText.text(R.string.copy_481ee75f06df, "BIPSS Band"),
                                     style = MaterialTheme.typography.titleMedium,
                                     color = colors.textPrimary
                                 )
                                 Spacer(Modifier.height(Space.xs))
                                 Text(
-                                    "Paired and streaming",
+                                    AppText.text(R.string.copy_652fd7c56889, "Paired and streaming"),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = colors.bandNormal
                                 )
@@ -245,14 +248,14 @@ fun OnboardingConnectBandScreen(
                     tint = colors.bandRisk
                 )
 
-                else -> StatusRow("Searching for nearby bands…", showSpinner = true)
+                else -> StatusRow(AppText.text(R.string.copy_dd251ed1f92e, "Searching for nearby bands…"), showSpinner = true)
             }
         }
 
         Spacer(Modifier.height(Space.xl))
         AnimatedVisibility(visible = !isConnected && !isRePairMode, enter = fadeIn(), exit = fadeOut()) {
             Text(
-                "No band yet? Skip this step. You can pair one later in Settings.",
+                AppText.text(R.string.copy_3c64cb7ab60d, "No band yet? Skip this step. You can pair one later in Settings."),
                 style = MaterialTheme.typography.bodySmall,
                 color = colors.textTertiary,
                 textAlign = TextAlign.Center,

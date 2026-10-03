@@ -1,5 +1,8 @@
 package com.bipss.app.ui.onboarding
 
+import com.bipss.app.localization.AppText
+import com.bipss.app.R
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Contacts
@@ -106,19 +109,19 @@ fun OnboardingContactsScreen(
     OnboardingScaffold(
         step = OnboardingStep.indexOf(OnboardingStep.CONTACTS, catchUp),
         totalSteps = OnboardingStep.TOTAL,
-        title = "Emergency contacts",
-        subtitle = "The people SOS texts. Choosing them now means an emergency isn't the first time you look.",
+        title = AppText.text(R.string.copy_9463d00b353e, "Emergency contacts"),
+        subtitle = AppText.text(R.string.copy_2eda52c84b5e, "The people SOS texts. Choosing them now means an emergency isn't the first time you look."),
         onBack = { navController.popBackStack() },
         footer = {
             if (contacts.isEmpty()) {
-                PrimaryButton("Pick emergency contacts", onClick = openPicker)
+                PrimaryButton(AppText.text(R.string.copy_677b92192944, "Pick emergency contacts"), onClick = openPicker)
                 Spacer(Modifier.height(Space.s))
-                GhostButton("Not now", onClick = { vm.onFinish(finish) }, modifier = Modifier.fillMaxWidth())
+                GhostButton(AppText.text(R.string.copy_a0e63d7c7125, "Not now"), onClick = { vm.onFinish(finish) }, modifier = Modifier.fillMaxWidth())
             } else {
-                PrimaryButton("Finish setup", onClick = { vm.onFinish(finish) })
+                PrimaryButton(AppText.text(R.string.copy_bc01ae77f37c, "Finish setup"), onClick = { vm.onFinish(finish) })
                 if (contacts.size < MAX_EMERGENCY_CONTACTS) {
                     Spacer(Modifier.height(Space.s))
-                    GhostButton("Add another", onClick = openPicker, modifier = Modifier.fillMaxWidth())
+                    GhostButton(AppText.text(R.string.copy_d7246da527c1, "Add another"), onClick = openPicker, modifier = Modifier.fillMaxWidth())
                 }
             }
         }
@@ -126,11 +129,11 @@ fun OnboardingContactsScreen(
         if (contacts.isEmpty()) {
             FeatureRow(
                 icon = Icons.Rounded.Contacts, tint = colors.bandRisk,
-                title = "Picked from your phone's contacts",
-                body = "BIPSS asks to read your contacts so you can choose from them. It keeps only the name " +
-                    "and number of the people you pick (up to $MAX_EMERGENCY_CONTACTS), on this phone and in " +
-                    "your Drive backup if you turn that on. In an SOS, nearby hospitals that are texted are " +
-                    "given these names and numbers, so they can reach someone who knows you."
+                title = AppText.text(R.string.copy_78ae9c3e607d, "Picked from your phone's contacts"),
+                body = AppText.text(R.string.copy_0ee6d02d2fbb, "BIPSS asks to read your contacts so you can choose from them. It keeps only the name ") +
+                    AppText.text(R.string.copy_6e6ad6f85c55, "and number of the people you pick (up to %1\$s), on this phone and in ", MAX_EMERGENCY_CONTACTS) +
+                    AppText.text(R.string.copy_894f1274d5a3, "your Drive backup if you turn that on. In an SOS, nearby hospitals that are texted are ") +
+                    AppText.text(R.string.copy_1b718119b211, "given these names and numbers, so they can reach someone who knows you.")
             )
         } else {
             BipssCard(contentPadding = PaddingValues(horizontal = Space.l, vertical = Space.xs)) {
@@ -150,7 +153,7 @@ fun OnboardingContactsScreen(
             }
             Spacer(Modifier.height(Space.l))
             Text(
-                "You can remove contacts, or add them later, in Settings.",
+                AppText.text(R.string.copy_0e01b59d0d74, "You can remove contacts, or add them later, in Settings."),
                 style = MaterialTheme.typography.bodySmall,
                 color = colors.textTertiary
             )
@@ -160,19 +163,19 @@ fun OnboardingContactsScreen(
     warning?.let { blockers ->
         AlertDialog(
             onDismissRequest = vm::dismissWarning,
-            title = { Text("SOS can't text anyone yet") },
+            title = { Text(AppText.text(R.string.copy_05ea75565c87, "SOS can't text anyone yet")) },
             text = {
                 Text(
                     buildList {
-                        if (SosBlocker.NO_SMS_PERMISSION in blockers) add("SMS permission is off.")
-                        if (SosBlocker.NO_CONTACTS in blockers) add("No emergency contacts are saved.")
+                        if (SosBlocker.NO_SMS_PERMISSION in blockers) add(AppText.text(R.string.copy_3c8054997500, "SMS permission is off."))
+                        if (SosBlocker.NO_CONTACTS in blockers) add(AppText.text(R.string.copy_3c59258018d8, "No emergency contacts are saved."))
                     }.joinToString(" ") +
-                        " Until that's fixed, pressing SOS can only offer to call 112. Home will keep " +
-                        "reminding you, and you can fix it in Settings."
+                        AppText.text(R.string.copy_d911ba923160, " Until that's fixed, pressing SOS can only offer to call 112. Home will keep ") +
+                        AppText.text(R.string.copy_200141895d08, "reminding you, and you can fix it in Settings.")
                 )
             },
-            confirmButton = { TextButton(onClick = { vm.onFinishAnyway(finish) }) { Text("Finish anyway") } },
-            dismissButton = { TextButton(onClick = vm::dismissWarning) { Text("Go back") } }
+            confirmButton = { TextButton(onClick = { vm.onFinishAnyway(finish) }) { Text(AppText.text(R.string.copy_8c31b160848e, "Finish anyway")) } },
+            dismissButton = { TextButton(onClick = vm::dismissWarning) { Text(AppText.text(R.string.copy_6aadac2f2b7a, "Go back")) } }
         )
     }
 }

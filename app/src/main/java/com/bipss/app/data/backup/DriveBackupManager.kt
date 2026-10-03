@@ -92,7 +92,8 @@ data class BackupPayload(
     val dataDays: List<BackupDataDay> = emptyList(),
     val waterLog: List<BackupWater> = emptyList(),
     val cyclePeriods: List<BackupPeriod> = emptyList(),
-    val cycleNotes: List<BackupNote> = emptyList()
+    val cycleNotes: List<BackupNote> = emptyList(),
+    val waterGoalMl: Int? = null
 )
 
 sealed class BackupResult {
@@ -151,9 +152,17 @@ class DriveBackupManager(
                 "Drive backup isn't set up for this build yet (its Google Cloud sign-in client is missing)."
             else "Couldn't get Drive access (${CommonStatusCodes.getStatusCodeString(e.statusCode)})."
         )
+    } catch (e: kotlinx.coroutines.CancellationException) { throw e
     } catch (e: Exception) {
         Log.w(TAG, "Drive authorization failed: ${e.message}")
         Access.Refused("Couldn't get Drive access: ${e.message}")
+    }
+
+    /** Grants access only: no health payload is built, uploaded or restored. */
+    suspend fun connect(): BackupResult = when (val access = authorize()) {
+        is Access.Token -> BackupResult.Success("Google Drive access granted. Choose Back up now when you're ready to save a copy.")
+        is Access.Consent -> BackupResult.NeedsConsent(access.pendingIntent)
+        is Access.Refused -> BackupResult.Failure(access.message)
     }
 
     suspend fun backupNow(): BackupResult {
@@ -226,7 +235,8 @@ class DriveBackupManager(
             dataDays               = dataDayDao.all().map { BackupDataDay(it.epochDay, it.validMinutes) },
             waterLog               = waterDao.all().map { BackupWater(it.timestampMs, it.amountMl) },
             cyclePeriods           = cycleDao.periodsNow().map { BackupPeriod(it.startEpochDay, it.endEpochDay) },
-            cycleNotes             = cycleDao.allNotes().map { BackupNote(it.epochDay, it.note, it.updatedAtMs) }
+            cycleNotes             = cycleDao.allNotes().map { BackupNote(it.epochDay, it.note, it.updatedAtMs) },
+            waterGoalMl            = prefsRepo.waterGoalMl.first()
         )
     }
 
@@ -249,6 +259,9 @@ class DriveBackupManager(
         prefsRepo.setThemePreference(
             ThemePreference.entries.getOrElse(payload.themePreferenceOrdinal) { ThemePreference.DARK }
         )
+        if (prefsRepo.waterGoalMl.first() == null) {
+            payload.waterGoalMl?.takeIf { it in 250..5000 }?.let { prefsRepo.setWaterGoalMl(it) }
+        }
 
         // Contacts: the same number (digits only) is the same person.
         val existing = emergencyContactDao.all().first().map { digits(it.phoneNumber) }.toMutableSet()
@@ -277,7 +290,7 @@ class DriveBackupManager(
         payload.dataDays.forEach { dataDayDao.ensure(it.epochDay); dataDayDao.atLeast(it.epochDay, it.validMinutes) }
 
         val drinksHere = waterDao.all().map { it.timestampMs }.toHashSet()
-        val drinks = payload.waterLog.filter { it.timestampMs !in drinksHere }
+        val drinks = payload.waterLog.filter { it.timestampMs !in drinksHere && it.amountMl in 1..5000 }
         drinks.forEach { waterDao.insert(WaterLogEntity(timestampMs = it.timestampMs, amountMl = it.amountMl)) }
 
         val startsHere = cycleDao.periodsNow().map { it.startEpochDay }.toHashSet()

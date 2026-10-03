@@ -5,6 +5,9 @@ import android.util.Log
 import com.google.mediapipe.tasks.genai.llminference.LlmInference
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.CancellationException
 
 private const val TAG = "ChatbotEngine"
 
@@ -21,7 +24,9 @@ class ChatbotEngine(
     private val context:   Context,
     private val prefsRepo: com.bipss.app.data.UserPreferencesRepository
 ) {
-    private var llmInference: LlmInference? = null
+    @Volatile private var llmInference: LlmInference? = null
+    private val lock = Mutex()
+    private var loadedPath: String? = null
 
     /** True if the engine is initialized and ready to generate responses */
     val isModelAvailable: Boolean get() = llmInference != null
@@ -31,6 +36,11 @@ class ChatbotEngine(
      * Fails gracefully and persists the failure flag so UI can fall back to TemplatedResponder.
      */
     suspend fun initialize(modelPath: String) = withContext(Dispatchers.IO) {
+      lock.withLock {
+        if (loadedPath == modelPath && llmInference != null) return@withLock
+        llmInference?.close()
+        llmInference = null
+        loadedPath = null
         try {
             // Phase 9: AI Backend Pin. For a ~270M-parameter model on unknown
             // demo hardware (emulators, budget phones), CPU inference is the
@@ -44,13 +54,16 @@ class ChatbotEngine(
                 .setTopK(40)
                 .build()
             llmInference = LlmInference.createFromOptions(context, options)
+            loadedPath = modelPath
             prefsRepo.setChatbotEngineFailed(false)
             Log.i(TAG, "LlmInference initialized from $modelPath")
+        } catch (e: CancellationException) { throw e
         } catch (e: Exception) {
             Log.e(TAG, "LlmInference init failed: ${e.message}")
             prefsRepo.setChatbotEngineFailed(true)
             llmInference = null
         }
+      }
     }
 
     /**
@@ -58,13 +71,16 @@ class ChatbotEngine(
      * Returns [ChatbotResult.Failure] if the engine is not initialized.
      */
     suspend fun generateResponse(prompt: String): ChatbotResult = withContext(Dispatchers.IO) {
-        val engine = llmInference ?: return@withContext ChatbotResult.Failure("Model not loaded")
+      lock.withLock {
+        val engine = llmInference ?: return@withLock ChatbotResult.Failure("Model not loaded")
         try {
             val response = engine.generateResponse(prompt)
             ChatbotResult.Success(response?.trim() ?: "I couldn't generate a response.")
+        } catch (e: CancellationException) { throw e
         } catch (e: Exception) {
             Log.e(TAG, "Inference error: ${e.message}")
             ChatbotResult.Failure(e.message ?: "Inference failed")
         }
+      }
     }
 }

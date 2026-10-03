@@ -430,6 +430,15 @@ class UserPreferencesRepository(
 
     // ── Plan 9: Settings ─────────────────────────────────────────────────────
     private val KEY_THEME_PREFERENCE       = intPreferencesKey("theme_preference")
+    private val KEY_WATER_GOAL_ML = intPreferencesKey("water_goal_ml")
+
+    /** An optional user-chosen logging target, never inferred from a sensor. */
+    val waterGoalMl: Flow<Int?> = dataStore.data.map { it[KEY_WATER_GOAL_ML]?.takeIf { ml -> ml in 250..5000 } }
+
+    suspend fun setWaterGoalMl(amountMl: Int) {
+        require(amountMl in 250..5000)
+        dataStore.edit { it[KEY_WATER_GOAL_ML] = amountMl }
+    }
     private val KEY_CLOUD_BACKUP_ENABLED   = booleanPreferencesKey("cloud_backup_enabled")
 
     val themePreference: Flow<ThemePreference> = dataStore.data.map { prefs ->
@@ -620,7 +629,7 @@ data class UserProfile(
  * As the user describes themself. Used for the sex-specific weighting of the
  * strain (TRIMP) formula and for showing cycle tracking; nothing else.
  */
-enum class Gender(val label: String) {
+enum class Gender(private val englishLabel: String) {
     MALE("Male"),
     FEMALE("Female"),
     NON_BINARY("Non-binary"),
@@ -628,7 +637,8 @@ enum class Gender(val label: String) {
 
     companion object {
         fun fromKey(key: String?): Gender? = entries.firstOrNull { it.name == key }
-    }
+    };
+    val label: String get() = com.bipss.app.localization.AppText.label(englishLabel)
 }
 
 /** The onboarding a new install goes through; see UserPreferencesRepository.onboardingVersion. */

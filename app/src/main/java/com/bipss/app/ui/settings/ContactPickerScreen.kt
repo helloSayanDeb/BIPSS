@@ -1,5 +1,8 @@
 package com.bipss.app.ui.settings
 
+import com.bipss.app.localization.AppText
+import com.bipss.app.R
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -50,10 +53,10 @@ fun ContactPickerScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Add Emergency Contact") },
+                title = { Text(AppText.text(R.string.copy_0fb321a01a06, "Add Emergency Contact")) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = AppText.text(R.string.copy_76900f1bfd16, "Back"))
                     }
                 }
             )
@@ -66,7 +69,7 @@ fun ContactPickerScreen(
                         enabled = state.selectedIds.isNotEmpty(),
                         modifier = Modifier.fillMaxWidth().padding(16.dp).height(52.dp)
                     ) {
-                        Text("Save (${state.selectedIds.size}/${state.totalSelectable})")
+                        Text(AppText.text(R.string.copy_9ce19012aee5, "Save (%1\$s/%2\$s)", state.selectedIds.size, state.totalSelectable))
                     }
                 }
             }
@@ -82,7 +85,7 @@ fun ContactPickerScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        "You already have the maximum of $MAX_EMERGENCY_CONTACTS emergency contacts. Remove one from Settings to add another.",
+                        AppText.text(R.string.copy_601235c018dd, "You already have the maximum of %1\$s emergency contacts. Remove one from Settings to add another.", MAX_EMERGENCY_CONTACTS),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -95,14 +98,14 @@ fun ContactPickerScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        "No contacts with phone numbers found on this device.",
+                        AppText.text(R.string.copy_9b176976914d, "No contacts with phone numbers found on this device."),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 else -> {
                     Text(
-                        "Select up to ${state.totalSelectable} contact(s). They'll get an SMS if you trigger SOS, with your location if BIPSS can get it.",
+                        AppText.text(R.string.copy_d408602bdf7e, "Select up to %1\$s contact(s). They'll get an SMS if you trigger SOS, with your location if BIPSS can get it.", state.totalSelectable),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
@@ -140,20 +143,20 @@ private fun ContactsPermissionPrompt(onGrant: () -> Unit) {
         )
         Spacer(Modifier.height(16.dp))
         Text(
-            "Contacts access needed",
+            AppText.text(R.string.copy_2411e0941b5d, "Contacts access needed"),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            "BIPSS needs permission to read your contacts so you can pick who gets notified during an SOS.",
+            AppText.text(R.string.copy_1d8aec33fe3a, "BIPSS needs permission to read your contacts so you can pick who gets notified during an SOS."),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 8.dp)
         )
         Spacer(Modifier.height(24.dp))
         Button(onClick = onGrant, modifier = Modifier.fillMaxWidth().height(52.dp)) {
-            Text("Grant Access")
+            Text(AppText.text(R.string.copy_dabd42bd0284, "Grant Access"))
         }
     }
 }

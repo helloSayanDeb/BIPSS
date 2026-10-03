@@ -1,5 +1,8 @@
 package com.bipss.app.ai
 
+import com.bipss.app.localization.AppText
+import com.bipss.app.R
+
 import java.util.Calendar
 
 object GreetingHelper {
@@ -12,10 +15,10 @@ object GreetingHelper {
         val hour = c.get(Calendar.HOUR_OF_DAY)
 
         val timeGreeting = when (hour) {
-            in 4..11  -> "Good morning"
-            in 12..16 -> "Good afternoon"
-            in 17..21 -> "Good evening"
-            else      -> "Good night"   // 22–03
+            in 4..11  -> AppText.text(R.string.copy_90a90a48e23d, "Good morning")
+            in 12..16 -> AppText.text(R.string.copy_d325e1bbfd1c, "Good afternoon")
+            in 17..21 -> AppText.text(R.string.copy_15a421e4cf76, "Good evening")
+            else      -> AppText.text(R.string.copy_625d31f5ade6, "Good night")   // 22–03
         }
 
         if (fullName.isNullOrBlank()) {

@@ -1,5 +1,8 @@
 package com.bipss.app.ui.settings
 
+import com.bipss.app.localization.AppText
+import com.bipss.app.R
+
 import android.content.Context
 import android.provider.ContactsContract
 import androidx.lifecycle.ViewModel

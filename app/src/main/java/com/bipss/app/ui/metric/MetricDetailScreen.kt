@@ -1,5 +1,8 @@
 package com.bipss.app.ui.metric
 
+import com.bipss.app.localization.AppText
+import com.bipss.app.R
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -58,7 +61,7 @@ fun MetricDetailScreen(
                 title = { Text(meta.label) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = AppText.text(R.string.copy_76900f1bfd16, "Back"))
                     }
                 }
             )
@@ -92,9 +95,9 @@ fun MetricDetailScreen(
                     if (state.isLive) {
                         Box(Modifier.size(8.dp).clip(CircleShape).background(colors.bandNormal))
                         Spacer(Modifier.width(Space.s))
-                        Text("Live from your band", style = MaterialTheme.typography.labelMedium, color = colors.textSecondary)
+                        Text(AppText.text(R.string.copy_7870f7ada23e, "Live from your band"), style = MaterialTheme.typography.labelMedium, color = colors.textSecondary)
                     } else if (state.currentValue != null) {
-                        Text("Latest reading in the chart", style = MaterialTheme.typography.labelMedium, color = colors.textTertiary)
+                        Text(AppText.text(R.string.copy_0acd34970b0a, "Latest reading in the chart"), style = MaterialTheme.typography.labelMedium, color = colors.textTertiary)
                     }
                 }
             }
@@ -132,8 +135,8 @@ fun MetricDetailScreen(
                 if (!state.hasData && !state.isLoading) {
                     InfoBanner(
                         text = if (state.range == TimeRange.LIVE)
-                            "No readings in the last 5 minutes. This view fills in, second by second, while your band is streaming."
-                        else "No data recorded in this period. Wear the band to start building history.",
+                            AppText.text(R.string.copy_8564f621c585, "No readings in the last 5 minutes. This view fills in, second by second, while your band is streaming.")
+                        else AppText.text(R.string.copy_671564f7f8af, "No data recorded in this period. Wear the band to start building history."),
                         icon = Icons.Rounded.Info,
                         tint = colors.textTertiary
                     )
@@ -141,10 +144,10 @@ fun MetricDetailScreen(
                     BipssCard {
                         SectionLabel(
                             when (state.range) {
-                                TimeRange.LIVE  -> "Last 5 minutes"
-                                TimeRange.DAY   -> "Last 24 hours"
-                                TimeRange.WEEK  -> "Last 7 days"
-                                TimeRange.MONTH -> "Last 30 days"
+                                TimeRange.LIVE  -> AppText.text(R.string.copy_ca6a7a4c781e, "Last 5 minutes")
+                                TimeRange.DAY   -> AppText.text(R.string.copy_5c37cf8f018b, "Last 24 hours")
+                                TimeRange.WEEK  -> AppText.text(R.string.copy_0603deca4fcb, "Last 7 days")
+                                TimeRange.MONTH -> AppText.text(R.string.copy_f8f03fb441b8, "Last 30 days")
                             }
                         )
                         Spacer(Modifier.height(Space.m))
@@ -154,7 +157,7 @@ fun MetricDetailScreen(
                             maxValue     = state.stats?.maxValue,
                             restingValue = state.restingValue,
                             // Resting HR comes from raw rows, which only span a week.
-                            restingLabel = if (state.range == com.bipss.app.ui.metric.TimeRange.MONTH) "RESTING · 7D" else "RESTING",
+                            restingLabel = if (state.range == com.bipss.app.ui.metric.TimeRange.MONTH) AppText.text(R.string.copy_54c9d1ea2c54, "RESTING · 7D") else AppText.text(R.string.copy_266af3af0b6a, "RESTING"),
                             unit         = meta.unit,
                             decimals     = decimalsFor(metricType)
                         )
@@ -165,7 +168,7 @@ fun MetricDetailScreen(
             item {
                 state.baseline?.let { baseline ->
                     BipssCard {
-                        SectionLabel("Your baseline")
+                        SectionLabel(AppText.text(R.string.copy_41cb8b8120ad, "Your baseline"))
                         Spacer(Modifier.height(Space.s))
                         Text(
                             "${formatValue(metricType, baseline.toFloat())} ${meta.unit}".trim(),
@@ -174,8 +177,8 @@ fun MetricDetailScreen(
                         )
                         Spacer(Modifier.height(Space.xs))
                         Text(
-                            "The dashed line on the chart. Everything here is scored against " +
-                                "your own history, not a population average.",
+                            AppText.text(R.string.copy_7b4da3cfc6fa, "The dashed line on the chart. Everything here is scored against ") +
+                                AppText.text(R.string.copy_5e0082594a8b, "your own history, not a population average."),
                             style = MaterialTheme.typography.bodySmall,
                             color = colors.textSecondary
                         )
@@ -186,11 +189,11 @@ fun MetricDetailScreen(
             item {
                 if (state.hasData) {
                     BipssCard {
-                        SectionLabel("Reading the chart")
+                        SectionLabel(AppText.text(R.string.copy_b5accd0d9b46, "Reading the chart"))
                         Spacer(Modifier.height(Space.s))
                         Text(
-                            "Breaks in the line are periods with no readings - usually the band " +
-                                "being off. Those gaps are left empty rather than filled in.",
+                            AppText.text(R.string.copy_22aa8ae61958, "Breaks in the line are periods with no readings - usually the band ") +
+                                AppText.text(R.string.copy_4ddae9b646b0, "being off. Those gaps are left empty rather than filled in."),
                             style = MaterialTheme.typography.bodySmall,
                             color = colors.textSecondary
                         )

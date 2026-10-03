@@ -30,7 +30,7 @@ class GattOpQueue(
      * @param awaitsCallback false for a request with no completion callback
      *   (connection priority): the queue moves on as soon as it is issued.
      */
-    class Op(val label: String, val awaitsCallback: Boolean = true, val start: () -> Boolean)
+    class Op(val label: String, val awaitsCallback: Boolean = true, val onFailure: () -> Unit = {}, val start: () -> Boolean)
 
     private val lock = Any()
     private val pending = ArrayDeque<Op>()
@@ -81,12 +81,14 @@ class GattOpQueue(
                         Log.w(TAG, "${op.label} timed out after $timeoutMs ms")
                         current = null
                         timeoutJob = null
+                        op.onFailure()
                         runNextLocked()
                     }
                 }
                 return
             }
             Log.w(TAG, "${op.label} was not accepted - skipping")
+            op.onFailure()
         }
     }
 

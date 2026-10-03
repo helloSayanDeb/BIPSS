@@ -115,6 +115,7 @@ dependencies {
 
     // MediaPipe GenAI
     implementation(libs.mediapipe.tasks.genai)
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.22.0")
 
     // WorkManager
     implementation(libs.work.runtime.ktx)
@@ -134,4 +135,6 @@ dependencies {
 
     // Unit tests - the frame parser and scoring maths are pure Kotlin by design
     testImplementation(libs.junit)
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
 }

@@ -1,5 +1,8 @@
 package com.bipss.app.ui.onboarding
 
+import com.bipss.app.localization.AppText
+import com.bipss.app.R
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -61,7 +64,7 @@ fun OnboardingWelcomeScreen(navController: NavController) {
             )
             Spacer(Modifier.height(Space.s))
             Text(
-                "Your health and safety companion — reading your band, your surroundings, and the risks in between.",
+                AppText.text(R.string.copy_4d33a0047186, "Your health and safety companion — reading your band, your surroundings, and the risks in between."),
                 style = MaterialTheme.typography.bodyLarge,
                 color = colors.textSecondary
             )
@@ -71,34 +74,34 @@ fun OnboardingWelcomeScreen(navController: NavController) {
             FeatureRow(
                 icon = Icons.Rounded.MonitorHeart,
                 tint = colors.heart,
-                title = "Vitals that learn you",
-                body = "Heart rate, SpO₂ and temperature judged against your own baseline, not a textbook average."
+                title = AppText.text(R.string.copy_2dabe3ca9163, "Your personal health trends"),
+                body = AppText.text(R.string.copy_acb945ee103a, "Heart rate, SpO₂ and temperature judged against your own baseline, not a textbook average.")
             )
             Spacer(Modifier.height(Space.xl))
             FeatureRow(
                 icon = Icons.Rounded.Sensors,
                 tint = colors.air,
-                title = "Works offline",
-                body = "Your band's readings and scores work without a connection. Weather, air quality and alerts refresh when you're back online."
+                title = AppText.text(R.string.copy_09918727725c, "Works offline"),
+                body = AppText.text(R.string.copy_b7b51c2b65ba, "Your band's readings and scores work without a connection. Weather, air quality and alerts refresh when you're back online.")
             )
             Spacer(Modifier.height(Space.xl))
             FeatureRow(
                 icon = Icons.Rounded.Shield,
                 tint = colors.bandNormal,
-                title = "Private by default",
-                body = "Analysis runs on your phone. Your health data leaves it only if you switch on sharing or backup."
+                title = AppText.text(R.string.copy_f52e06762e6a, "Private by default"),
+                body = AppText.text(R.string.copy_7ee31d35c99c, "Analysis runs on your phone. Your health data leaves it only if you switch on sharing or backup.")
             )
 
             Spacer(Modifier.weight(1f))
             Spacer(Modifier.height(Space.huge))
 
             PrimaryButton(
-                text = "Get started",
+                text = AppText.text(R.string.copy_61e8d44ad423, "Get started"),
                 onClick = { navController.navigate(Routes.ONBOARDING_NOTIFICATIONS) }
             )
             Spacer(Modifier.height(Space.m))
             Text(
-                "Seven short steps. Anything optional can be skipped and set up later.",
+                AppText.text(R.string.copy_9b7548ce3468, "Seven short steps. Anything optional can be skipped and set up later."),
                 style = MaterialTheme.typography.bodySmall,
                 color = colors.textTertiary,
                 textAlign = TextAlign.Center,

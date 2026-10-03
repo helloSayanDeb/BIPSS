@@ -1,5 +1,8 @@
 package com.bipss.app.ui.components
 
+import com.bipss.app.localization.AppText
+import com.bipss.app.R
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -60,10 +63,10 @@ fun AvailabilityChip(availability: ScoreAvailability, modifier: Modifier = Modif
         // Not "environment only": a partial score may well include the band
         // and be missing something else, such as a water log or air quality.
         ScoreAvailability.AVAILABLE          -> null
-        ScoreAvailability.PARTIAL            -> "Partial data" to colors.bandMonitor
-        ScoreAvailability.NEEDS_BAND         -> "Needs band data" to colors.textTertiary
-        ScoreAvailability.NEEDS_MORE_HISTORY -> "Building baseline" to colors.textTertiary
-        ScoreAvailability.NEEDS_INPUT        -> "Needs your input" to colors.textTertiary
+        ScoreAvailability.PARTIAL            -> AppText.text(R.string.copy_49bbc375c007, "Partial data") to colors.bandMonitor
+        ScoreAvailability.NEEDS_BAND         -> AppText.text(R.string.copy_6c270405393f, "Needs band data") to colors.textTertiary
+        ScoreAvailability.NEEDS_MORE_HISTORY -> AppText.text(R.string.copy_15d2f098b131, "Building baseline") to colors.textTertiary
+        ScoreAvailability.NEEDS_INPUT        -> AppText.text(R.string.copy_b677d376cb8f, "Needs your input") to colors.textTertiary
     } ?: return
 
     val (label, tint) = spec
@@ -126,7 +129,7 @@ fun ScoreRing(
             // as "10" - a rendering bug that silently misreports the score.
             if (known && size >= 80.dp) {
                 if (score.scaleMax > 0) Text(
-                    "of ${score.scaleMax}",
+                    AppText.text(R.string.copy_25c8122ba463, "of %1\$s", score.scaleMax),
                     style = MaterialTheme.typography.labelSmall,
                     color = colors.textTertiary
                 )
@@ -183,7 +186,7 @@ fun ConfidenceBar(confidence: Float, modifier: Modifier = Modifier) {
         )
         Spacer(Modifier.width(Space.m))
         Text(
-            "Confidence ${(clamped * 100).roundToInt()}%",
+            AppText.text(R.string.copy_9791a5736183, "Confidence %1\$s%", (clamped * 100).roundToInt()),
             style = MaterialTheme.typography.labelSmall,
             color = colors.textTertiary
         )

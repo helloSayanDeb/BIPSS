@@ -70,6 +70,7 @@ class SensorRepository(
     private val signalRepo:     SignalRepository,
     private val db:             AppDatabase,
     private val prefsRepo:      UserPreferencesRepository,
+    private val dailyRepo:      DailyActivityRepository,
     private val appScope:       CoroutineScope
 ) {
     val rawReadingDao       = db.rawReadingDao()
@@ -139,6 +140,10 @@ class SensorRepository(
             prefsRepo.firstReadingMs.collect { if (it == null) firstReadingRecorded = false }
         }
         signalRepo.start()
+        appScope.launch { bleGattManager.bandSteps.collect { event ->
+            runCatching { dailyRepo.recordBandSteps(event) }
+                .onFailure { android.util.Log.e("SensorRepository", "Steps not stored", it) }
+        } }
         appScope.launch {
             bleGattManager.sensorReadings.collect { reading ->
                 runCatching { persistAndUpdateBaseline(reading) }
