@@ -100,17 +100,9 @@ fun DashboardInsightsScreen(
 
         Spacer(Modifier.height(Space.xxl))
 
-        BipssCard(onClick = { navController.navigate(com.bipss.app.navigation.Routes.FITNESS) }) {
-            Text(AppText.text(R.string.copy_2026882df169, "Cardio fitness"), style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(Space.s))
-            Text(AppText.text(R.string.copy_273d33c128ff, "Estimated VO₂ max and fitness age"), color = colors.textSecondary)
-        }
+        com.bipss.app.ui.bioage.BioAgeCard(navController)
         Spacer(Modifier.height(Space.m))
-        BipssCard(onClick = { navController.navigate(com.bipss.app.navigation.Routes.SLEEP_STAGES) }) {
-            Text(AppText.text(R.string.copy_c60c9fe2060e, "Sleep stages"), style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(Space.s))
-            Text(AppText.text(R.string.copy_f537b4860901, "Explore your overnight patterns"), color = colors.textSecondary)
-        }
+        InsightsShortcuts(navController)
         Spacer(Modifier.height(Space.xl))
 
         RestingPrvCard(state.restingPrv) {

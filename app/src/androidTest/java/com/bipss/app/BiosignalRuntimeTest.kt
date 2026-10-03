@@ -53,7 +53,6 @@ class BiosignalRuntimeTest {
         val archive = com.bipss.app.data.PpgArchive(context, scope)
         val encoder = com.bipss.app.data.FoundationEncoder(target)
         val repo = SleepStageRepository(target, store, archive, scope, encoder)
-        val fitness = com.bipss.app.data.FitnessRepository(store)
         try {
             repo.setEnabled(true)
             repo.enabled.first { it }
@@ -75,12 +74,9 @@ class BiosignalRuntimeTest {
             assertEquals(120, saved.stages.size)
             assertEquals(100, saved.capturedPercent)
             assertTrue(archive.root.listFiles()!!.any { it.extension == "features" })
-            assertTrue(fitness.save(com.bipss.app.domain.FitnessInput(40, 180.0, 81.0, 4, com.bipss.app.domain.FitnessReference.MALE)))
-            assertEquals(40.944, fitness.records.first().single().vo2, 0.00001)
             repo.clear()
             com.bipss.app.data.UserPreferencesRepository(target, store).clearLocalDataPrefs()
             assertTrue(repo.records.first().isEmpty())
-            assertTrue(fitness.records.first().isEmpty())
             assertFalse(archive.enabled)
             assertTrue(archive.root.listFiles().isNullOrEmpty())
         } finally {

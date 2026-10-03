@@ -4,4 +4,135 @@
   <string name="copy_a0f27f3fd25b" formatted="false">"Be in bed by %1$s for about %2$sh %3$sm of sleep."</string>
   <string name="copy_ae29a50d063d" formatted="false">"Last week\'s sleep, recovery, strain and steps are ready to look at."</string>
   <string name="copy_f190b1f7fd28" formatted="false">"Time to wind down"</string>
+  <string name="copy_01d2bd841437" formatted="false">"From those walks and runs"</string>
+  <string name="copy_022f55b027e1" formatted="false">"Most steps: %1$s, %2$s"</string>
+  <string name="copy_036ec2491d3d" formatted="false">"Moderate activity"</string>
+  <string name="copy_0d6444f26ca2" formatted="false">"How your week went"</string>
+  <string name="copy_0ea76de9c5f7" formatted="false">"Same as the week before"</string>
+  <string name="copy_12e47857152d" formatted="false">"Nothing was recorded this week."</string>
+  <string name="copy_1744c7dc0848" formatted="false">"Sleep debt, last 7 nights"</string>
+  <string name="copy_1ad54ace2b86" formatted="false">"Daily steps"</string>
+  <string name="copy_1ba82f4d7dde" formatted="false">"Your VO₂ max estimate is %1$s mL/kg/min, give or take about %2$s. It comes from your measured activity and resting heart rate, and from steady walks and runs. It isn\'t measured oxygen consumption. See Insights → Cardio fitness."</string>
+  <string name="copy_1c50993b009c" formatted="false">"years"</string>
+  <string name="copy_1d06426d62af" formatted="false">"After a hard day"</string>
+  <string name="copy_1d1e884c6fc3" formatted="false">"mL/kg/min"</string>
+  <string name="copy_1e8f645f2064" formatted="false">"Your BIPSS BioAge appears after about two weeks of wearing the band day and night. See Insights → BioAge."</string>
+  <string name="copy_1ea442a134b2" formatted="false">"No"</string>
+  <string name="copy_1f5532575098" formatted="false">"%1$s vs the week before"</string>
+  <string name="copy_21fbde19cfb0" formatted="false">"Next week"</string>
+  <string name="copy_24dd1d2a6ffb" formatted="false">"A stressful day?"</string>
+  <string name="copy_257ba706673a" formatted="false">"Your BIPSS BioAge is %1$s, %2$s years younger than your age. It combines sleep, steps, heart-rate zones, resting heart rate and VO₂ max. It is a lifestyle estimate, not a medical biological age. See Insights → BioAge."</string>
+  <string name="copy_27b9aac0c836" formatted="false">"Wake time"</string>
+  <string name="copy_2a3abee29252" formatted="false">"Stressful days"</string>
+  <string name="copy_2cd64ad7bd0f" formatted="false">"A meal within 3 hours of bed?"</string>
+  <string name="copy_2efbd2bcc7da" formatted="false">"A steady 10-minute brisk walk or run sharpens it."</string>
+  <string name="copy_2fcd932964d1" formatted="false">"%1$s years older than your age"</string>
+  <string name="copy_30f08a7fdd25" formatted="false">"Keep logging: %1$s days with, %2$s without. It needs %3$s of each."</string>
+  <string name="copy_344bfafb0aa9" formatted="false">"At or above the %1$s target for your age"</string>
+  <string name="copy_35ebc446e74b" formatted="false">"Add from your scale"</string>
+  <string name="copy_361d092fdb15" formatted="false">"Wear your band day and night for a week to get your first estimate."</string>
+  <string name="copy_391136a66bb7" formatted="false">"Caffeine after 2 pm?"</string>
+  <string name="copy_44f0989d1946" formatted="false">"Your usual need is a default of 8 hours until %1$s nights are recorded."</string>
+  <string name="copy_45a6b020003e" formatted="false">"What moves it"</string>
+  <string name="copy_47dcdf9837ee" formatted="false">"Best recovery: %1$s, %2$s"</string>
+  <string name="copy_4b2783146693" formatted="false">"Sleep planner"</string>
+  <string name="copy_4e71829381fa" formatted="false">"Your last 30 days against the past six months."</string>
+  <string name="copy_514b2a67c888" formatted="false">"BioAge at the end"</string>
+  <string name="copy_5251fb4b571f" formatted="false">"Percent of body weight"</string>
+  <string name="copy_53f750c31972" formatted="false">"Weekly report"</string>
+  <string name="copy_541897773a44" formatted="false">"VO₂ max"</string>
+  <string name="copy_566181254b29" formatted="false">"Yesterday"</string>
+  <string name="copy_5750b5e8d7c4" formatted="false">"Lean body mass"</string>
+  <string name="copy_60b46a8b72c6" formatted="false">"A lifestyle estimate, not a medical biological age."</string>
+  <string name="copy_634a9617cb49" formatted="false">"%1$s h"</string>
+  <string name="copy_63ee3a1b965a" formatted="false">"Strength"</string>
+  <string name="copy_670a802ebaec" formatted="false">"Alcohol"</string>
+  <string name="copy_6a3cd190eb53" formatted="false">"Change wake time"</string>
+  <string name="copy_6b3fa23da088" formatted="false">"Below the %1$s target for your age"</string>
+  <string name="copy_6bd238eff53f" formatted="false">"Right on your age"</string>
+  <string name="copy_6d7fac28a8d5" formatted="false">"Your BIPSS BioAge is %1$s, %2$s years older than your age. It combines sleep, steps, heart-rate zones, resting heart rate and VO₂ max. It is a lifestyle estimate, not a medical biological age. See Insights → BioAge."</string>
+  <string name="copy_6e517828c3d8" formatted="false">"Highlights"</string>
+  <string name="copy_74924b1e2c55" formatted="false">"Late meals"</string>
+  <string name="copy_765295b69000" formatted="false">"BioAge at the start of the week"</string>
+  <string name="copy_79884b819837" formatted="false">"What your mornings show"</string>
+  <string name="copy_7f729fc10db8" formatted="false">"Dashed line: your usual need, %1$s"</string>
+  <string name="copy_85a39ab345d6" formatted="false">"Yes"</string>
+  <string name="copy_86de1dedd7a3" formatted="false">"Counts once you log strength sessions"</string>
+  <string name="copy_8a7adbce0a68" formatted="false">"Tonight"</string>
+  <string name="copy_8e8da2b659d1" formatted="false">"For about %1$s of sleep, to wake at %2$s"</string>
+  <string name="copy_90e4b62339a1" formatted="false">"Screens in bed?"</string>
+  <string name="copy_949d3ed75329" formatted="false">"See what helps your recovery"</string>
+  <string name="copy_9dce017a6b6b" formatted="false">"Not enough data yet"</string>
+  <string name="copy_9fc3a32254b7" formatted="false">"%1$s min · average %2$s bpm. Tap to name it."</string>
+  <string name="copy_a08f3b8b0cde" formatted="false">"%1$s – %2$s"</string>
+  <string name="copy_a4ca3061a856" formatted="false">"%1$s · target %2$s"</string>
+  <string name="copy_a555544916b7" formatted="false">"Slowing"</string>
+  <string name="copy_a6d94ceab2c8" formatted="false">"Mindful minutes"</string>
+  <string name="copy_a7bd90afd475" formatted="false">"Late caffeine"</string>
+  <string name="copy_a809ce7ff2ae" formatted="false">"%1$s min/week"</string>
+  <string name="copy_a8d5b13cc704" formatted="false">"Workout detected"</string>
+  <string name="copy_afd53b076df4" formatted="false">"%1$s min · average %2$s bpm · peak %3$s bpm"</string>
+  <string name="copy_b03963812f43" formatted="false">"Reversing"</string>
+  <string name="copy_b0d8a87ede75" formatted="false">"A nudge 30 minutes before bed"</string>
+  <string name="copy_b10a03c0025b" formatted="false">"Your band combines optical pulse and oxygen estimates, wrist movement, skin temperature, ambient temperature/humidity and a gas-based air-quality category. Pulse variability, activity and sleep/wake patterns can be derived from these signals. Insights also offers experimental pulse-based sleep stages, a VO₂ max estimate and BioAge. Those are estimates worked out from band data, not direct measurements or validated results for this device."</string>
+  <string name="copy_b3ee96c93ce5" formatted="false">"Steady"</string>
+  <string name="copy_b71a27b401e5" formatted="false">"Your usual need"</string>
+  <string name="copy_b7b0038864f4" formatted="false">"Your body\'s age, from how you live"</string>
+  <string name="copy_b80b9aa43f54" formatted="false">"Sleep consistency"</string>
+  <string name="copy_bb55848b0245" formatted="false">"Screens in bed"</string>
+  <string name="copy_bb6b8c0cc901" formatted="false">"Your BIPSS BioAge is %1$s, right on your age. It combines sleep, steps, heart-rate zones, resting heart rate and VO₂ max. It is a lifestyle estimate, not a medical biological age. See Insights → BioAge."</string>
+  <string name="copy_bf30f480add1" formatted="false">"Steps a day"</string>
+  <string name="copy_bf72c0f7da6d" formatted="false">"Notifications are off for BIPSS in Android settings, so this reminder will not show."</string>
+  <string name="copy_bff54d6c272f" formatted="false">"Recent nights"</string>
+  <string name="copy_c01f132861f8" formatted="false">"Longest sleep: %1$s, %2$s"</string>
+  <string name="copy_c0f8bbcd4176" formatted="false">"Previous week"</string>
+  <string name="copy_c2259646bb68" formatted="false">"Meditation or slow breathing?"</string>
+  <string name="copy_c287ac938c17" formatted="false">"Recent trend"</string>
+  <string name="copy_c64002243a83" formatted="false">"%1$s years younger than your age"</string>
+  <string name="copy_c692da42e924" formatted="false">"Day %1$s of %2$s"</string>
+  <string name="copy_c9db6f9452ff" formatted="false">"Pace of Aging"</string>
+  <string name="copy_cda42f38916b" formatted="false">"From a body-composition scale, 30 to 100"</string>
+  <string name="copy_d19d5a9c659f" formatted="false">"Be in bed by %1$s"</string>
+  <string name="copy_d1dcc8cc5639" formatted="false">"Your age is %1$s · based on %2$s days"</string>
+  <string name="copy_d510fa0ac6a5" formatted="false">"This week so far"</string>
+  <string name="copy_d61e90db8a9f" formatted="false">"Add your age in your profile to see BioAge."</string>
+  <string name="copy_da45a192fc9c" formatted="false">"Hard activity"</string>
+  <string name="copy_db29b8e71b0a" formatted="false">"Found by your band"</string>
+  <string name="copy_dbfc844903ff" formatted="false">"Not a workout"</string>
+  <string name="copy_dc013e37b77d" formatted="false">"Your VO₂ max estimate appears after about a week of wearing the band day and night. See Insights → Cardio fitness."</string>
+  <string name="copy_dc937b598926" formatted="false">"None"</string>
+  <string name="copy_df40a9135d67" formatted="false">"Bedtime reminder"</string>
+  <string name="copy_e1096e446b4b" formatted="false">"Recovery averaged %1$s points higher the next morning (%2$s days with, %3$s without)"</string>
+  <string name="copy_e17d5f05f9d9" formatted="false">"Accelerated"</string>
+  <string name="copy_e69ede86fafb" formatted="false">"Alcohol?"</string>
+  <string name="copy_ecdc5dfd7464" formatted="false">"Recovery averaged %1$s points lower the next morning (%2$s days with, %3$s without)"</string>
+  <string name="copy_ed172d683572" formatted="false">"BIPSS BioAge"</string>
+  <string name="copy_ed27b587031a" formatted="false">"VO₂ max from your band"</string>
+  <string name="copy_ee3bba5a6362" formatted="false">"From daily activity and resting heart rate"</string>
+  <string name="copy_eeabb1182bc3" formatted="false">"Steady walks and runs counted"</string>
+  <string name="copy_f21c57b2f30c" formatted="false">"Catching up"</string>
+  <string name="copy_f43b33271267" formatted="false">"Tonight\'s bedtime and your sleep debt"</string>
+  <string name="copy_f7d3fa646063" formatted="false">"Wear your band day and night. Your BioAge appears after %1$s days of wear."</string>
+  <string name="copy_f906d162880f" formatted="false">"Provisional · based on %1$s days"</string>
+  <string name="copy_fc2399393d70" formatted="false">"Hardest day: %1$s, strain %2$s"</string>
+  <string name="copy_ff64655deccc" formatted="false">"Daily journal"</string>
+  <string name="copy_28c2536bb6c7" formatted="false">"Weekly report notification"</string>
+  <string name="copy_8463eb4799ce" formatted="false">"Create ZIP"</string>
+  <string name="copy_85e1926550d0" formatted="false">"Health report"</string>
+  <string name="copy_9c80b04be554" formatted="false">"Export your data"</string>
+  <string name="copy_b21f42c63729" formatted="false">"Couldn\'t create the file. Please try again."</string>
+  <string name="copy_bb8db588c1f0" formatted="false">"Monday morning, when last week has a report"</string>
+  <string name="copy_c5c1b1749568" formatted="false">"A PDF of your sleep, steps, heart rate, BioAge and VO₂ max."</string>
+  <string name="copy_c79ed9492e3c" formatted="false">"Creating…"</string>
+  <string name="copy_c87c94753c6e" formatted="false">"CSV files for spreadsheets: daily summaries, sleep, oxygen dips, water, workouts, journal and readings."</string>
+  <string name="copy_da7c7a272506" formatted="false">"All your data"</string>
+  <string name="copy_e45411b9a471" formatted="false">"Create PDF"</string>
+  <string name="copy_e65608cab0f5" formatted="false">"Overnight oxygen record"</string>
+  <string name="copy_ec6ccae7555f" formatted="false">"A PDF of every night and every oxygen dip, to show a doctor."</string>
+  <string name="copy_ee00ac0fd74a" formatted="false">"Share as PDF"</string>
+  <string name="widget_water_description" formatted="false">"Log water without opening the app"</string>
+  <string name="copy_7ca7dea90680" formatted="false">"Water"</string>
+  <string name="copy_d43fdce41454" formatted="false">"Add %1$s millilitres"</string>
+  <string name="copy_db896ea3ada1" formatted="false">"%1$s / %2$s mL"</string>
+  <string name="copy_f8e9cdf007a8" formatted="false">"Take back the last 250 millilitres"</string>
 </resources>

@@ -13,7 +13,8 @@ import kotlin.math.roundToInt
 object HistoryCoach {
     data class Sleep(val day: Long, val minutes: Int, val bedMinute: Int, val wakeMinute: Int, val interruptions: Int)
     data class Context(val today: Long, val data: DailyActivityData, val sleeps: List<Sleep>,
-        val fitness: com.bipss.app.domain.FitnessRecord? = null,
+        val vo2: Double? = null, val vo2Sigma: Double? = null,
+        val bioAge: Double? = null, val bioAgeDelta: Double? = null,
         val stages: com.bipss.app.data.SleepStages? = null)
     // Internal regression examples; recognition also accepts natural paraphrases.
     internal val questions = listOf(
@@ -104,15 +105,18 @@ object HistoryCoach {
             HistoryIntent.STRAIN_COUNT -> AppText.text(R.string.copy_f405a257f221, "%1\$s of the last 14 days have Strain records. Missing days are not zero-load days.", d.health.count { it.key in (c.today - 13)..c.today && it.value.strain != null })
             HistoryIntent.STRAIN_COMPARE -> compare(AppText.text(R.string.copy_fcde25fd44fb, "Strain"), d.health.mapNotNull { (day, h) -> h.strain?.let { day to it.toDouble() } }.toMap(), c.today, "/21")
             HistoryIntent.STEP_SYNC -> d.bandStepAnchor?.let { AppText.text(R.string.copy_0e2118acf114, "Band steps were last received at %1\$s. Open Activity for the daily count. An overnight disconnected interval may be incomplete.", java.time.Instant.ofEpochMilli(it.receivedMs).atZone(java.time.ZoneId.systemDefault()).toLocalDateTime()) } ?: AppText.text(R.string.copy_b66d6528a1b9, "No band step packet received yet. Connect your band after installing the step tracking firmware.")
-            HistoryIntent.SENSORS -> AppText.text(R.string.copy_eadff0f2af61, "Your band combines optical pulse and oxygen estimates, wrist movement, skin temperature, ambient temperature/humidity and a gas-based air-quality category. Pulse variability, activity and sleep/wake patterns can be derived from these signals. Insights also offers experimental pulse-based sleep stages and a profile/activity-based VO₂ max estimate. Those estimates are not direct band measurements or validated results for this device.")
+            HistoryIntent.SENSORS -> AppText.text(R.string.copy_b10a03c0025b, "Your band combines optical pulse and oxygen estimates, wrist movement, skin temperature, ambient temperature/humidity and a gas-based air-quality category. Pulse variability, activity and sleep/wake patterns can be derived from these signals. Insights also offers experimental pulse-based sleep stages, a VO₂ max estimate and BioAge. Those are estimates worked out from band data, not direct measurements or validated results for this device.")
             HistoryIntent.AUTONOMIC_LOAD -> AppText.text(R.string.copy_486314158258, "Autonomic Load compares pulse variability and heart rate during still periods with your own usual range. A higher result can have several causes, including recent exertion, poor sleep or heat. It is an experimental wellness indicator, not a diagnosis or a measurement of emotional stress. See Insights for the current result.")
             HistoryIntent.SIGNAL_QUALITY -> AppText.text(R.string.copy_3241bc0d3684, "Wear the band snugly without discomfort, keep the optical window clean, and sit still for a resting reading. Check fit if readings drop out. Movement, poor contact and cold skin can reduce signal quality; missing readings shouldn't be treated as normal values.")
-            HistoryIntent.VO2 -> c.fitness?.let {
-                AppText.text(R.string.copy_150ca3ff8998, "Your saved VO₂ max estimate from %1\$s is %2\$s mL/kg/min. It uses your age, height, weight, activity answer and selected reference. It isn't measured oxygen consumption. Open Insights → Cardio fitness to update it; small changes needn't mean your fitness changed.", LocalDate.ofEpochDay(LocalDay.epochDay(it.atMs)), fmt(it.vo2))
-            } ?: AppText.text(R.string.copy_c67b91486997, "Open Insights → Cardio fitness to make an estimate from your profile and usual activity. A band oxygen-saturation reading alone cannot measure VO₂ max.")
-            HistoryIntent.FITNESS_AGE -> c.fitness?.let {
-                AppText.text(R.string.copy_aca29d8cda84, "Your saved estimated fitness age is %1\$s, compared with age-group fitness averages. This is a rough fitness comparison, not your biological age or a prediction of lifespan. It was saved on %2\$s.", it.ageBand, LocalDate.ofEpochDay(LocalDay.epochDay(it.atMs)))
-            } ?: AppText.text(R.string.copy_e12bc27df9d3, "BIPSS offers an estimated fitness-age comparison in Insights → Cardio fitness. It does not measure biological age. Add your usual activity to make an estimate.")
+            HistoryIntent.VO2 -> c.vo2?.let {
+                AppText.text(R.string.copy_1ba82f4d7dde, "Your VO₂ max estimate is %1\$s mL/kg/min, give or take about %2\$s. It comes from your measured activity and resting heart rate, and from steady walks and runs. It isn't measured oxygen consumption. See Insights → Cardio fitness.", fmt(it), fmt(c.vo2Sigma ?: 0.0))
+            } ?: AppText.text(R.string.copy_dc013e37b77d, "Your VO₂ max estimate appears after about a week of wearing the band day and night. See Insights → Cardio fitness.")
+            HistoryIntent.FITNESS_AGE -> c.bioAge?.let { age ->
+                val delta = c.bioAgeDelta ?: 0.0
+                if (kotlin.math.abs(delta) < 0.05) AppText.text(R.string.copy_bb6b8c0cc901, "Your BIPSS BioAge is %1\$s, right on your age. It combines sleep, steps, heart-rate zones, resting heart rate and VO₂ max. It is a lifestyle estimate, not a medical biological age. See Insights → BioAge.", fmt(age))
+                else if (delta < 0) AppText.text(R.string.copy_257ba706673a, "Your BIPSS BioAge is %1\$s, %2\$s years younger than your age. It combines sleep, steps, heart-rate zones, resting heart rate and VO₂ max. It is a lifestyle estimate, not a medical biological age. See Insights → BioAge.", fmt(age), fmt(-delta))
+                else AppText.text(R.string.copy_6d7fac28a8d5, "Your BIPSS BioAge is %1\$s, %2\$s years older than your age. It combines sleep, steps, heart-rate zones, resting heart rate and VO₂ max. It is a lifestyle estimate, not a medical biological age. See Insights → BioAge.", fmt(age), fmt(delta))
+            } ?: AppText.text(R.string.copy_1e8f645f2064, "Your BIPSS BioAge appears after about two weeks of wearing the band day and night. See Insights → BioAge.")
             HistoryIntent.SLEEP_STAGES -> c.stages?.let { night ->
                 AppText.text(R.string.copy_54da5ee8b888, "For the recording starting %1\$s, estimated stages were ", LocalDate.ofEpochDay(LocalDay.epochDay(night.startMs))) +
                     listOf(AppText.text(R.string.copy_33a7e908344d, "Wake"), AppText.text(R.string.copy_dbcd5e7bb7a0, "Light"), AppText.text(R.string.copy_c54e3625467b, "Deep"), "REM").mapIndexed { stage, label -> AppText.text(R.string.copy_8bb95d31228c, "%1\$s %2\$s min", label, fmt(night.stages.count { it == stage } / 2.0)) }.joinToString(", ") +

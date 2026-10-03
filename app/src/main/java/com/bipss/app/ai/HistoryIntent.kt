@@ -17,7 +17,7 @@ internal enum class HistoryIntent {
                 Regex("\\b${Regex.escape(it)}\\b").containsMatchIn(q)
             }
             if (has("don t", "do not", "never show", "hide my", "without my")) return null
-            if (has("fitness age", "biological age")) return FITNESS_AGE
+            if (has("fitness age", "biological age", "bioage", "bio age", "pace of aging", "body age")) return FITNESS_AGE
             if (has("vo2", "vo2max", "vo 2", "cardio fitness", "cardiorespiratory fitness")) return VO2
             if (has("sleep stages", "sleep stage", "rem sleep", "deep sleep", "light sleep")) return SLEEP_STAGES
             // Sensitive notes need a direct personal request, not a general cycle question.

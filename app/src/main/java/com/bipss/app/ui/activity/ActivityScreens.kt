@@ -80,6 +80,7 @@ fun ActivityScreen(nav: NavController, vm: ActivityViewModel = koinViewModel()) 
                 }
             }
         }
+        DetectedWorkoutsSection()
         SectionHeader(AppText.text(R.string.copy_3bf62105cc84, "Your activities"), trailing = { TextButton(onClick = { showLog = true }) { Text(AppText.text(R.string.copy_85c0ee8deb5b, "+ Log")) } })
         PrimaryButton(if (ui.data.activeWorkout != null) AppText.text(R.string.copy_fdb1bbe86cdf, "Return to workout") else AppText.text(R.string.copy_dc117fe6ea28, "Start a workout"), onClick = { nav.navigate(Routes.WORKOUT_LIVE) })
         Text(AppText.text(R.string.copy_5e959a982fac, "%1\$s minutes logged in the last 7 days", ui.weekMinutes), style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary)
@@ -88,12 +89,12 @@ fun ActivityScreen(nav: NavController, vm: ActivityViewModel = koinViewModel()) 
             BipssCard(onClick = { nav.navigate(Routes.workout(entry.id)) }) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text(AppText.text(R.string.copy_a1572e58740c, "%1\$s · %2\$s min", entry.name, entry.minutes), style = MaterialTheme.typography.titleMedium)
+                        Text(AppText.text(R.string.copy_a1572e58740c, "%1\$s · %2\$s min", AppText.label(entry.name), entry.minutes), style = MaterialTheme.typography.titleMedium)
                         Spacer(Modifier.height(Space.s))
                         Text(java.text.SimpleDateFormat("EEE d MMM, h:mm a", java.util.Locale.getDefault()).format(java.util.Date(entry.atMs)), style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
                         if (entry.note.isNotBlank()) Text(entry.note, Modifier.padding(top = Space.s), style = MaterialTheme.typography.bodyMedium)
                     }
-                    IconButton(onClick = { vm.delete(entry.id) }) { Icon(Icons.Rounded.DeleteOutline, AppText.text(R.string.copy_6f9c75753444, "Delete %1\$s", entry.name)) }
+                    IconButton(onClick = { vm.delete(entry.id) }) { Icon(Icons.Rounded.DeleteOutline, AppText.text(R.string.copy_6f9c75753444, "Delete %1\$s", AppText.label(entry.name))) }
                 }
             }
         }
@@ -105,13 +106,12 @@ fun ActivityScreen(nav: NavController, vm: ActivityViewModel = koinViewModel()) 
 
 @Composable
 private fun ActivityDialog(onDismiss: () -> Unit, onSave: (String, Int, String) -> Unit) {
-    var name by rememberSaveable { mutableStateOf(AppText.text(R.string.copy_08ee52ae125a, "Walk")) }
+    var name by rememberSaveable { mutableStateOf("Walk") }
     var minutes by rememberSaveable { mutableStateOf("30") }
     var note by rememberSaveable { mutableStateOf("") }
     AlertDialog(onDismissRequest = onDismiss, title = { Text(AppText.text(R.string.copy_28d5cede2df6, "Log an activity")) }, text = {
         Column(verticalArrangement = Arrangement.spacedBy(Space.m)) {
-            Row { listOf(AppText.text(R.string.copy_08ee52ae125a, "Walk"), AppText.text(R.string.copy_00d60e31a4e6, "Run"), AppText.text(R.string.copy_518653530449, "Cycle")).forEach { item -> TextButton(onClick = { name = item }) { Text(if (name == item) "✓ $item" else item) } } }
-            Row { listOf(AppText.text(R.string.copy_7b3abf24fddd, "Workout"), AppText.text(R.string.copy_b49d7e8de3c7, "Yoga")).forEach { item -> TextButton(onClick = { name = item }) { Text(if (name == item) "✓ $item" else item) } } }
+            ActivityTypeChooser(name) { name = it }
             OutlinedTextField(minutes, { minutes = it.filter(Char::isDigit).take(3) }, label = { Text(AppText.text(R.string.copy_4f846a84e7fc, "Minutes")) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
             OutlinedTextField(note, { note = it.take(300) }, label = { Text(AppText.text(R.string.copy_6239b93e96e9, "Notes (optional)")) }, maxLines = 3)
         }

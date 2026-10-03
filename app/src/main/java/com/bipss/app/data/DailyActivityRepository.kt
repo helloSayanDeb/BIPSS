@@ -98,7 +98,7 @@ class DailyActivityRepository(private val store: DataStore<Preferences>) {
         }
     }
     suspend fun logActivity(name: String, minutes: Int, note: String) {
-        require(name in listOf("Walk", "Run", "Cycle", "Workout", "Yoga")); require(minutes in 1..600)
+        require(name in WORKOUT_TYPES); require(minutes in 1..600)
         val now = System.currentTimeMillis()
         update { it.copy(activities = (it.activities + ActivityEntry(atMs = now, name = name,
             minutes = minutes, note = note.take(300))).filter { entry -> entry.atMs >= now - 90L * 86_400_000 }.takeLast(500)) }
@@ -134,7 +134,7 @@ class DailyActivityRepository(private val store: DataStore<Preferences>) {
     }
     suspend fun deleteFood(id: String) = update { it.copy(foods = it.foods.filterNot { entry -> entry.id == id }) }
     suspend fun startWorkout(name: String) {
-        require(name in listOf("Walk", "Run", "Cycle", "Workout", "Yoga"))
+        require(name in WORKOUT_TYPES)
         update { if (it.activeWorkout != null) it else it.copy(activeWorkout = ActiveWorkout(name, System.currentTimeMillis())) }
     }
     suspend fun finishWorkout() = update { old ->

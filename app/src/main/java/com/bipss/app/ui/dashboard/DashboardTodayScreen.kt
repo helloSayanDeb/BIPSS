@@ -108,6 +108,7 @@ fun DashboardTodayScreen(navController: NavController, vm: DashboardViewModel = 
                 TextButton(onClick = { navController.navigate(Routes.snapshot(day.day)) }) { Text(AppText.text(R.string.copy_f9dbcaa8f1bf, "Snapshot →")) }
             })
             DayEvents(day) { navController.navigate(Routes.workout(it)) }
+            if (day.isToday) com.bipss.app.ui.activity.DetectedWorkoutBanner(navController)
             if (day.isToday) {
 
             BipssCard(onClick = { navController.navigate(Routes.ACTIVITY_DETAIL) }) {
@@ -143,7 +144,7 @@ fun DashboardTodayScreen(navController: NavController, vm: DashboardViewModel = 
             }
             if (day.isToday) {
                 SectionHeader(AppText.text(R.string.copy_be38d62f0f07, "Daily rhythm"), trailing = {
-                    TextButton(onClick = { navController.navigate(Routes.ROUTINE) }) { Text(AppText.text(R.string.copy_7758080221e6, "Sleep times")) }
+                    TextButton(onClick = { navController.navigate(Routes.SLEEP_PLANNER) }) { Text(AppText.text(R.string.copy_7758080221e6, "Sleep times")) }
                 })
                 val now = java.time.LocalTime.now()
                 DailyWindowCards(com.bipss.app.domain.DailyWindows.build(now.hour * 60 + now.minute,

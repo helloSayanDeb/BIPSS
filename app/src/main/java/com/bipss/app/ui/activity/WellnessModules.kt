@@ -115,7 +115,7 @@ import java.time.format.DateTimeFormatter
     val db = koinInject<AppDatabase>()
     val recorded = ui.data.activities.firstOrNull { it.id == id }
     val active = if (id == null) ui.data.activeWorkout else null
-    var type by rememberSaveable { mutableStateOf(AppText.text(R.string.copy_08ee52ae125a, "Walk")) }
+    var type by rememberSaveable { mutableStateOf("Walk") }
     val now by produceState(System.currentTimeMillis(), active) {
         while (true) { value = System.currentTimeMillis(); delay(1000) }
     }
@@ -131,14 +131,13 @@ import java.time.format.DateTimeFormatter
             delay(10_000)
         } while (true)
     }
-    WellnessPage(recorded?.name ?: AppText.text(R.string.copy_7b3abf24fddd, "Workout"), nav) {
+    WellnessPage(recorded?.name?.let { AppText.label(it) } ?: AppText.text(R.string.copy_7b3abf24fddd, "Workout"), nav) {
         error?.let { Text(it, color = BipssTheme.colors.bandRisk) }
         if (id != null && recorded == null) Text(AppText.text(R.string.copy_8c0e8891607a, "This activity is no longer in your log."))
         else if (start == null) {
             Text(AppText.text(R.string.copy_bd97a2841595, "Make time to move"), style = MaterialTheme.typography.headlineMedium)
             Text(AppText.text(R.string.copy_60ef5cef46f2, "Choose an activity. Wear your band to see heart rate during the session."), color = BipssTheme.colors.textSecondary)
-            Row { listOf(AppText.text(R.string.copy_08ee52ae125a, "Walk"), AppText.text(R.string.copy_00d60e31a4e6, "Run"), AppText.text(R.string.copy_518653530449, "Cycle")).forEach { name -> TextButton(onClick = { type = name }) { Text(if (type == name) "✓ $name" else name) } } }
-            Row { listOf(AppText.text(R.string.copy_7b3abf24fddd, "Workout"), AppText.text(R.string.copy_b49d7e8de3c7, "Yoga")).forEach { name -> TextButton(onClick = { type = name }) { Text(if (type == name) "✓ $name" else name) } } }
+            ActivityTypeChooser(type) { type = it }
             PrimaryButton(AppText.text(R.string.copy_ecd6a6daf701, "Start %1\$s", type), onClick = { vm.startWorkout(type) })
         } else {
             val seconds = ((end - start).coerceAtLeast(0L) / 1000)

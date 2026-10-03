@@ -90,6 +90,29 @@
             </intent-filter>
         </activity>
 
+        <!-- Home-screen water log. Its buttons are explicit broadcasts to this receiver only. -->
+        <receiver
+            android:name=".widget.WaterWidgetProvider"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/water_widget_info" />
+        </receiver>
+
+        <!-- Hands exported reports and CSV bundles to the share sheet; nothing else is exposed. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
         <service
             android:name=".ble.BleForegroundService"
             android:exported="false"

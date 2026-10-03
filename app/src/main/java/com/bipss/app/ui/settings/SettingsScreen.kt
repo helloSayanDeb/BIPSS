@@ -84,6 +84,7 @@ fun SettingsScreen(
             Box(Modifier.bringIntoViewRequester(emergency)) {
                 Column { Group(AppText.text(R.string.copy_9463d00b353e, "Emergency contacts")) { EmergencyContacts(state, vm, navController) } }
             }
+            Group(AppText.text(R.string.copy_ee5ef73aae18, "Your data")) { YourDataCard(navController) }
             Group(AppText.text(R.string.copy_a36877416ca2, "Emergency support")) { NearbyHospitalsCard() }
             Group(AppText.text(R.string.copy_4efca0d10c5f, "About")) { AboutCard() }
             Spacer(Modifier.height(Space.huge))

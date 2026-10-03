@@ -121,7 +121,6 @@ val appModule = module {
     single { com.bipss.app.data.PpgArchive(androidContext(), get()) }
     single { com.bipss.app.data.FoundationEncoder(androidContext()) }
     single { com.bipss.app.data.SleepStageRepository(androidContext(), get(), get(), get(), get()) }
-    single { com.bipss.app.data.FitnessRepository(get()) }
     single { com.bipss.app.data.SignalRepository(get(), get(), get(), get(), get()) }
     single { SensorRepository(get(), get(), get(), get(), get(), get()) }
     single { com.bipss.app.data.ScoringRepository(get(), get()) }
@@ -137,6 +136,9 @@ val appModule = module {
     single { com.bipss.app.data.SleepPlanRepository(get(), get()) }
     single { com.bipss.app.data.WeeklyReportRepository(get(), get()) }
     single { com.bipss.app.data.JournalRepository(get(), get()) }
+    single { com.bipss.app.widget.WaterWidgetUpdater(androidContext(), get(), get(), get()) }
+    single { com.bipss.app.export.CsvExport(get(), get(), get(), get(), get(), get(), get()) }
+    single { com.bipss.app.export.DataExporter(androidContext(), get(), get(), get(), get(), get(), get()) }
     viewModel { com.bipss.app.ui.activity.ActivityViewModel(get(), get(), get()) }
     viewModel { com.bipss.app.ui.dashboard.DayOverviewViewModel(get(), get()) }
 
@@ -212,12 +214,18 @@ val appModule = module {
             scoring       = get(),
             dailyRepo     = get(),
             cycleRepo     = get(),
-            fitnessRepo   = get(),
+            vo2Repo       = get(),
+            bioAgeRepo    = get(),
             stageRepo     = get()
         )
     }
 
-    viewModel { com.bipss.app.ui.sleep.SleepDetailViewModel(get()) }
+    viewModel { com.bipss.app.ui.sleep.SleepDetailViewModel(get(), get()) }
+    viewModel { com.bipss.app.ui.bioage.BioAgeViewModel(get(), get()) }
+    viewModel { com.bipss.app.ui.planner.PlannerViewModel(get(), get(), get(), androidContext()) }
+    viewModel { com.bipss.app.ui.report.ReportViewModel(get(), get()) }
+    viewModel { com.bipss.app.ui.journal.JournalViewModel(get()) }
+    viewModel { com.bipss.app.ui.export.ExportViewModel(get()) }
 
     viewModel {
         OnboardingProfileViewModel(get(), get())

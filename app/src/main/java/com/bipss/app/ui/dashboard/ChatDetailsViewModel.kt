@@ -73,7 +73,8 @@ class ChatDetailsViewModel(
     private val scoring:       com.bipss.app.data.ScoringRepository,
     private val cycleRepo:     com.bipss.app.data.CycleRepository,
     private val dailyRepo:     com.bipss.app.data.DailyActivityRepository,
-    private val fitnessRepo:   com.bipss.app.data.FitnessRepository,
+    private val vo2Repo:       com.bipss.app.data.Vo2Repository,
+    private val bioAgeRepo:    com.bipss.app.data.BioAgeRepository,
     private val stageRepo:     com.bipss.app.data.SleepStageRepository
 ) : ViewModel() {
 
@@ -251,12 +252,15 @@ class ChatDetailsViewModel(
             }
         }
         val sessions = sleepRepo.sessionsNewestLast()
+        val vo2Latest = vo2Repo.latest.first()
+        val bioAgeNow = bioAgeRepo.snapshot.first().result
         val history = com.bipss.app.ai.HistoryCoach.Context(today, daily, sessions.map { s ->
             val bed = java.time.Instant.ofEpochMilli(s.startMs).atZone(java.time.ZoneId.systemDefault()).toLocalTime()
             val wake = java.time.Instant.ofEpochMilli(s.endMs).atZone(java.time.ZoneId.systemDefault()).toLocalTime()
             com.bipss.app.ai.HistoryCoach.Sleep(com.bipss.app.domain.time.LocalDay.epochDay(s.endMs),
                 (s.totalSleepMs / 60000).toInt(), bed.hour * 60 + bed.minute, wake.hour * 60 + wake.minute, s.awakenings)
-        }, fitness = fitnessRepo.records.first().lastOrNull(), stages = stageRepo.records.first().lastOrNull())
+        }, vo2 = vo2Latest?.value, vo2Sigma = vo2Latest?.sigma,
+            bioAge = bioAgeNow?.bioAge, bioAgeDelta = bioAgeNow?.yearsDelta, stages = stageRepo.records.first().lastOrNull())
         com.bipss.app.ai.HistoryCoach.respond(question, history)?.let { return it }
         val sleep = sessions.filter { com.bipss.app.domain.time.LocalDay.epochDay(it.endMs) == today }.maxByOrNull { it.totalSleepMs }
         val now = java.time.LocalTime.now()

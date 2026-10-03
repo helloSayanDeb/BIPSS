@@ -19,7 +19,8 @@ object DeepLink {
         COACH("coach", Routes.DASHBOARD_CHAT),
         SLEEP("sleep", Routes.SLEEP_DETAIL),
         SLEEP_PLAN("sleep_plan", Routes.SLEEP_PLANNER),
-        WEEKLY("weekly", Routes.WEEKLY_REPORT);
+        WEEKLY("weekly", Routes.WEEKLY_REPORT),
+        HYDRATION("hydration", Routes.HYDRATION_DETAIL);
 
         /** Tab destinations use the bottom bar's navigate options; the rest are pushed on top of Home. */
         val isTab: Boolean get() = this == TODAY || this == INSIGHTS || this == COACH

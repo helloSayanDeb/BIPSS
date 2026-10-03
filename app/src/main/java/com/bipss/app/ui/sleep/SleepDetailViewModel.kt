@@ -21,7 +21,8 @@ import kotlinx.coroutines.launch
  * it, rather than issuing a confident verdict off two nights.
  */
 class SleepDetailViewModel(
-    private val sleepRepo: SleepRepository
+    private val sleepRepo: SleepRepository,
+    private val exporter: com.bipss.app.export.DataExporter
 ) : ViewModel() {
 
     data class UiState(
@@ -70,6 +71,7 @@ class SleepDetailViewModel(
         it.copy(selectedIndex = (it.selectedIndex + 1).coerceAtMost(it.screenings.lastIndex.coerceAtLeast(0)))
     }
 
-    /** Night-by-night table a user can hand to a clinician. */
-    suspend fun buildPhysicianReport(): String = sleepRepo.buildPhysicianReport()
+    /** Night-by-night PDF a user can hand to a clinician, as a share sheet. */
+    suspend fun physicianReportShare(): android.content.Intent =
+        exporter.shareIntent(exporter.breathingRecordPdf(), "application/pdf")
 }

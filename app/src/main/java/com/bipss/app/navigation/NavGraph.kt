@@ -141,6 +141,11 @@ fun NavGraph(
             composable(Routes.BODY_DETAIL) { com.bipss.app.ui.activity.BodyScreen(navController) }
             composable(Routes.FITNESS) { com.bipss.app.ui.activity.FitnessScreen(navController) }
             composable(Routes.SLEEP_STAGES) { com.bipss.app.ui.sleep.SleepStagesScreen(navController) }
+            composable(Routes.BIOAGE) { com.bipss.app.ui.bioage.BioAgeScreen(navController) }
+            composable(Routes.SLEEP_PLANNER) { com.bipss.app.ui.planner.PlannerScreen(navController) }
+            composable(Routes.WEEKLY_REPORT) { com.bipss.app.ui.report.ReportScreen(navController) }
+            composable(Routes.JOURNAL) { com.bipss.app.ui.journal.JournalScreen(navController) }
+            composable(Routes.EXPORT) { com.bipss.app.ui.export.ExportScreen(navController) }
             composable(Routes.BREATHING) { com.bipss.app.ui.activity.BreathingScreen(navController) }
             composable("snapshot/{day}", arguments = listOf(navArgument("day") { type = NavType.LongType })) { entry ->
                 com.bipss.app.ui.dashboard.SnapshotScreen(entry.arguments!!.getLong("day"), navController)

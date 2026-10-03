@@ -195,15 +195,7 @@ fun SleepDetailScreen(
                     OutlinedButton(
                         onClick = {
                             scope.launch {
-                                val report = vm.buildPhysicianReport()
-                                val send = Intent(Intent.ACTION_SEND).apply {
-                                    type = "text/plain"
-                                    putExtra(Intent.EXTRA_SUBJECT, "BIPSS overnight oxygen record")
-                                    putExtra(Intent.EXTRA_TEXT, report)
-                                }
-                                context.startActivity(
-                                    Intent.createChooser(send, AppText.text(R.string.copy_252327030492, "Share record"))
-                                )
+                                context.startActivity(vm.physicianReportShare())
                             }
                         },
                         modifier = Modifier.fillMaxWidth()

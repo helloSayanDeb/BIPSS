@@ -22,6 +22,13 @@ class MinuteData(private val rawDao: RawReadingDao, private val aggDao: MinuteAg
         ).associateBy { it.bucketStartMs }
     }
 
+    /** One metric from both tables, bucketed to [bucketMs] (an hour for long exports). */
+    suspend fun rebucket(type: String, startMs: Long, endMs: Long, bucketMs: Long): List<MetricBucket> =
+        mergeBuckets(
+            rawDao.getBuckets(type, startMs, endMs, bucketMs),
+            aggDao.getBuckets(type, startMs / MINUTE, endMs / MINUTE, bucketMs)
+        )
+
     /** Sum of a counted metric (steps) in a minute: the mean times how many samples made it. */
     private fun MetricBucket.sum() = avgValue * sampleCount
 

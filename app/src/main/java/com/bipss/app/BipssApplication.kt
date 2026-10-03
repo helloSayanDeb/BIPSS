@@ -62,6 +62,7 @@ class BipssApplication : Application(), Configuration.Provider, KoinComponent {
             // while a screen happens to be open.
             runCatching { getKoin().get<com.bipss.app.data.SensorRepository>().start() }
             runCatching { getKoin().get<com.bipss.app.data.WaterRepository>().migrateLegacyCounter() }
+            runCatching { getKoin().get<com.bipss.app.widget.WaterWidgetUpdater>().start() }
             runCatching { getKoin().get<com.bipss.app.data.InsightsRefresher>().refresh() }
             runCatching {
                 val file = getKoin().get<com.bipss.app.ai.ModelDownloadManager>().installedModelFile()

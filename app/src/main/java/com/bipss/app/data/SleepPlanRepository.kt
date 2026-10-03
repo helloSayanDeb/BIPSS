@@ -16,7 +16,9 @@ data class SleepPlanState(
     val plan: SleepPlan,
     /** Oldest first, the last two weeks. */
     val nights: List<PlannerNight>,
-    val strainUsed: Double?
+    val strainUsed: Double?,
+    /** 0-100 over the recorded nights, or null with too few. */
+    val consistency: Double?
 )
 
 class SleepPlanRepository(
@@ -27,14 +29,15 @@ class SleepPlanRepository(
     val state: Flow<SleepPlanState> = LocalDay.midnightTicker().flatMapLatest { today ->
         combine(summaries.betweenFlow(today - 20, today), daily.data) { rows, data ->
             build(rows.map { PlannerNight(it.epochDay, it.sleepMinutes ?: 0) }.filter { it.sleepMinutes >= 120 },
-                data.health[today]?.strain ?: data.health[today - 1]?.strain, data.wakeMinutes)
+                data.health[today]?.strain ?: data.health[today - 1]?.strain, data.wakeMinutes,
+                com.bipss.app.domain.bioage.BioAge.sleepConsistency(rows.map { it.toDayStats() }))
         }
     }
 
     suspend fun current(): SleepPlanState = state.first()
 
-    private fun build(nights: List<PlannerNight>, strain: Float?, wakeMin: Int): SleepPlanState {
+    private fun build(nights: List<PlannerNight>, strain: Float?, wakeMin: Int, consistency: Double?): SleepPlanState {
         val s = strain?.toDouble()
-        return SleepPlanState(SleepPlanner.plan(nights, s, wakeMin), nights.takeLast(14), s)
+        return SleepPlanState(SleepPlanner.plan(nights, s, wakeMin), nights.takeLast(14), s, consistency)
     }
 }
